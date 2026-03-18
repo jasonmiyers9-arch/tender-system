@@ -79,9 +79,14 @@ export const admin = {
         return { success: Boolean(json.ok) };
     },
 
+    async listPendingDocuments() {
+        const res = await authFetch('/admin/documents/pending');
+        return res.json() as Promise<{ items: Array<{ id: string; name: string; category: string; status: string; expiryDate: string | null; lastUpdated: string; uploadedBy: string; fileSize: string; fileType: string; companyName: string; companyId: string }> }>;
+    },
+
     async listCompanyDocuments(companyId: string) {
         const res = await authFetch(`/admin/companies/${companyId}/documents`);
-        return res.json() as Promise<{ items: Array<{ id: string; name: string; category: string; status: string; expiryDate: string | null; lastUpdated: string; uploadedBy: string; fileSize: string; fileType: string; companyName: string }> }>;
+        return res.json() as Promise<{ items: Array<{ id: string; name: string; category: string; status: string; expiryDate: string | null; lastUpdated: string; uploadedBy: string; fileSize: string; fileType: string; companyName: string; companyId: string }> }>;
     },
 
     async downloadDocument(docId: string, filename: string) {

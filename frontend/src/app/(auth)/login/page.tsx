@@ -30,7 +30,11 @@ export default function LoginPage() {
             // In a real app we'd set cookies. For the mock we just use Zustand.
             setMockToken(res.token);
             setCurrentUser(res.user);
-            if (res.user.role === 'user' && res.user.onboardingCompleted === false) {
+            if (res.user.role === 'admin') {
+                router.push('/admin/dashboard');
+            } else if (res.user.role === 'evaluator') {
+                router.push('/provider/dashboard');
+            } else if (res.user.onboardingCompleted === false) {
                 router.push('/onboarding');
             } else {
                 router.push('/dashboard');

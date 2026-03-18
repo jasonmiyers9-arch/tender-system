@@ -34,6 +34,20 @@ def _serialize_doc(doc: ComplianceDocument, company_name: str) -> dict:
     }
 
 
+@router.get("/documents/pending")
+async def pending_documents(
+    _admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    rows = await db.execute(
+        select(ComplianceDocument, Company)
+        .join(Company, Company.id == ComplianceDocument.company_id)
+        .where(ComplianceDocument.status == "uploaded")
+        .order_by(ComplianceDocument.created_at.desc())
+    )
+    return {"items": [_serialize_doc(doc, company.name) | {"companyId": str(company.id)} for doc, company in rows.all()]}
+
+
 @router.get("/companies/{company_id}/documents")
 async def company_documents(
     company_id: int,
@@ -51,7 +65,7 @@ async def company_documents(
             .order_by(ComplianceDocument.created_at.desc())
         )
     ).all()
-    return {"items": [_serialize_doc(d, company.name) for d in docs]}
+    return {"items": [_serialize_doc(d, company.name) | {"companyId": str(company_id)} for d in docs]}
 
 
 @router.get("/documents/{doc_id}/download")

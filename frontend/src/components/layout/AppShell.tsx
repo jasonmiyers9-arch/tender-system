@@ -6,12 +6,13 @@ import { Sidebar } from './Sidebar';
 import { Topbar } from './Topbar';
 import { useAppStore } from '@/store/useAppStore';
 import { auth } from '@/lib/api/auth';
+import { companies } from '@/lib/api/companies';
 import { useMarkNotificationRead, useUnreadNotifications } from '@/lib/hooks/useNotifications';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8000';
 
 export function AppShell({ children }: { children: React.ReactNode }) {
-    const { mockToken, currentUser, setCurrentUser, logout } = useAppStore();
+    const { mockToken, currentUser, setCurrentUser, setActiveCompany, logout } = useAppStore();
     const [sessionReady, setSessionReady] = useState(false);
     const [dismissed, setDismissed] = useState<string[]>([]);
     const unreadQuery = useUnreadNotifications(5);
@@ -29,9 +30,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         setSessionReady(false);
         let cancelled = false;
         auth.me()
-            .then((user) => {
+            .then(async (user) => {
+                if (cancelled) return;
+                setCurrentUser(user);
+                try {
+                    const active = await companies.getActive('current');
+                    if (!cancelled && active?.id) {
+                        setActiveCompany(active.id);
+                    }
+                } catch {
+                    // Keep UI alive even if active-company sync fails.
+                }
                 if (!cancelled) {
-                    setCurrentUser(user);
                     setSessionReady(true);
                 }
             })
@@ -46,17 +56,42 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         return () => {
             cancelled = true;
         };
-    }, [mockToken, router, setCurrentUser, logout]);
+    }, [mockToken, router, setCurrentUser, setActiveCompany, logout]);
 
     useEffect(() => {
         if (!mockToken) return;
         if (!currentUser) return;
+
         if (pathname.startsWith('/admin') && currentUser.role !== 'admin') {
-            router.push('/dashboard');
+            router.push(currentUser.role === 'evaluator' ? '/provider/dashboard' : '/dashboard');
             return;
         }
-        if (currentUser.role === 'user' && currentUser.onboardingCompleted === false && pathname !== '/onboarding') {
-            router.push('/onboarding');
+
+        if (pathname.startsWith('/provider') && currentUser.role !== 'evaluator') {
+            router.push(currentUser.role === 'admin' ? '/admin/dashboard' : '/dashboard');
+            return;
+        }
+
+        if (currentUser.role === 'user') {
+            const onboardingAllowedRoutes = ['/onboarding', '/vault'];
+            const canAccessDuringOnboarding = onboardingAllowedRoutes.some((route) => pathname === route || pathname.startsWith(`${route}/`));
+            if (currentUser.onboardingCompleted === false && !canAccessDuringOnboarding) {
+                router.push('/onboarding');
+                return;
+            }
+            if (pathname.startsWith('/admin') || pathname.startsWith('/provider')) {
+                router.push('/dashboard');
+                return;
+            }
+        }
+
+        if (currentUser.role === 'evaluator' && !pathname.startsWith('/provider') && pathname !== '/verify' && !pathname.startsWith('/tenders/calendar')) {
+            router.push('/provider/dashboard');
+            return;
+        }
+
+        if (currentUser.role === 'admin' && (pathname === '/dashboard' || pathname === '/verify')) {
+            router.push('/admin/dashboard');
         }
     }, [mockToken, currentUser, pathname, router]);
 

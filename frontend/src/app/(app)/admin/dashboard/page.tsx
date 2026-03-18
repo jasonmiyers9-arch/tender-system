@@ -98,7 +98,7 @@ export default function AdminDashboardPage() {
                     <p className="text-sm font-medium text-[#1D4ED8]">Pending Verification</p>
                     <div className="flex items-center justify-between mt-1">
                         <span className="text-3xl font-bold text-[#1E3A8A]">{pendingVerification}</span>
-                        <Link href="/admin/audit"><Badge variant="accent">Review Now</Badge></Link>
+                        <Link href="/admin/documents"><Badge variant="accent">Review Now</Badge></Link>
                     </div>
                 </div>
             </div>

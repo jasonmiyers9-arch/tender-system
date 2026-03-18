@@ -6,6 +6,8 @@ export function useCompanies() {
     return useQuery({
         queryKey: ['companies'],
         queryFn: () => companies.listMyCompanies(),
+        refetchOnWindowFocus: true,
+        refetchInterval: 5000,
     });
 }
 

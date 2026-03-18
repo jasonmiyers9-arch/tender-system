@@ -29,6 +29,13 @@ export function useAdminCompanies() {
     });
 }
 
+export function usePendingAdminDocuments() {
+    return useQuery({
+        queryKey: ['admin-pending-docs'],
+        queryFn: () => admin.listPendingDocuments(),
+    });
+}
+
 export function useAdminAccounts(status: 'pending' | 'approved' | 'rejected' | 'all' = 'all') {
     return useQuery({
         queryKey: ['admin-accounts', status],
@@ -72,7 +79,11 @@ export function useVerifyDocument() {
     const qc = useQueryClient();
     return useMutation({
         mutationFn: (docId: string) => admin.markDocumentVerified(docId),
-        onSuccess: () => qc.invalidateQueries({ queryKey: ['admin-company-docs'] }),
+        onSuccess: () => {
+            qc.invalidateQueries({ queryKey: ['admin-company-docs'] });
+            qc.invalidateQueries({ queryKey: ['admin-pending-docs'] });
+            qc.invalidateQueries({ queryKey: ['admin-stats'] });
+        },
     });
 }
 
@@ -80,7 +91,11 @@ export function useRejectDocument() {
     const qc = useQueryClient();
     return useMutation({
         mutationFn: ({ docId, reason }: { docId: string; reason: string }) => admin.markDocumentRejected(docId, reason),
-        onSuccess: () => qc.invalidateQueries({ queryKey: ['admin-company-docs'] }),
+        onSuccess: () => {
+            qc.invalidateQueries({ queryKey: ['admin-company-docs'] });
+            qc.invalidateQueries({ queryKey: ['admin-pending-docs'] });
+            qc.invalidateQueries({ queryKey: ['admin-stats'] });
+        },
     });
 }
 

@@ -23,13 +23,26 @@ export default function OnboardingPage() {
     const [status, setStatus] = useState<null | { onboardingCompleted: boolean; checks: Record<string, boolean>; completionPercent: number; documentsUploaded: number; requiredDocuments: number }>(null);
 
     useEffect(() => {
-        companies.onboardingStatus().then((s) => {
-            setStatus(s);
-            if (s.onboardingCompleted) {
-                if (currentUser) setCurrentUser({ ...currentUser, onboardingCompleted: true });
-                router.push('/dashboard');
-            }
-        }).catch(() => undefined);
+        let cancelled = false;
+
+        const loadStatus = () => {
+            companies.onboardingStatus().then((s) => {
+                if (cancelled) return;
+                setStatus(s);
+                if (s.onboardingCompleted) {
+                    if (currentUser) setCurrentUser({ ...currentUser, onboardingCompleted: true });
+                    router.push('/dashboard');
+                }
+            }).catch(() => undefined);
+        };
+
+        loadStatus();
+        const timer = setInterval(loadStatus, 3000);
+
+        return () => {
+            cancelled = true;
+            clearInterval(timer);
+        };
     }, [router, currentUser, setCurrentUser]);
 
     const checklist = useMemo(() => {
@@ -99,8 +112,15 @@ export default function OnboardingPage() {
                     <Input label="Industry Sector" required value={form.industry_sector} onChange={(e) => setForm({ ...form, industry_sector: e.target.value })} />
                     <Input label="Province" required value={form.province} onChange={(e) => setForm({ ...form, province: e.target.value })} />
 
-                    <div className="p-3 rounded border border-amber-300 bg-amber-50 text-xs text-amber-800">
-                        Next step: upload your first 3 priority documents in Vault — B-BBEE certificate, SARS TCS Pin, and CIPC registration certificate.
+                    <div className="p-3 rounded border border-amber-300 bg-amber-50 text-xs text-amber-800 space-y-3">
+                        <p>
+                            Next step: upload your first 3 priority documents in Vault — B-BBEE certificate, SARS TCS Pin, and CIPC registration certificate.
+                        </p>
+                        <div>
+                            <Button type="button" variant="secondary" onClick={() => router.push('/vault?onboarding=1')}>
+                                Go to Vault Uploads
+                            </Button>
+                        </div>
                     </div>
 
                     <div className="flex justify-end">

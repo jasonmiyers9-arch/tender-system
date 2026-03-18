@@ -1,5 +1,19 @@
 import type { TenderMatch, TenderDetail, TenderReadiness, TenderCalendarItem } from './types';
 
+export interface CreateTenderPayload {
+    title: string;
+    organization: string;
+    deadline: string;
+    value: string;
+    category: string;
+    description: string;
+    requirements: string[];
+    required_categories: string[];
+    eligibilityCriteria: string[];
+    location?: string;
+    status?: 'draft' | 'published';
+}
+
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8000';
 
 function getToken(): string | null {
@@ -71,5 +85,13 @@ export const tenders = {
         a.click();
         a.remove();
         window.URL.revokeObjectURL(url);
+    },
+
+    async createTender(payload: CreateTenderPayload) {
+        const res = await authFetch('/tenders', {
+            method: 'POST',
+            body: JSON.stringify(payload),
+        });
+        return res.json();
     },
 };

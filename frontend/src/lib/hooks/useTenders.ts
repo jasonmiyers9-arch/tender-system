@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { tenders } from '../api/tenders';
 import { useAppStore } from '@/store/useAppStore';
 
@@ -33,5 +33,16 @@ export function useTenderCalendar() {
         queryKey: ['tender-calendar', activeCompanyId],
         queryFn: () => tenders.getCalendar(),
         enabled: !!activeCompanyId,
+    });
+}
+
+export function useCreateTender() {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: tenders.createTender,
+        onSuccess: () => {
+            qc.invalidateQueries({ queryKey: ['tenders'] });
+            qc.invalidateQueries({ queryKey: ['tender-calendar'] });
+        },
     });
 }

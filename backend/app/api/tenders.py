@@ -1,8 +1,12 @@
 from datetime import date, datetime
+from pathlib import Path
+import json
+import uuid
 
 import redis.asyncio as redis
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import PlainTextResponse
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -35,6 +39,9 @@ TENDER_CATALOG = [
             "At least 3 years relevant experience",
             "Good standing for tax and statutory filings",
         ],
+        "location": "South Africa",
+        "status": "published",
+        "createdByRole": "system",
     },
     {
         "id": "2",
@@ -56,6 +63,9 @@ TENDER_CATALOG = [
             "Demonstrated service capacity",
             "Valid statutory documents",
         ],
+        "location": "South Africa",
+        "status": "published",
+        "createdByRole": "system",
     },
     {
         "id": "3",
@@ -76,8 +86,27 @@ TENDER_CATALOG = [
             "Professional indemnity (where applicable)",
             "Regulatory compliance",
         ],
+        "location": "South Africa",
+        "status": "published",
+        "createdByRole": "system",
     },
 ]
+
+ALLOWED_CATEGORIES = {"tax", "legal", "financial", "certification", "bbbee", "registration"}
+
+
+class CreateTenderIn(BaseModel):
+    title: str
+    organization: str
+    deadline: str
+    value: str
+    category: str
+    description: str
+    requirements: list[str]
+    required_categories: list[str]
+    eligibilityCriteria: list[str] = []
+    location: str = "South Africa"
+    status: str = "published"
 
 
 async def _get_active_company_id(db: AsyncSession, user: User) -> int:
@@ -115,6 +144,35 @@ def _status_value(doc: ComplianceDocument) -> str:
     return doc.status.value if hasattr(doc.status, "value") else str(doc.status)
 
 
+def _storage_file() -> Path:
+    root = Path(settings.STORAGE_DIR)
+    root.mkdir(parents=True, exist_ok=True)
+    return root / "provider_tenders.json"
+
+
+def _load_provider_tenders() -> list[dict]:
+    file_path = _storage_file()
+    if not file_path.exists():
+        return []
+    try:
+        data = json.loads(file_path.read_text(encoding="utf-8"))
+        return data if isinstance(data, list) else []
+    except json.JSONDecodeError:
+        return []
+
+
+def _save_provider_tenders(items: list[dict]) -> None:
+    _storage_file().write_text(json.dumps(items, indent=2), encoding="utf-8")
+
+
+def _all_tenders() -> list[dict]:
+    return [*TENDER_CATALOG, *_load_provider_tenders()]
+
+
+def _published_tenders() -> list[dict]:
+    return [t for t in _all_tenders() if t.get("status", "published") == "published"]
+
+
 def _score_tender(tender: dict, docs: list[ComplianceDocument]) -> tuple[int, list[str], list[str]]:
     today = date.today()
     by_category: dict[str, list[ComplianceDocument]] = {}
@@ -145,7 +203,6 @@ def _score_tender(tender: dict, docs: list[ComplianceDocument]) -> tuple[int, li
             recommended.append(cat)
             score -= 16
 
-    # Slight penalty if too many uploaded-but-unverified docs
     unverified = sum(1 for d in docs if _status_value(d) == "uploaded")
     if unverified >= 3:
         score -= 6
@@ -199,11 +256,83 @@ def _build_readiness(tender: dict, docs: list[ComplianceDocument]) -> dict:
     }
 
 
+def _serialize_match(t: dict, score: int, gaps: list[str]) -> dict:
+    return {
+        "id": t["id"],
+        "title": t["title"],
+        "organization": t["organization"],
+        "deadline": t["deadline"],
+        "value": t["value"],
+        "matchScore": score,
+        "gaps": gaps,
+        "category": t["category"],
+        "location": t.get("location", "South Africa"),
+    }
+
+
+@router.post("")
+async def create_tender(
+    payload: CreateTenderIn,
+    user: User = Depends(get_current_user),
+):
+    role = getattr(user.role, "value", user.role)
+    if role not in {"admin", "evaluator"}:
+        raise HTTPException(status_code=403, detail="Only admins and tender providers can create tenders")
+
+    required_categories = [c.strip().lower() for c in payload.required_categories if c.strip()]
+    if not required_categories:
+        raise HTTPException(status_code=400, detail="At least one required category is needed")
+    invalid = [c for c in required_categories if c not in ALLOWED_CATEGORIES]
+    if invalid:
+        raise HTTPException(status_code=400, detail=f"Invalid required categories: {', '.join(invalid)}")
+
+    items = _load_provider_tenders()
+    tender = {
+        "id": f"provider-{uuid.uuid4().hex[:8]}",
+        "title": payload.title.strip(),
+        "organization": payload.organization.strip(),
+        "deadline": payload.deadline,
+        "value": payload.value.strip(),
+        "category": payload.category.strip(),
+        "description": payload.description.strip(),
+        "requirements": [r.strip() for r in payload.requirements if r.strip()],
+        "required_categories": required_categories,
+        "eligibilityCriteria": [e.strip() for e in payload.eligibilityCriteria if e.strip()],
+        "location": payload.location.strip() or "South Africa",
+        "status": "published" if payload.status != "draft" else "draft",
+        "createdBy": user.email,
+        "createdByRole": role,
+        "createdAt": datetime.utcnow().isoformat(),
+    }
+    items.append(tender)
+    _save_provider_tenders(items)
+    return {"ok": True, "tender": tender}
+
+
 @router.get("")
 async def list_tender_matches(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    role = getattr(user.role, "value", user.role)
+    tenders = _all_tenders() if role in {"admin", "evaluator"} else _published_tenders()
+
+    if role in {"admin", "evaluator"}:
+        return [
+            {
+                "id": t["id"],
+                "title": t["title"],
+                "organization": t["organization"],
+                "deadline": t["deadline"],
+                "value": t["value"],
+                "matchScore": 100,
+                "gaps": [],
+                "category": t["category"],
+                "location": t.get("location", "South Africa"),
+            }
+            for t in tenders
+        ]
+
     company_id = await _get_active_company_id(db, user)
     docs = (
         await db.scalars(
@@ -214,21 +343,9 @@ async def list_tender_matches(
     ).all()
 
     items = []
-    for t in TENDER_CATALOG:
+    for t in tenders:
         score, gaps, _recommended = _score_tender(t, docs)
-        items.append(
-            {
-                "id": t["id"],
-                "title": t["title"],
-                "organization": t["organization"],
-                "deadline": t["deadline"],
-                "value": t["value"],
-                "matchScore": score,
-                "gaps": gaps,
-                "category": t["category"],
-                "location": "South Africa",
-            }
-        )
+        items.append(_serialize_match(t, score, gaps))
 
     items.sort(key=lambda x: x["matchScore"], reverse=True)
     return items
@@ -239,18 +356,23 @@ async def get_tender_calendar(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    company_id = await _get_active_company_id(db, user)
-    docs = (
-        await db.scalars(
-            select(ComplianceDocument)
-            .where(ComplianceDocument.company_id == company_id)
-            .order_by(ComplianceDocument.created_at.desc())
-        )
-    ).all()
+    role = getattr(user.role, "value", user.role)
+    tenders = _all_tenders() if role in {"admin", "evaluator"} else _published_tenders()
+    docs: list[ComplianceDocument] = []
+
+    if role == "user":
+        company_id = await _get_active_company_id(db, user)
+        docs = (
+            await db.scalars(
+                select(ComplianceDocument)
+                .where(ComplianceDocument.company_id == company_id)
+                .order_by(ComplianceDocument.created_at.desc())
+            )
+        ).all()
 
     events = []
-    for t in TENDER_CATALOG:
-        score, gaps, _recommended = _score_tender(t, docs)
+    for t in tenders:
+        score, gaps, _recommended = _score_tender(t, docs) if role == "user" else (100, [], [])
         deadline = t['deadline']
         events.append(
             {
@@ -316,7 +438,7 @@ async def get_tender_readiness(
         )
     ).all()
 
-    tender = next((t for t in TENDER_CATALOG if t["id"] == tender_id), None)
+    tender = next((t for t in _published_tenders() if t["id"] == tender_id), None)
     if not tender:
         raise HTTPException(status_code=404, detail="Tender not found")
 
@@ -332,20 +454,26 @@ async def get_tender_detail(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    company_id = await _get_active_company_id(db, user)
-    docs = (
-        await db.scalars(
-            select(ComplianceDocument)
-            .where(ComplianceDocument.company_id == company_id)
-            .order_by(ComplianceDocument.created_at.desc())
-        )
-    ).all()
-
-    tender = next((t for t in TENDER_CATALOG if t["id"] == tender_id), None)
+    role = getattr(user.role, "value", user.role)
+    tenders = _all_tenders() if role in {"admin", "evaluator"} else _published_tenders()
+    tender = next((t for t in tenders if t["id"] == tender_id), None)
     if not tender:
         raise HTTPException(status_code=404, detail="Tender not found")
 
-    score, gaps, recommended = _score_tender(tender, docs)
+    score = 100
+    gaps: list[str] = []
+    recommended: list[str] = []
+    if role == "user":
+        company_id = await _get_active_company_id(db, user)
+        docs = (
+            await db.scalars(
+                select(ComplianceDocument)
+                .where(ComplianceDocument.company_id == company_id)
+                .order_by(ComplianceDocument.created_at.desc())
+            )
+        ).all()
+        score, gaps, recommended = _score_tender(tender, docs)
+
     return {
         "id": tender["id"],
         "title": tender["title"],
@@ -355,7 +483,7 @@ async def get_tender_detail(
         "matchScore": score,
         "gaps": gaps,
         "category": tender["category"],
-        "location": "South Africa",
+        "location": tender.get("location", "South Africa"),
         "description": tender["description"],
         "requirements": tender["requirements"],
         "recommendedDocuments": recommended,

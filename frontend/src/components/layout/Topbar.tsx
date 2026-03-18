@@ -13,7 +13,7 @@ import { useUnreadNotifications } from '@/lib/hooks/useNotifications';
 
 const roleLabels: Record<string, string> = {
     admin: 'Administrator',
-    evaluator: 'Evaluator',
+    evaluator: 'Tender Provider',
     user: 'Company User',
 };
 

@@ -9,6 +9,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { TableRowSkeleton } from '@/components/ui/Skeleton';
 import type { Company } from '@/lib/api/types';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { Search, Building2 } from 'lucide-react';
@@ -59,13 +60,20 @@ export default function AdminCompaniesPage() {
                     <h1 className="text-2xl font-bold text-[--color-text-primary]">Client Portfolio</h1>
                     <p className="text-sm text-[--color-text-muted] mt-0.5">Manage all registered entities on the platform.</p>
                 </div>
-                <div className="w-full sm:w-72">
-                    <Input
-                        placeholder="Search clients..."
-                        value={search}
-                        onChange={e => setSearch(e.target.value)}
-                        leftIcon={<Search size={16} />}
-                    />
+                <div className="flex w-full sm:w-auto gap-3">
+                    <Link href="/admin/documents" className="inline-flex">
+                        <button className="inline-flex items-center justify-center px-4 py-2 text-sm font-medium rounded-lg bg-[--color-primary] text-[--color-text-primary] shadow-sm hover:bg-[--color-primary-dark] transition-all duration-150">
+                            Review Uploaded Documents
+                        </button>
+                    </Link>
+                    <div className="w-full sm:w-72">
+                        <Input
+                            placeholder="Search clients..."
+                            value={search}
+                            onChange={e => setSearch(e.target.value)}
+                            leftIcon={<Search size={16} />}
+                        />
+                    </div>
                 </div>
             </div>
 
