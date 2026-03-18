@@ -39,6 +39,7 @@ const providerNavGroups: NavGroup[] = [
         label: 'Tender Provider Portal',
         items: [
             { label: 'Provider Dashboard', href: '/provider/dashboard', icon: <LayoutDashboard size={18} /> },
+            { label: 'Provider Profile', href: '/provider/profile', icon: <Building2 size={18} /> },
             { label: 'Upload Tender', href: '/provider/tenders/new', icon: <FileSearch size={18} /> },
             { label: 'Tender Review', href: '/verify', icon: <ShieldCheck size={18} /> },
             { label: 'Tender Calendar', href: '/tenders/calendar', icon: <Calendar size={18} /> },
@@ -51,6 +52,7 @@ const adminNavGroups: NavGroup[] = [
         label: 'Admin Portal',
         items: [
             { label: 'Admin Dashboard', href: '/admin/dashboard', icon: <BarChart2 size={18} /> },
+            { label: 'Tender Oversight', href: '/admin/tenders', icon: <FileSearch size={18} /> },
             { label: 'Document Review', href: '/admin/documents', icon: <ShieldCheck size={18} /> },
             { label: 'Accounts', href: '/admin/accounts', icon: <UserCheck size={18} /> },
             { label: 'Companies', href: '/admin/companies', icon: <Users size={18} /> },

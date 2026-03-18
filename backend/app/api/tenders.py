@@ -329,6 +329,9 @@ async def list_tender_matches(
                 "gaps": [],
                 "category": t["category"],
                 "location": t.get("location", "South Africa"),
+                "status": t.get("status", "published"),
+                "createdAt": t.get("createdAt"),
+                "createdBy": t.get("createdBy", t.get("createdByRole", "system")),
             }
             for t in tenders
         ]
