@@ -46,6 +46,7 @@ export const auth = {
         name: string;
         email: string;
         password: string;
+        role: 'admin' | 'company' | 'tender_provider';
         companyName: string;
         registrationNumber?: string;
         phone?: string;
@@ -57,6 +58,7 @@ export const auth = {
                 name: data.name,
                 email: data.email,
                 password: data.password,
+                role: data.role,
                 company_name: data.companyName,
                 registration_number: data.registrationNumber,
                 phone: data.phone,

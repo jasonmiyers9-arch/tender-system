@@ -10,7 +10,8 @@ import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 
 export default function RegisterPage() {
-    const [formData, setFormData] = useState({ name: '', email: '', password: '', companyName: '', registrationNumber: '', phone: '' });
+    const [formData, setFormData] = useState({ name: '', email: '', password: '', role: 'company' as 'admin' | 'company' | 'tender_provider', companyName: '', registrationNumber: '', phone: '' });
+    const needsOrganisationFields = formData.role !== 'admin';
     const [loading, setLoading] = useState(false);
     const [notice, setNotice] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
@@ -23,10 +24,7 @@ export default function RegisterPage() {
         setError(null);
         try {
             const res = await auth.register(formData);
-            setNotice(res.message || 'Account created. Verify email and wait for admin approval before login.');
-            if (res.verifyLink) {
-                setNotice((prev) => `${prev}\n\nDev verify link: ${res.verifyLink}`);
-            }
+            setNotice(res.message || 'Account created successfully. You can now sign in.');
             setTimeout(() => router.push('/login'), 2500);
         } catch (e) {
             setError(e instanceof Error ? e.message : 'Registration failed');
@@ -61,26 +59,44 @@ export default function RegisterPage() {
                         required
                         value={formData.email} onChange={e => setFormData({ ...formData, email: e.target.value })}
                     />
-                    <Input
-                        label="Company Name"
-                        placeholder="e.g. Acme Infra (Pty) Ltd"
-                        required
-                        value={formData.companyName} onChange={e => setFormData({ ...formData, companyName: e.target.value })}
-                    />
-                    <Input
-                        label="Registration Number"
-                        placeholder="e.g. 2019/123456/07"
-                        required
-                        value={formData.registrationNumber}
-                        onChange={e => setFormData({ ...formData, registrationNumber: e.target.value })}
-                    />
-                    <Input
-                        label="Phone Number"
-                        placeholder="e.g. +27 82 000 0000"
-                        required
-                        value={formData.phone}
-                        onChange={e => setFormData({ ...formData, phone: e.target.value })}
-                    />
+
+                    <div className="space-y-1.5">
+                        <label className="text-sm font-medium text-[--color-text-primary]">Account Type</label>
+                        <select
+                            className="w-full rounded-lg border border-[--color-border] bg-[--color-surface] px-3 py-2.5 text-sm text-[--color-text-primary] outline-none"
+                            value={formData.role}
+                            onChange={e => setFormData({ ...formData, role: e.target.value as 'admin' | 'company' | 'tender_provider' })}
+                        >
+                            <option value="company">Company</option>
+                            <option value="tender_provider">Tender Provider</option>
+                            <option value="admin">Admin</option>
+                        </select>
+                    </div>
+
+                    {needsOrganisationFields && (
+                        <>
+                            <Input
+                                label={formData.role === 'tender_provider' ? 'Organisation Name' : 'Company Name'}
+                                placeholder={formData.role === 'tender_provider' ? 'e.g. City Infrastructure Dept' : 'e.g. Acme Infra (Pty) Ltd'}
+                                required
+                                value={formData.companyName} onChange={e => setFormData({ ...formData, companyName: e.target.value })}
+                            />
+                            <Input
+                                label="Registration Number"
+                                placeholder="e.g. 2019/123456/07"
+                                required
+                                value={formData.registrationNumber}
+                                onChange={e => setFormData({ ...formData, registrationNumber: e.target.value })}
+                            />
+                            <Input
+                                label="Phone Number"
+                                placeholder="e.g. +27 82 000 0000"
+                                required
+                                value={formData.phone}
+                                onChange={e => setFormData({ ...formData, phone: e.target.value })}
+                            />
+                        </>
+                    )}
                     <Input
                         type="password"
                         label="Password"

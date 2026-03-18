@@ -25,7 +25,8 @@ class RegisterIn(BaseModel):
     name: str
     email: EmailStr
     password: str
-    company_name: str
+    role: str = "company"
+    company_name: str | None = None
     registration_number: str | None = None
     phone: str | None = None
 
@@ -166,6 +167,22 @@ async def _get_owner_company(db: AsyncSession, user_id: int) -> Company | None:
     )
 
 
+def _map_registration_role(role: str) -> UserRole:
+    normalized = (role or "company").strip().lower().replace("-", "_").replace(" ", "_")
+    mapping = {
+        "company": UserRole.user,
+        "user": UserRole.user,
+        "tender_provider": UserRole.evaluator,
+        "tenderprovider": UserRole.evaluator,
+        "provider": UserRole.evaluator,
+        "evaluator": UserRole.evaluator,
+        "admin": UserRole.admin,
+    }
+    if normalized not in mapping:
+        raise HTTPException(status_code=400, detail="Invalid role")
+    return mapping[normalized]
+
+
 @router.post("/register")
 async def register(
     payload: RegisterIn,
@@ -177,44 +194,49 @@ async def register(
     if existing:
         raise HTTPException(status_code=409, detail="Email already registered")
 
+    mapped_role = _map_registration_role(payload.role)
+
     user = User(
         email=payload.email,
         password_hash=_hash_password(payload.password),
-        role=UserRole.user,
-        is_verified=False,
-        email_verified=False,
-        verification_status="pending",
+        role=mapped_role,
+        is_verified=True,
+        email_verified=True,
+        verification_status="approved",
+        verified_at=datetime.now(timezone.utc),
         full_name=payload.name,
     )
     db.add(user)
     await db.flush()
 
-    company = Company(
-        name=payload.company_name,
-        reg_number=(payload.registration_number or "").strip() or None,
-        phone=(payload.phone or "").strip() or None,
-        contact_email=payload.email,
-    )
-    db.add(company)
-    await db.flush()
+    if mapped_role != UserRole.admin:
+        company_name = (payload.company_name or "").strip()
+        if not company_name:
+            raise HTTPException(status_code=400, detail="Company name is required")
 
-    membership = CompanyMembership(
-        user_id=user.id,
-        company_id=company.id,
-        role=MembershipRole.owner,
-        status=MembershipStatus.active,
-    )
-    db.add(membership)
+        company = Company(
+            name=company_name,
+            reg_number=(payload.registration_number or "").strip() or None,
+            phone=(payload.phone or "").strip() or None,
+            contact_email=payload.email,
+        )
+        db.add(company)
+        await db.flush()
+
+        membership = CompanyMembership(
+            user_id=user.id,
+            company_id=company.id,
+            role=MembershipRole.owner,
+            status=MembershipStatus.active,
+        )
+        db.add(membership)
+
     await db.commit()
 
-    verify_token = _create_email_verify_token(user)
-    verify_link = f"{settings.FRONTEND_APP_URL}/verify-email?token={verify_token}"
-    _send_verification_email(user.email, verify_link)
-
     return {
-        "status": "pending_verification",
-        "message": "Account created. Please verify your email, then wait for admin approval.",
-        "verifyLink": verify_link if settings.ENVIRONMENT == "dev" else None,
+        "status": "approved",
+        "message": "Account created successfully. You can now sign in.",
+        "verifyLink": None,
         "user": {
             "id": str(user.id),
             "name": user.full_name,
@@ -252,15 +274,8 @@ async def login(
         user.password_hash = _hash_password(payload.password)
         await db.commit()
 
-    if not user.email_verified and user.verification_status == "approved":
-        user.email_verified = True
-        await db.commit()
-
-    if not user.email_verified:
-        raise HTTPException(status_code=403, detail="account_email_unverified")
-
-    if user.verification_status != "approved":
-        raise HTTPException(status_code=403, detail=f"account_{user.verification_status}")
+    if user.verification_status == "rejected":
+        raise HTTPException(status_code=403, detail="account_rejected")
 
     company = await _get_owner_company(db, user.id)
 
