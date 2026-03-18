@@ -1,0 +1,161 @@
+@import "tailwindcss";
+
+/* ─────────────────────────────────────────────
+   TenderGuard Pro — Design Tokens
+   All brand colours live here as CSS variables.
+   Components ONLY use utility classes that map
+   to these variables — never raw hex values.
+──────────────────────────────────────────────── */
+@theme inline {
+  /* Map standard CSS variables to Tailwind colours */
+  --color-primary: var(--primary);
+  --color-primary-dark: var(--primary-dark);
+  --color-secondary: var(--secondary);
+  --color-accent: var(--accent);
+
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-danger: var(--danger);
+
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-border: var(--border);
+
+  --color-text-primary: var(--text-primary);
+  --color-text-muted: var(--text-muted);
+
+  --color-sidebar-bg: var(--sidebar-bg);
+  --color-sidebar-text: var(--sidebar-text);
+  --color-sidebar-active: var(--sidebar-active);
+
+  --font-sans: 'Inter', system-ui, sans-serif;
+}
+
+:root {
+  /* Default Light Mode Palette (Premium SaaS look) */
+  --primary: #4F46E5;
+  /* Indigo 600 */
+  --primary-dark: #4338CA;
+  --secondary: #0EA5E9;
+  --accent: #8B5CF6;
+
+  --success: #10B981;
+  --warning: #F59E0B;
+  --danger: #EF4444;
+
+  --bg: #FAFAFA;
+  /* Zinc 50 */
+  --surface: #FFFFFF;
+  --border: #E4E4E7;
+  /* Zinc 200 */
+
+  --text-primary: #09090B;
+  /* Zinc 950 */
+  --text-muted: #71717A;
+  /* Zinc 500 */
+
+  --sidebar-bg: #FFFFFF;
+  --sidebar-text: #27272A;
+  --sidebar-active: #4F46E5;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    /* Dark Mode Palette (Linear/Vercel style deep dark) */
+    --primary: #6366F1;
+    /* Indigo 500 */
+    --primary-dark: #818CF8;
+    --secondary: #38BDF8;
+    --accent: #A78BFA;
+
+    --success: #34D399;
+    --warning: #FBBF24;
+    --danger: #F87171;
+
+    --bg: #09090B;
+    /* Zinc 950 */
+    --surface: #18181B;
+    /* Zinc 900 */
+    --border: #27272A;
+    /* Zinc 800 */
+
+    --text-primary: #FAFAFA;
+    /* Zinc 50 */
+    --text-muted: #A1A1AA;
+    /* Zinc 400 */
+
+    --sidebar-bg: #09090B;
+    --sidebar-text: #A1A1AA;
+    --sidebar-active: #FAFAFA;
+  }
+}
+
+.dark {
+  /* Manual Dark Mode Override */
+  --primary: #6366F1;
+  --primary-dark: #818CF8;
+  --secondary: #38BDF8;
+  --accent: #A78BFA;
+
+  --success: #34D399;
+  --warning: #FBBF24;
+  --danger: #F87171;
+
+  --bg: #09090B;
+  --surface: #18181B;
+  --border: #27272A;
+
+  --text-primary: #FAFAFA;
+  --text-muted: #A1A1AA;
+
+  --sidebar-bg: #09090B;
+  --sidebar-text: #A1A1AA;
+  --sidebar-active: #FAFAFA;
+}
+
+.light {
+  /* Manual Light Mode Override (must exist so it can override system dark) */
+  --primary: #4F46E5;
+  --primary-dark: #4338CA;
+  --secondary: #0EA5E9;
+  --accent: #8B5CF6;
+
+  --success: #10B981;
+  --warning: #F59E0B;
+  --danger: #EF4444;
+
+  --bg: #FAFAFA;
+  --surface: #FFFFFF;
+  --border: #E4E4E7;
+
+  --text-primary: #09090B;
+  --text-muted: #71717A;
+
+  --sidebar-bg: #FFFFFF;
+  --sidebar-text: #27272A;
+  --sidebar-active: #4F46E5;
+}
+
+/* ─────────────────────────────────────────────
+   Utility alias classes
+   Use these in components, not raw hex.
+──────────────────────────────────────────────── */
+
+/* Scrollbar */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border) transparent;
+}
+
+body {
+  background-color: var(--color-bg);
+  color: var(--color-text-primary);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Focus ring */
+*:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}

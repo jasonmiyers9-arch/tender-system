@@ -1,0 +1,91 @@
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { admin } from '../api/admin';
+
+export function useAdminDashboard() {
+    return useQuery({
+        queryKey: ['admin-stats'],
+        queryFn: () => admin.getPortfolioStats(),
+    });
+}
+
+export function useRenewalsPipeline() {
+    return useQuery({
+        queryKey: ['admin-renewals'],
+        queryFn: () => admin.getRenewalsPipeline(),
+    });
+}
+
+export function useAuditLog(page = 1, pageSize = 20) {
+    return useQuery({
+        queryKey: ['audit-log', page, pageSize],
+        queryFn: () => admin.getAuditLog({ page, pageSize }),
+    });
+}
+
+export function useAdminCompanies() {
+    return useQuery({
+        queryKey: ['admin-companies'],
+        queryFn: () => admin.listCompanies(),
+    });
+}
+
+export function useAdminAccounts(status: 'pending' | 'approved' | 'rejected' | 'all' = 'all') {
+    return useQuery({
+        queryKey: ['admin-accounts', status],
+        queryFn: () => admin.listAccounts(status === 'all' ? undefined : status),
+    });
+}
+
+export function useApproveAccount() {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: (userId: number) => admin.approveAccount(userId),
+        onSuccess: () => qc.invalidateQueries({ queryKey: ['admin-accounts'] }),
+    });
+}
+
+export function useRejectAccount() {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: ({ userId, reason }: { userId: number; reason?: string }) => admin.rejectAccount(userId, reason),
+        onSuccess: () => qc.invalidateQueries({ queryKey: ['admin-accounts'] }),
+    });
+}
+
+export function useResetPendingAccount() {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: (userId: number) => admin.resetPending(userId),
+        onSuccess: () => qc.invalidateQueries({ queryKey: ['admin-accounts'] }),
+    });
+}
+
+export function useAdminCompanyDocuments(companyId: string) {
+    return useQuery({
+        queryKey: ['admin-company-docs', companyId],
+        queryFn: () => admin.listCompanyDocuments(companyId),
+        enabled: !!companyId,
+    });
+}
+
+export function useVerifyDocument() {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: (docId: string) => admin.markDocumentVerified(docId),
+        onSuccess: () => qc.invalidateQueries({ queryKey: ['admin-company-docs'] }),
+    });
+}
+
+export function useRejectDocument() {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: ({ docId, reason }: { docId: string; reason: string }) => admin.markDocumentRejected(docId, reason),
+        onSuccess: () => qc.invalidateQueries({ queryKey: ['admin-company-docs'] }),
+    });
+}
+
+export function useAdminDownloadDocument() {
+    return useMutation({
+        mutationFn: ({ docId, filename }: { docId: string; filename: string }) => admin.downloadDocument(docId, filename),
+    });
+}

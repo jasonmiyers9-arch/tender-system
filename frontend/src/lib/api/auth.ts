@@ -1,0 +1,107 @@
+import type { AuthUser, LoginResponse } from './types';
+
+function getToken(): string | null {
+    if (typeof window === 'undefined') return null;
+    const raw = window.localStorage.getItem('tenderguard-app-state');
+    if (!raw) return null;
+    try {
+        const parsed = JSON.parse(raw);
+        return parsed?.state?.mockToken ?? null;
+    } catch {
+        return null;
+    }
+}
+
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8000';
+
+export const auth = {
+    async me(): Promise<AuthUser> {
+        const token = getToken();
+        const res = await fetch(`${API_BASE}/auth/me`, {
+            headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+            cache: 'no-store',
+        });
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({ detail: 'Session invalid' }));
+            throw new Error(err.detail ?? 'Session invalid');
+        }
+        return res.json();
+    },
+    async login(email: string, password: string): Promise<LoginResponse> {
+        const res = await fetch(`${API_BASE}/auth/login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password }),
+        });
+
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({ detail: 'Login failed' }));
+            throw new Error(err.detail ?? 'Login failed');
+        }
+
+        return res.json();
+    },
+
+    async register(data: {
+        name: string;
+        email: string;
+        password: string;
+        companyName: string;
+        registrationNumber?: string;
+        phone?: string;
+    }): Promise<{ status: string; message: string; verifyLink?: string | null; user: AuthUser }> {
+        const res = await fetch(`${API_BASE}/auth/register`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                name: data.name,
+                email: data.email,
+                password: data.password,
+                company_name: data.companyName,
+                registration_number: data.registrationNumber,
+                phone: data.phone,
+            }),
+        });
+
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({ detail: 'Registration failed' }));
+            throw new Error(err.detail ?? 'Registration failed');
+        }
+
+        return res.json();
+    },
+
+    async updateProfile(name: string): Promise<AuthUser> {
+        const token = getToken();
+        const res = await fetch(`${API_BASE}/auth/me`, {
+            method: 'PATCH',
+            headers: {
+                'Content-Type': 'application/json',
+                ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+            body: JSON.stringify({ name }),
+        });
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({ detail: 'Profile update failed' }));
+            throw new Error(err.detail ?? 'Profile update failed');
+        }
+        return res.json();
+    },
+
+    async verifyEmail(token: string): Promise<{ ok: boolean }> {
+        const res = await fetch(`${API_BASE}/auth/verify-email`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token }),
+        });
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({ detail: 'Email verification failed' }));
+            throw new Error(err.detail ?? 'Email verification failed');
+        }
+        return res.json();
+    },
+
+    async forgotPassword(_email: string): Promise<{ success: boolean }> {
+        return { success: true };
+    },
+};
