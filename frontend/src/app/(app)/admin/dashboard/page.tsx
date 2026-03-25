@@ -47,8 +47,11 @@ export default function AdminDashboardPage() {
 
     const errMsg = `${(statsQuery.error as Error | null)?.message ?? ''} ${(pipelineQuery.error as Error | null)?.message ?? ''}`;
     const isForbidden = errMsg.includes('403');
+    const isAnyFetching = statsQuery.isFetching || pipelineQuery.isFetching;
 
-    if (statsQuery.isLoading || pipelineQuery.isLoading) {
+    // Show skeleton while loading OR while retrying after a cached error (prevents
+    // flashing "Access denied" during background refetch on navigation).
+    if (statsQuery.isLoading || pipelineQuery.isLoading || ((statsQuery.isError || pipelineQuery.isError) && isAnyFetching)) {
         return (
             <div className="space-y-6 max-w-7xl mx-auto">
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

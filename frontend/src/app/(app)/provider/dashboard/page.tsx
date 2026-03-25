@@ -16,9 +16,14 @@ export default function ProviderDashboardPage() {
                         Manage tender issuers, review company readiness, and track provider-side activity.
                     </p>
                 </div>
-                <Link href="/provider/tenders/new">
-                    <Button>Upload Tender</Button>
-                </Link>
+                <div className="flex gap-3">
+                    <Link href="/provider/profile">
+                        <Button variant="ghost">Provider Profile</Button>
+                    </Link>
+                    <Link href="/provider/tenders/new">
+                        <Button>Upload Tender</Button>
+                    </Link>
+                </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

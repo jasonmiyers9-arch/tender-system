@@ -43,6 +43,61 @@ export function useCreateTender() {
         onSuccess: () => {
             qc.invalidateQueries({ queryKey: ['tenders'] });
             qc.invalidateQueries({ queryKey: ['tender-calendar'] });
+            qc.invalidateQueries({ queryKey: ['provider-tenders'] });
+        },
+    });
+}
+
+export function useProviderTenders() {
+    const role = useAppStore((s) => s.currentUser?.role);
+    return useQuery({
+        queryKey: ['provider-tenders'],
+        queryFn: () => tenders.listProviderTenders(),
+        enabled: role === 'evaluator' || role === 'admin',
+    });
+}
+
+export function useUpdateTender() {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: ({ id, payload }: { id: string; payload: Parameters<typeof tenders.updateTender>[1] }) =>
+            tenders.updateTender(id, payload),
+        onSuccess: () => {
+            qc.invalidateQueries({ queryKey: ['tenders'] });
+            qc.invalidateQueries({ queryKey: ['provider-tenders'] });
+        },
+    });
+}
+
+export function useDeleteTender() {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: (id: string) => tenders.deleteTender(id),
+        onSuccess: () => {
+            qc.invalidateQueries({ queryKey: ['tenders'] });
+            qc.invalidateQueries({ queryKey: ['provider-tenders'] });
+        },
+    });
+}
+
+export function useApproveTender() {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: (id: string) => tenders.approveTender(id),
+        onSuccess: () => {
+            qc.invalidateQueries({ queryKey: ['tenders'] });
+            qc.invalidateQueries({ queryKey: ['provider-tenders'] });
+        },
+    });
+}
+
+export function useRejectTender() {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: ({ id, reason }: { id: string; reason?: string }) => tenders.rejectTender(id, reason),
+        onSuccess: () => {
+            qc.invalidateQueries({ queryKey: ['tenders'] });
+            qc.invalidateQueries({ queryKey: ['provider-tenders'] });
         },
     });
 }

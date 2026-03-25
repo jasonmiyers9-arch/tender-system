@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
@@ -15,6 +15,8 @@ const categoryOptions = [
     { value: 'bbbee', label: 'B-BBEE' },
     { value: 'registration', label: 'Registration' },
 ];
+
+const PROVIDER_PROFILE_KEY = 'tenderguard-provider-profile';
 
 export default function NewProviderTenderPage() {
     const router = useRouter();
@@ -32,6 +34,22 @@ export default function NewProviderTenderPage() {
     });
     const [requiredCategories, setRequiredCategories] = useState<string[]>(['tax', 'registration']);
     const [error, setError] = useState<string | null>(null);
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        const raw = window.localStorage.getItem(PROVIDER_PROFILE_KEY);
+        if (!raw) return;
+        try {
+            const profile = JSON.parse(raw);
+            setForm((prev) => ({
+                ...prev,
+                organization: profile.organizationName || prev.organization,
+                location: profile.location || prev.location,
+            }));
+        } catch {
+            // ignore invalid provider profile data
+        }
+    }, []);
 
     const toggleCategory = (value: string) => {
         setRequiredCategories((prev) => prev.includes(value) ? prev.filter((v) => v !== value) : [...prev, value]);
