@@ -67,6 +67,15 @@ export default function AdminMonitorPage() {
         return () => clearInterval(timer);
     }, [role]);
 
+    // role is undefined while the store is hydrating — wait before blocking access.
+    if (role === undefined || role === null) {
+        return (
+            <div className="flex h-64 items-center justify-center">
+                <div className="w-8 h-8 border-2 border-[--color-primary] border-t-transparent rounded-full animate-spin" />
+            </div>
+        );
+    }
+
     if (role !== 'admin') {
         return (
             <div className="max-w-3xl mx-auto">

@@ -12,7 +12,12 @@ export function Providers({ children }: { children: React.ReactNode }) {
                 defaultOptions: {
                     queries: {
                         staleTime: 60 * 1000,
-                        retry: 1,
+                        // Never retry 4xx errors — they won't succeed on retry.
+                        retry: (failureCount, error) => {
+                            const msg = error instanceof Error ? error.message : '';
+                            if (/\(4\d\d\)/.test(msg)) return false;
+                            return failureCount < 1;
+                        },
                         refetchOnWindowFocus: false,
                     },
                 },
