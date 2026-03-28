@@ -161,7 +161,7 @@ export default function VaultPage() {
 
             {/* Expiry warning banner */}
             {(countExpiringSoon > 0 || countExpired > 0) && (
-                <div className="flex items-start gap-3 p-4 rounded-xl border border-[#FCD34D] bg-[#FFFBEB]">
+                <div className="flex items-start gap-3 p-4 rounded-xl border border-amber-500/30 bg-amber-500/10">
                     <AlertTriangle size={17} className="text-[--color-warning] flex-shrink-0 mt-0.5" />
                     <div className="flex-1">
                         <p className="text-sm font-semibold text-[--color-text-primary]">

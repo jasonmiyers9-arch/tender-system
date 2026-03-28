@@ -241,7 +241,7 @@ export default function ScorePage() {
                         {scoreQuery.data.missingDocuments.map((cat) => (
                             <div
                                 key={cat}
-                                className="flex items-start gap-3 p-4 rounded-xl border border-[#FCA5A5] bg-[#FEF2F2]"
+                                className="flex items-start gap-3 p-4 rounded-xl border border-red-500/20 bg-red-500/5"
                             >
                                 <FileX2 size={16} className="text-[--color-danger] flex-shrink-0 mt-0.5" />
                                 <div className="flex-1 min-w-0">
@@ -307,7 +307,7 @@ export default function ScorePage() {
                                 className={`flex items-center gap-3 px-4 py-3 rounded-xl border ${
                                     missing
                                         ? 'border-[--color-border] bg-[--color-bg]'
-                                        : 'border-[#BBF7D0] bg-[#F0FDF4]'
+                                        : 'border-emerald-500/20 bg-emerald-500/5'
                                 }`}
                             >
                                 {missing ? (

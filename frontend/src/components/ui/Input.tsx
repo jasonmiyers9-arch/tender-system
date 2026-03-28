@@ -31,12 +31,12 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
                         ref={ref}
                         id={inputId}
                         className={classNames(
-                            'w-full rounded-lg border text-sm bg-[--color-surface] text-[--color-text-primary]',
-                            'placeholder:text-[--color-text-muted] transition-colors duration-150',
-                            'focus:outline-none focus:ring-2 focus:ring-[--color-primary] focus:border-[--color-primary]',
+                            'w-full rounded-xl border text-sm bg-[--color-surface] text-[--color-text-primary]',
+                            'placeholder:text-[--color-text-subtle] transition-colors duration-150',
+                            'focus:outline-none focus:ring-2 focus:ring-[--color-primary]/30 focus:border-[--color-primary]',
                             error
                                 ? 'border-[--color-danger]'
-                                : 'border-[--color-border] hover:border-[--color-secondary]',
+                                : 'border-[--color-border] hover:border-[--color-border-strong]',
                             leftIcon ? 'pl-10 pr-4 py-2.5' : 'px-4 py-2.5',
                             className
                         )}

@@ -81,7 +81,7 @@ export default function NewProviderTenderPage() {
 
             <Card>
                 <form className="space-y-5" onSubmit={handleSubmit}>
-                    {error && <div className="p-3 rounded bg-[#FEE2E2] text-[#B91C1C] text-xs border border-[#FCA5A5]">{error}</div>}
+                    {error && <div className="p-3 rounded-xl bg-red-500/10 text-[--color-danger] text-xs border border-red-500/25">{error}</div>}
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <Input label="Tender Title" required value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />

@@ -28,19 +28,19 @@ export function Card({
         <div
             onClick={onClick}
             className={classNames(
-                'bg-[--color-surface] border border-[--color-border] rounded-xl shadow-sm',
-                onClick ? 'cursor-pointer hover:shadow-md transition-shadow duration-200' : '',
+                'card-shadow bg-[--color-surface] border border-[--color-border] rounded-xl',
+                onClick ? 'cursor-pointer hover:border-[--color-border-strong] transition-all duration-200' : '',
                 className
             )}
         >
             {header && (
-                <div className="px-6 py-4 border-b border-[--color-border] flex items-center justify-between">
+                <div className="px-6 py-4 border-b border-[--color-border] flex items-center justify-between bg-[--color-surface-raised] rounded-t-xl">
                     {header}
                 </div>
             )}
             <div className={paddingClasses[padding]}>{children}</div>
             {footer && (
-                <div className="px-6 py-4 border-t border-[--color-border] bg-[--color-bg] rounded-b-xl">
+                <div className="px-6 py-4 border-t border-[--color-border] bg-[--color-surface-raised] rounded-b-xl">
                     {footer}
                 </div>
             )}

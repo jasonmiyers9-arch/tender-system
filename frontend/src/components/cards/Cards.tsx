@@ -96,16 +96,16 @@ export function ScoreCard({ score }: ScoreCardProps) {
 
 const variantBg = {
     default: 'bg-[--color-surface]',
-    success: 'bg-[#F0FDF4] border-[#BBF7D0]',
-    warning: 'bg-[#FFFBEB] border-[#FDE68A]',
-    danger: 'bg-[#FFF5F5] border-[#FED7D7]',
+    success: 'bg-emerald-500/10 border-emerald-500/25',
+    warning: 'bg-amber-500/10 border-amber-500/25',
+    danger:  'bg-red-500/10 border-red-500/25',
 };
 
 const variantIcon = {
-    default: 'text-[--color-primary] bg-[--color-bg]',
-    success: 'text-[--color-success] bg-[#DCFCE7]',
-    warning: 'text-[--color-warning] bg-[#FEF3C7]',
-    danger: 'text-[--color-danger] bg-[#FEE2E2]',
+    default: 'text-[--color-primary] bg-[--color-surface-raised]',
+    success: 'text-emerald-600 dark:text-emerald-400 bg-emerald-500/20',
+    warning: 'text-amber-600 dark:text-amber-400 bg-amber-500/20',
+    danger:  'text-red-600 dark:text-red-400 bg-red-500/20',
 };
 
 export function StatCard({
@@ -118,7 +118,7 @@ export function StatCard({
 }: StatCardProps) {
     return (
         <div
-            className={`rounded-xl border border-[--color-border] p-5 ${variantBg[variant]}`}
+            className={`card-shadow rounded-xl border border-[--color-border] p-5 ${variantBg[variant]}`}
         >
             <div className="flex items-start justify-between mb-3">
                 <p className="text-sm font-medium text-[--color-text-muted]">{title}</p>

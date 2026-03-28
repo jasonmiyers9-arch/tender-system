@@ -43,9 +43,9 @@ export default function DashboardPage() {
             </div>
 
             {showOnboardingChecklist && (
-                <div className="rounded-xl border border-[#93C5FD] bg-[#EFF6FF] p-4">
-                    <p className="text-sm font-semibold text-[#1E40AF]">Onboarding checklist</p>
-                    <p className="text-xs text-[#1D4ED8] mt-1">
+                <div className="rounded-xl border border-blue-500/30 bg-blue-500/10 p-4">
+                    <p className="text-sm font-semibold text-blue-600 dark:text-blue-400">Onboarding checklist</p>
+                    <p className="text-xs text-[--color-text-muted] mt-1">
                         Upload at least 5 documents to complete onboarding visibility. Priority first 3: B-BBEE certificate, SARS TCS Pin, CIPC registration certificate.
                     </p>
                 </div>
@@ -94,7 +94,7 @@ export default function DashboardPage() {
 
             {/* Alerts */}
             {(docsQuery.data?.filter((d) => d.status === 'expired').length ?? 0) > 0 && (
-                <div className="flex items-start gap-3 p-4 rounded-xl border border-[#FCD34D] bg-[#FFFBEB]">
+                <div className="flex items-start gap-3 p-4 rounded-xl border border-amber-500/30 bg-amber-500/10">
                     <AlertTriangle size={18} className="text-[--color-warning] flex-shrink-0 mt-0.5" />
                     <div className="flex-1">
                         <p className="text-sm font-semibold text-[--color-text-primary]">
@@ -229,7 +229,7 @@ export default function DashboardPage() {
                             {auditQuery.data?.entries.map((entry) => (
                                 <li key={entry.id} className="flex items-start gap-4 px-6 py-3">
                                     <div className="w-7 h-7 rounded-full bg-[--color-primary] flex items-center justify-center flex-shrink-0 mt-0.5">
-                                        <span className="text-[--color-text-primary] text-[10px] font-bold">
+                                        <span className="text-white text-[10px] font-bold">
                                             {entry.actor.charAt(0)}
                                         </span>
                                     </div>

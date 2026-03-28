@@ -20,6 +20,9 @@ interface AppState {
     // UI
     sidebarCollapsed: boolean;
 
+    // Hydration — true once localStorage has been read on first client render
+    _hasHydrated: boolean;
+
     // Actions
     settoken: (token: string | null) => void;
     setCurrentUser: (user: AppState['currentUser']) => void;
@@ -27,6 +30,7 @@ interface AppState {
     setRole: (role: UserRole) => void;
     toggleSidebar: () => void;
     logout: () => void;
+    setHasHydrated: (v: boolean) => void;
 }
 
 export const useAppStore = create<AppState>()(
@@ -36,8 +40,9 @@ export const useAppStore = create<AppState>()(
             currentUser: null,
             activeCompanyId: 'company-1',
             sidebarCollapsed: false,
+            _hasHydrated: false,
 
-            settoken: (token) => set({ token: token }),
+            settoken: (token) => set({ token }),
             setCurrentUser: (user) => set({ currentUser: user }),
             setActiveCompany: (id) => set({ activeCompanyId: id }),
             setRole: (role) =>
@@ -48,6 +53,7 @@ export const useAppStore = create<AppState>()(
                 set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
             logout: () =>
                 set({ token: null, currentUser: null }),
+            setHasHydrated: (v) => set({ _hasHydrated: v }),
         }),
         {
             name: 'tenderguard-app-state',
@@ -56,6 +62,10 @@ export const useAppStore = create<AppState>()(
                 currentUser: s.currentUser,
                 activeCompanyId: s.activeCompanyId,
             }),
+            onRehydrateStorage: () => (state) => {
+                // Called once localStorage has been read — safe to make auth decisions now
+                state?.setHasHydrated(true);
+            },
         }
     )
 );
