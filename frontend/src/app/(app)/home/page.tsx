@@ -98,7 +98,7 @@ export default function HomePage() {
         : role === 'evaluator' ? PROVIDER_ACTIONS
         : COMPANY_ACTIONS;
 
-    const firstName = currentUser?.full_name?.split(' ')[0] ?? currentUser?.email?.split('@')[0] ?? 'there';
+    const firstName = currentUser?.name?.split(' ')[0] ?? currentUser?.email?.split('@')[0] ?? 'there';
 
     // Quick stats for company users
     const docsCount = docsQuery.data?.length ?? 0;
