@@ -10,6 +10,7 @@ import { ErrorState } from '@/components/ui/ErrorState';
 import { StatusBadge } from '@/components/badges/Badges';
 import { formatDate } from '@/lib/utils/formatters';
 import { ArrowLeft, Edit, FileText, CheckCircle, XCircle, Download } from 'lucide-react';
+import { PageHeader } from '@/components/ui/PageHeader';
 import Link from 'next/link';
 
 export default function AdminCompanyDetailPage({ params }: { params: Promise<{ companyId: string }> }) {
@@ -34,13 +35,13 @@ export default function AdminCompanyDetailPage({ params }: { params: Promise<{ c
                 <ArrowLeft size={14} /> Back to Portfolio
             </Link>
 
-            <div className="flex items-start justify-between">
-                <div>
-                    <h1 className="text-2xl font-bold text-[--color-text-primary]">{company.name}</h1>
-                    <p className="text-sm font-mono text-[--color-text-muted] mt-1">{company.registrationNumber}</p>
-                </div>
-                <Button leftIcon={<Edit size={16} />} variant="secondary">Edit Details</Button>
-            </div>
+            <PageHeader
+                title={company.name}
+                subtitle={company.registrationNumber}
+                icon={<FileText size={22} />}
+                iconColor="#10B981"
+                actions={<Button leftIcon={<Edit size={16} />} variant="secondary">Edit Details</Button>}
+            />
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <Card className="lg:col-span-1" header={<h3 className="font-semibold text-sm">Entity Details</h3>}>

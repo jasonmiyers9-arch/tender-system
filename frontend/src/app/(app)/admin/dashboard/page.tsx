@@ -8,12 +8,13 @@ import { CardSkeleton } from '@/components/ui/Skeleton';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { formatDate } from '@/lib/utils/formatters';
 import type { RenewalItem } from '@/lib/api/types';
-import { Building2, FileCheck, AlertTriangle, ShieldCheck, Clock } from 'lucide-react';
+import { Building2, FileCheck, AlertTriangle, ShieldCheck, Clock, LayoutDashboard } from 'lucide-react';
+import { PageHeader } from '@/components/ui/PageHeader';
 import Link from 'next/link';
 
 function KanbanColumn({ title, items, color }: { title: string; items: RenewalItem[]; color: string }) {
     return (
-        <div className={`flex flex-col rounded-xl border ${color} bg-opacity-30 flex-1 min-w-[280px]`}>
+        <div className={`flex flex-col rounded-2xl border ${color} bg-opacity-30 flex-1 min-w-[280px]`}>
             <div className={`p-4 font-semibold text-sm border-b ${color} bg-opacity-20`}>
                 {title} <span className="ml-2 px-2 py-0.5 rounded-full bg-white bg-opacity-50 text-xs">{items.length}</span>
             </div>
@@ -86,10 +87,12 @@ export default function AdminDashboardPage() {
 
     return (
         <div className="space-y-8 max-w-[1600px] mx-auto overflow-x-hidden">
-            <div>
-                <h1 className="text-2xl font-bold text-[--color-text-primary]">Managed Service Dashboard</h1>
-                <p className="text-sm text-[--color-text-muted] mt-0.5">Global overview of client portfolios and compliance pipelines.</p>
-            </div>
+            <PageHeader
+                title="Managed Service Dashboard"
+                subtitle="Global overview of client portfolios and compliance pipelines."
+                icon={<LayoutDashboard size={22} />}
+                iconColor="#4F46E5"
+            />
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
                 <StatCard title="Total Clients" value={totalCompanies} icon={<Building2 size={18} />} />
@@ -97,7 +100,7 @@ export default function AdminDashboardPage() {
                 <StatCard title="Partially Ready" value={partiallyReady} icon={<AlertTriangle size={18} />} variant="warning" />
                 <StatCard title="High Risk" value={highRisk} icon={<AlertTriangle size={18} />} variant="danger" />
                 <StatCard title="Managed Docs" value={totalDocuments} icon={<FileCheck size={18} />} />
-                <div className="bg-[#DBEAFE] border border-[#93C5FD] rounded-xl p-5 flex flex-col justify-center">
+                <div className="bg-[#DBEAFE] border border-[#93C5FD] rounded-2xl p-5 flex flex-col justify-center card-shadow">
                     <p className="text-sm font-medium text-[#1D4ED8]">Pending Verification</p>
                     <div className="flex items-center justify-between mt-1">
                         <span className="text-3xl font-bold text-[#1E3A8A]">{pendingVerification}</span>

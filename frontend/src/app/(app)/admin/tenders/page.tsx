@@ -5,7 +5,9 @@ import { Card } from '@/components/ui/Card';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { TableRowSkeleton } from '@/components/ui/Skeleton';
 import { Badge } from '@/components/ui/Badge';
+import { PageHeader } from '@/components/ui/PageHeader';
 import { formatDate, formatDateTime } from '@/lib/utils/formatters';
+import { FileText } from 'lucide-react';
 
 export default function AdminTendersPage() {
     const { data: tenders, isLoading, isError, refetch } = useTenderMatches();
@@ -13,10 +15,12 @@ export default function AdminTendersPage() {
     if (isLoading) {
         return (
             <div className="space-y-6 max-w-7xl mx-auto">
-                <div>
-                    <h1 className="text-2xl font-bold text-[--color-text-primary]">Tender Oversight</h1>
-                    <p className="text-sm text-[--color-text-muted] mt-0.5">Monitor tenders created across the platform.</p>
-                </div>
+                <PageHeader
+                    title="Tender Oversight"
+                    subtitle="Monitor tenders created across the platform."
+                    icon={<FileText size={22} />}
+                    iconColor="#7C3AED"
+                />
                 <Card padding="none">
                     <table className="w-full"><tbody>{[1,2,3,4].map(i => <TableRowSkeleton key={i} cols={6} />)}</tbody></table>
                 </Card>
@@ -28,10 +32,12 @@ export default function AdminTendersPage() {
 
     return (
         <div className="space-y-6 max-w-7xl mx-auto">
-            <div>
-                <h1 className="text-2xl font-bold text-[--color-text-primary]">Tender Oversight</h1>
-                <p className="text-sm text-[--color-text-muted] mt-0.5">Admin view of created tenders, creators, and publication status.</p>
-            </div>
+            <PageHeader
+                title="Tender Oversight"
+                subtitle="Admin view of created tenders, creators, and publication status."
+                icon={<FileText size={22} />}
+                iconColor="#7C3AED"
+            />
 
             <Card padding="none">
                 <div className="overflow-x-auto">

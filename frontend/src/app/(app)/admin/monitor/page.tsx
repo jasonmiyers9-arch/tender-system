@@ -3,7 +3,9 @@
 import { useEffect, useState } from 'react';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
+import { PageHeader } from '@/components/ui/PageHeader';
 import { useAppStore } from '@/store/useAppStore';
+import { Activity } from 'lucide-react';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8000';
 
@@ -89,10 +91,12 @@ export default function AdminMonitorPage() {
 
     return (
         <div className="space-y-6 max-w-5xl mx-auto">
-            <div>
-                <h1 className="text-2xl font-bold text-[--color-text-primary]">Frontend Monitor</h1>
-                <p className="text-sm text-[--color-text-muted] mt-1">Live visibility from backend on frontend reachability and heartbeat.</p>
-            </div>
+            <PageHeader
+                title="Frontend Monitor"
+                subtitle="Live visibility from backend on frontend reachability and heartbeat."
+                icon={<Activity size={22} />}
+                iconColor="#10B981"
+            />
 
             {error && (
                 <Card>

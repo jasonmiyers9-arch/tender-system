@@ -13,7 +13,8 @@ import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { formatDate, formatDateTime } from '@/lib/utils/formatters';
-import { AlertTriangle, FileSearch, Clock, TrendingUp, Bell, CheckCheck } from 'lucide-react';
+import { AlertTriangle, FileSearch, Clock, TrendingUp, Bell, CheckCheck, LayoutDashboard } from 'lucide-react';
+import { PageHeader } from '@/components/ui/PageHeader';
 import Link from 'next/link';
 import { useAppStore } from '@/store/useAppStore';
 
@@ -35,12 +36,12 @@ export default function DashboardPage() {
     return (
         <div className="space-y-6 max-w-7xl mx-auto">
             {/* Page header */}
-            <div>
-                <h1 className="text-2xl font-bold text-[--color-text-primary]">Dashboard</h1>
-                <p className="text-sm text-[--color-text-muted] mt-0.5">
-                    Your compliance overview at a glance
-                </p>
-            </div>
+            <PageHeader
+                title="Dashboard"
+                subtitle="Your compliance overview at a glance"
+                icon={<LayoutDashboard size={22} />}
+                iconColor="#4F46E5"
+            />
 
             {showOnboardingChecklist && (
                 <div className="rounded-xl border border-blue-500/30 bg-blue-500/10 p-4">

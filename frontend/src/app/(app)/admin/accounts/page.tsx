@@ -4,7 +4,9 @@ import { useState } from 'react';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
+import { PageHeader } from '@/components/ui/PageHeader';
 import { useAdminAccounts, useApproveAccount, useRejectAccount, useResetPendingAccount } from '@/lib/hooks/useAdmin';
+import { Users } from 'lucide-react';
 
 export default function AdminAccountsPage() {
     const [status, setStatus] = useState<'all' | 'pending' | 'approved' | 'rejected'>('pending');
@@ -17,10 +19,12 @@ export default function AdminAccountsPage() {
 
     return (
         <div className="max-w-6xl mx-auto space-y-6">
-            <div>
-                <h1 className="text-2xl font-bold text-[--color-text-primary]">Accounts / Companies</h1>
-                <p className="text-sm text-[--color-text-muted] mt-1">Verify newly created accounts before portal access.</p>
-            </div>
+            <PageHeader
+                title="Accounts / Companies"
+                subtitle="Verify newly created accounts before portal access."
+                icon={<Users size={22} />}
+                iconColor="#3B82F6"
+            />
 
             <div className="flex gap-2">
                 {(['all', 'pending', 'approved', 'rejected'] as const).map((s) => (

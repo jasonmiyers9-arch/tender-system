@@ -1,14 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
     Shield, FolderLock, BarChart2, FileSearch, ShieldCheck,
     ArrowRight, CheckCircle2, Building2,
 } from 'lucide-react';
 import { useAppStore } from '@/store/useAppStore';
-import { auth } from '@/lib/api/auth';
 
 // ─── Feature cards data ──────────────────────────────────────────────────────
 const FEATURES = [
@@ -44,60 +41,12 @@ const TRUST_POINTS = [
     'Document expiry alerts and audit trails',
 ];
 
-// ─── Loading spinner — shown while session check is in-flight ────────────────
-function SessionLoader() {
-    return (
-        <div className="min-h-screen flex flex-col items-center justify-center gap-4"
-            style={{ background: 'var(--color-bg)' }}>
-            <div className="w-14 h-14 rounded-2xl flex items-center justify-center shadow-xl"
-                style={{ background: 'linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%)' }}>
-                <Shield size={28} color="white" />
-            </div>
-            <div className="flex flex-col items-center gap-1">
-                <span className="text-sm font-semibold text-[--color-text-primary] animate-pulse">
-                    TenderGuard Pro
-                </span>
-                <span className="text-xs text-[--color-text-muted]">Checking session…</span>
-            </div>
-        </div>
-    );
-}
-
-// ─── Main landing page ────────────────────────────────────────────────────────
+// ─── Main landing page (always renders — no auto-redirect) ───────────────────
 export default function LandingPage() {
-    const { token, _hasHydrated } = useAppStore();
-    const [checking, setChecking] = useState(true);
-    const router = useRouter();
+    const { token } = useAppStore();
 
-    // Wait for Zustand hydration, then validate session
-    useEffect(() => {
-        if (!_hasHydrated) return;
-
-        if (!token) {
-            // No stored token → show landing page
-            setChecking(false);
-            return;
-        }
-
-        // Token exists → verify with server and redirect by role
-        auth.me()
-            .then((user) => {
-                if (user.role === 'admin') {
-                    router.replace('/admin/dashboard');
-                } else if (user.role === 'evaluator') {
-                    router.replace('/provider/dashboard');
-                } else {
-                    router.replace('/dashboard');
-                }
-                // Don't setChecking(false) — keep spinner while redirect happens
-            })
-            .catch(() => {
-                // Token rejected → just show landing page
-                setChecking(false);
-            });
-    }, [_hasHydrated, token, router]);
-
-    if (!_hasHydrated || checking) return <SessionLoader />;
+    // All logged-in users go to /home (the in-app home page with sidebar)
+    const appHref = '/home';
 
     return (
         <div className="min-h-screen flex flex-col" style={{ background: 'var(--color-bg)' }}>
@@ -118,14 +67,24 @@ export default function LandingPage() {
                     </span>
                 </div>
 
-                {/* CTA */}
-                <Link
-                    href="/login"
-                    className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white transition-opacity hover:opacity-80"
-                    style={{ background: 'linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%)' }}
-                >
-                    Sign In <ArrowRight size={15} />
-                </Link>
+                {/* CTA — Home app page if logged in, Sign In if guest */}
+                {token ? (
+                    <Link
+                        href={appHref}
+                        className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white transition-opacity hover:opacity-80"
+                        style={{ background: 'linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%)' }}
+                    >
+                        Open App <ArrowRight size={15} />
+                    </Link>
+                ) : (
+                    <Link
+                        href="/login"
+                        className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white transition-opacity hover:opacity-80"
+                        style={{ background: 'linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%)' }}
+                    >
+                        Sign In <ArrowRight size={15} />
+                    </Link>
+                )}
             </header>
 
             <main className="flex-1">
@@ -169,11 +128,11 @@ export default function LandingPage() {
 
                     {/* CTA button */}
                     <Link
-                        href="/login"
+                        href={token ? appHref : '/login'}
                         className="mt-10 inline-flex items-center gap-2.5 px-8 py-4 rounded-2xl text-base font-bold text-white shadow-lg transition-transform hover:scale-[1.02] active:scale-[0.98]"
                         style={{ background: 'linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%)', boxShadow: '0 8px 32px rgba(79,70,229,0.35)' }}
                     >
-                        Get Started — Sign In <ArrowRight size={18} />
+                        {token ? <>Open App <ArrowRight size={18} /></> : <>Get Started — Sign In <ArrowRight size={18} /></>}
                     </Link>
                 </section>
 

@@ -4,15 +4,18 @@ import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { Button } from '@/components/ui/Button';
-import { Save } from 'lucide-react';
+import { Save, Settings } from 'lucide-react';
+import { PageHeader } from '@/components/ui/PageHeader';
 
 export default function SettingsPage() {
     return (
         <div className="space-y-6 max-w-3xl mx-auto">
-            <div>
-                <h1 className="text-2xl font-bold text-[--color-text-primary]">System Settings</h1>
-                <p className="text-sm text-[--color-text-muted] mt-0.5">Manage application preferences and configurations.</p>
-            </div>
+            <PageHeader
+                title="System Settings"
+                subtitle="Manage application preferences and configurations."
+                icon={<Settings size={22} />}
+                iconColor="#6366F1"
+            />
 
             <Card header={<h3 className="font-semibold text-sm">General Preferences</h3>}>
                 <div className="space-y-5">

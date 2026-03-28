@@ -2,13 +2,14 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { ChevronLeft, ChevronRight, Download, AlertTriangle } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Download, AlertTriangle, Calendar as CalIcon } from 'lucide-react';
 
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { CardSkeleton } from '@/components/ui/Skeleton';
+import { PageHeader } from '@/components/ui/PageHeader';
 import { useTenderCalendar } from '@/lib/hooks/useTenders';
 import type { TenderCalendarItem } from '@/lib/api/types';
 import { tenders } from '@/lib/api/tenders';
@@ -46,9 +47,10 @@ function DayCell({
             <span
                 className={`text-xs font-medium inline-flex items-center justify-center w-6 h-6 rounded-full ${
                     isToday
-                        ? 'bg-[--color-primary] text-white'
+                        ? 'text-white'
                         : 'text-[--color-text-muted]'
                 }`}
+                style={isToday ? { background: 'linear-gradient(135deg, #4F46E5, #7C3AED)' } : undefined}
             >
                 {day.getDate()}
             </span>
@@ -77,19 +79,19 @@ function DayCell({
             )}
 
             {open && items.length > 0 && (
-                <div className="absolute z-20 top-full left-0 mt-1 w-64 rounded-xl border border-[--color-border] bg-[--color-surface] shadow-lg p-3 space-y-2">
+                <div className="absolute z-20 top-full left-0 mt-1 w-64 rounded-2xl border border-[--color-border] bg-[--color-surface] shadow-lg p-3 space-y-2 card-shadow">
                     <button
                         className="absolute top-2 right-2 text-[--color-text-muted] hover:text-[--color-text-primary] text-xs"
                         onClick={() => setOpen(false)}
                     >
-                        ✕
+                        x
                     </button>
                     {items.map((item) => (
                         <Link
                             key={item.id}
                             href={`/tenders/${item.id.replace('tender-', '')}`}
                             onClick={() => setOpen(false)}
-                            className="block hover:bg-[--color-bg] rounded-lg p-2 transition-colors"
+                            className="block hover:bg-[--color-bg] rounded-xl p-2 transition-colors"
                         >
                             <p className="text-xs font-semibold text-[--color-text-primary] leading-tight">{item.title}</p>
                             <p className="text-[10px] text-[--color-text-muted] mt-0.5">{item.organization}</p>
@@ -118,34 +120,34 @@ export default function TenderCalendarPage() {
     const query = useTenderCalendar();
     const today = new Date();
     const [viewYear, setViewYear] = useState(today.getFullYear());
-    const [viewMonth, setViewMonth] = useState(today.getMonth()); // 0-indexed
+    const [viewMonth, setViewMonth] = useState(today.getMonth());
 
-    if (query.isLoading) return <CardSkeleton />;
+    if (query.isLoading) return (
+        <div className="space-y-6 max-w-6xl mx-auto">
+            <div className="h-24 rounded-2xl bg-[--color-surface] animate-pulse" />
+            <CardSkeleton />
+        </div>
+    );
     if (query.isError) return <ErrorState onRetry={query.refetch} message="Unable to load tender calendar." />;
 
     const items = query.data ?? [];
 
-    // Build a map: "YYYY-MM-DD" → TenderCalendarItem[]
     const byDate: Record<string, TenderCalendarItem[]> = {};
     for (const item of items) {
         (byDate[item.date] ??= []).push(item);
     }
 
-    // Build calendar grid for current month
     const firstDay = new Date(viewYear, viewMonth, 1);
     const lastDay = new Date(viewYear, viewMonth + 1, 0);
-    const startOffset = firstDay.getDay(); // 0 = Sunday
+    const startOffset = firstDay.getDay();
 
     const cells: Date[] = [];
-    // Pad start with previous month days
     for (let i = startOffset - 1; i >= 0; i--) {
         cells.push(new Date(viewYear, viewMonth, -i));
     }
-    // Current month days
     for (let d = 1; d <= lastDay.getDate(); d++) {
         cells.push(new Date(viewYear, viewMonth, d));
     }
-    // Pad end to complete last row (multiple of 7)
     const remainder = cells.length % 7;
     if (remainder > 0) {
         for (let d = 1; d <= 7 - remainder; d++) {
@@ -162,7 +164,6 @@ export default function TenderCalendarPage() {
         else setViewMonth((m) => m + 1);
     };
 
-    // Upcoming list for the sidebar
     const upcomingItems = items
         .filter((i) => i.date >= today.toISOString().slice(0, 10))
         .sort((a, b) => a.date.localeCompare(b.date))
@@ -170,22 +171,22 @@ export default function TenderCalendarPage() {
 
     return (
         <div className="space-y-6 max-w-6xl mx-auto">
-            {/* Header */}
-            <div className="flex items-start justify-between gap-3">
-                <div>
-                    <h1 className="text-2xl font-bold text-[--color-text-primary]">Tender Calendar</h1>
-                    <p className="text-sm text-[--color-text-muted] mt-1">
-                        Visual view of all tender deadlines. Click a day to see details.
-                    </p>
-                </div>
-                <Button
-                    variant="secondary"
-                    leftIcon={<Download size={14} />}
-                    onClick={() => tenders.downloadCalendarIcs()}
-                >
-                    Export ICS
-                </Button>
-            </div>
+            <PageHeader
+                title="Tender Calendar"
+                subtitle="Visual view of all tender deadlines. Click a day to see details."
+                icon={<CalIcon size={22} />}
+                iconColor="#7C3AED"
+                actions={
+                    <Button
+                        variant="ghost"
+                        leftIcon={<Download size={14} />}
+                        onClick={() => tenders.downloadCalendarIcs()}
+                        style={{ color: 'white', borderColor: 'rgba(255,255,255,0.3)' }}
+                    >
+                        Export ICS
+                    </Button>
+                }
+            />
 
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
                 {/* Calendar grid */}
@@ -242,7 +243,7 @@ export default function TenderCalendarPage() {
                     {/* Legend */}
                     <div className="flex items-center gap-4 px-5 py-3 border-t border-[--color-border]">
                         <span className="text-[10px] text-[--color-text-muted] font-medium">Match score:</span>
-                        {[['≥ 85%', 'bg-[#22c55e]'], ['≥ 65%', 'bg-[#f59e0b]'], ['< 65%', 'bg-[#ef4444]']].map(([label, cls]) => (
+                        {[['>=85%', 'bg-[#22c55e]'], ['>=65%', 'bg-[#f59e0b]'], ['<65%', 'bg-[#ef4444]']].map(([label, cls]) => (
                             <span key={label} className="flex items-center gap-1 text-[10px] text-[--color-text-muted]">
                                 <span className={`w-2.5 h-2.5 rounded-full ${cls}`} /> {label}
                             </span>
@@ -252,6 +253,7 @@ export default function TenderCalendarPage() {
 
                 {/* Upcoming sidebar */}
                 <Card
+                    accent
                     header={<h3 className="text-sm font-semibold text-[--color-text-primary]">Upcoming Deadlines</h3>}
                     padding="none"
                 >

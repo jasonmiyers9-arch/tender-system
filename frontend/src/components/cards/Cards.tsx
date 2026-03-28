@@ -118,7 +118,7 @@ export function StatCard({
 }: StatCardProps) {
     return (
         <div
-            className={`card-shadow rounded-xl border border-[--color-border] p-5 ${variantBg[variant]}`}
+            className={`card-shadow rounded-2xl border border-[--color-border] p-5 ${variantBg[variant]}`}
         >
             <div className="flex items-start justify-between mb-3">
                 <p className="text-sm font-medium text-[--color-text-muted]">{title}</p>

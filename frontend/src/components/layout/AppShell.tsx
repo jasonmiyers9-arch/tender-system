@@ -29,11 +29,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     const router = useRouter();
     const pathname = usePathname();
 
-    // ─── 1. Wait for zustand hydration, THEN check auth ──────────────────────
-    // Without this the token is null on first render even if localStorage has it,
-    // which caused the unwanted redirect-to-login on every page refresh.
+    // ─── 1. Auth guard — instant render if session already in store ──────────
+    // currentUser + token are persisted in localStorage via Zustand persist.
+    // After hydration both are available immediately — no API call needed to render.
+    // auth.me() runs silently in the background to refresh user data.
     useEffect(() => {
-        if (!_hasHydrated) return; // localStorage not read yet — hold on
+        if (!_hasHydrated) return;
 
         if (!token) {
             setSessionReady(false);
@@ -41,9 +42,31 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             return;
         }
 
-        setSessionReady(false);
-        let cancelled = false;
+        // If we already have the user from localStorage → show UI immediately
+        if (currentUser) {
+            setSessionReady(true);
+            // Background refresh — silently update user + company without blocking UI
+            let cancelled = false;
+            auth.me()
+                .then(async (user) => {
+                    if (cancelled) return;
+                    setCurrentUser(user);
+                    try {
+                        const active = await companies.getActive('current');
+                        if (!cancelled && active?.id) setActiveCompany(active.id);
+                    } catch { /* non-blocking */ }
+                })
+                .catch(() => {
+                    if (!cancelled) {
+                        logout();
+                        router.push('/login?reason=session_expired');
+                    }
+                });
+            return () => { cancelled = true; };
+        }
 
+        // No currentUser yet (fresh session after login) — must wait for auth.me()
+        let cancelled = false;
         auth.me()
             .then(async (user) => {
                 if (cancelled) return;
@@ -51,20 +74,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 try {
                     const active = await companies.getActive('current');
                     if (!cancelled && active?.id) setActiveCompany(active.id);
-                } catch {
-                    // Keep UI alive even if active-company sync fails.
-                }
+                } catch { /* non-blocking */ }
                 if (!cancelled) setSessionReady(true);
             })
             .catch(() => {
-                // Token rejected by server → expired or revoked
                 if (!cancelled) {
                     logout();
-                    setSessionReady(false);
                     router.push('/login?reason=session_expired');
                 }
             });
-
         return () => { cancelled = true; };
     }, [_hasHydrated, token, router, setCurrentUser, setActiveCompany, logout]);
 
@@ -86,7 +104,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 return;
             }
         }
-        if (currentUser.role === 'evaluator' && !pathname.startsWith('/provider') && pathname !== '/verify' && !pathname.startsWith('/tenders/calendar')) {
+        if (currentUser.role === 'evaluator' && !pathname.startsWith('/provider') && pathname !== '/verify' && !pathname.startsWith('/tenders/calendar') && pathname !== '/home') {
             router.push('/provider/dashboard');
             return;
         }
@@ -166,7 +184,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
     const popup = (unreadQuery.data ?? []).find((n) => !dismissed.includes(n.id));
 
-    // ─── Loading state (hydrating OR verifying token) ─────────────────────────
+    // ─── Loading state ────────────────────────────────────────────────────────
+    // Only blocks on first-ever load (no currentUser in store yet).
+    // Returning users: _hasHydrated resolves instantly + sessionReady set immediately.
     if (!_hasHydrated || !sessionReady) {
         return (
             <div className="flex h-screen items-center justify-center bg-[--color-bg]">

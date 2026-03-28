@@ -16,6 +16,7 @@ import {
 import { applicationsApi } from '@/lib/api/applications';
 import { formatDate, formatDateTime } from '@/lib/utils/formatters';
 import { ClipboardList, FileText, X, CheckCircle2, AlertTriangle, Clock, XCircle, Download } from 'lucide-react';
+import { PageHeader } from '@/components/ui/PageHeader';
 
 type StatusFilter = 'all' | 'pending' | 'approved' | 'rejected';
 
@@ -59,7 +60,7 @@ function DocumentsModal({ appId, onClose }: { appId: string; onClose: () => void
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
-            <div className="bg-[--color-surface] border border-[--color-border] rounded-xl shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col">
+            <div className="bg-[--color-surface] border border-[--color-border] rounded-2xl shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col">
                 <div className="flex items-center justify-between px-5 py-4 border-b border-[--color-border]">
                     <div>
                         <h2 className="text-base font-semibold text-[--color-text-primary]">
@@ -156,7 +157,12 @@ export default function ProviderApplicationsPage() {
     if (isLoading || (isError && isFetching)) {
         return (
             <div className="space-y-6 max-w-7xl mx-auto">
-                <h1 className="text-2xl font-bold text-[--color-text-primary]">Applications</h1>
+                <PageHeader
+                    title="Applications"
+                    subtitle="Review and approve company applications for your tenders."
+                    icon={<ClipboardList size={22} />}
+                    iconColor="#F59E0B"
+                />
                 <Card padding="none">
                     <table className="w-full"><tbody>{[1,2,3].map(i => <TableRowSkeleton key={i} cols={6} />)}</tbody></table>
                 </Card>
@@ -171,18 +177,20 @@ export default function ProviderApplicationsPage() {
             {docsAppId && <DocumentsModal appId={docsAppId} onClose={() => setDocsAppId(null)} />}
 
             <div className="space-y-6 max-w-7xl mx-auto">
-                <div className="flex items-start justify-between gap-4">
-                    <div>
-                        <h1 className="text-2xl font-bold text-[--color-text-primary]">Applications</h1>
-                        <p className="text-sm text-[--color-text-muted] mt-0.5">Review and approve company applications for your tenders.</p>
-                    </div>
-                    {pendingCount > 0 && (
-                        <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-yellow-50 border border-yellow-200">
-                            <span className="w-2 h-2 rounded-full bg-yellow-400 animate-pulse" />
-                            <span className="text-sm font-medium text-yellow-800">{pendingCount} pending review</span>
-                        </div>
-                    )}
-                </div>
+                <PageHeader
+                    title="Applications"
+                    subtitle="Review and approve company applications for your tenders."
+                    icon={<ClipboardList size={22} />}
+                    iconColor="#F59E0B"
+                    actions={
+                        pendingCount > 0 ? (
+                            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-yellow-50 border border-yellow-200">
+                                <span className="w-2 h-2 rounded-full bg-yellow-400 animate-pulse" />
+                                <span className="text-sm font-medium text-yellow-800">{pendingCount} pending review</span>
+                            </div>
+                        ) : undefined
+                    }
+                />
 
                 <div className="flex gap-2">
                     {(['all', 'pending', 'approved', 'rejected'] as const).map((s) => (

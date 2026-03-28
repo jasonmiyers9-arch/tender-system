@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/Badge';
 import { CardSkeleton } from '@/components/ui/Skeleton';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { Building2, Save, ShieldCheck } from 'lucide-react';
+import { PageHeader } from '@/components/ui/PageHeader';
 
 export default function CompanyProfilePage() {
     const { data: company, isLoading, isError, refetch } = useActiveCompany();
@@ -81,20 +82,20 @@ export default function CompanyProfilePage() {
 
     return (
         <div key={company.id} className="space-y-6 max-w-3xl mx-auto">
-            <div className="flex items-start justify-between">
-                <div>
-                    <h1 className="text-2xl font-bold text-[--color-text-primary]">Company Profile</h1>
-                    <p className="text-sm text-[--color-text-muted] mt-0.5">
-                        Manage your entity&apos;s registration and contact details
-                    </p>
-                </div>
-                <Badge
-                    variant={company.status === 'verified' ? 'success' : company.status === 'rejected' ? 'danger' : 'warning'}
-                    dot
-                >
-                    {company.status.charAt(0).toUpperCase() + company.status.slice(1)}
-                </Badge>
-            </div>
+            <PageHeader
+                title="Company Profile"
+                subtitle="Manage your entity's registration and contact details"
+                icon={<Building2 size={22} />}
+                iconColor="#10B981"
+                actions={
+                    <Badge
+                        variant={company.status === 'verified' ? 'success' : company.status === 'rejected' ? 'danger' : 'warning'}
+                        dot
+                    >
+                        {company.status.charAt(0).toUpperCase() + company.status.slice(1)}
+                    </Badge>
+                }
+            />
 
             <Card
                 header={

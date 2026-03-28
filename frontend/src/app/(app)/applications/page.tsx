@@ -10,6 +10,7 @@ import { TableRowSkeleton } from '@/components/ui/Skeleton';
 import { useMyApplications } from '@/lib/hooks/useApplications';
 import { formatDate, formatDateTime } from '@/lib/utils/formatters';
 import { ClipboardList } from 'lucide-react';
+import { PageHeader } from '@/components/ui/PageHeader';
 
 function statusVariant(status: string) {
     if (status === 'approved') return 'success';
@@ -24,7 +25,12 @@ export default function MyApplicationsPage() {
     if (isLoading) {
         return (
             <div className="space-y-6 max-w-5xl mx-auto">
-                <h1 className="text-2xl font-bold text-[--color-text-primary]">My Applications</h1>
+                <PageHeader
+                    title="My Applications"
+                    subtitle="Track the status of your tender applications."
+                    icon={<ClipboardList size={22} />}
+                    iconColor="#8B5CF6"
+                />
                 <Card padding="none">
                     <table className="w-full"><tbody>{[1,2,3].map(i => <TableRowSkeleton key={i} cols={5} />)}</tbody></table>
                 </Card>
@@ -36,10 +42,12 @@ export default function MyApplicationsPage() {
 
     return (
         <div className="space-y-6 max-w-5xl mx-auto">
-            <div>
-                <h1 className="text-2xl font-bold text-[--color-text-primary]">My Applications</h1>
-                <p className="text-sm text-[--color-text-muted] mt-0.5">Track the status of your tender applications.</p>
-            </div>
+            <PageHeader
+                title="My Applications"
+                subtitle="Track the status of your tender applications."
+                icon={<ClipboardList size={22} />}
+                iconColor="#8B5CF6"
+            />
 
             {!apps?.length ? (
                 <Card>

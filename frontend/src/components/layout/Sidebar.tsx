@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation';
 import {
     LayoutDashboard, FolderLock, FileSearch, Building2, Calendar,
     ShieldCheck, BarChart2, Users, ClipboardList, Activity, UserCheck,
-    ChevronLeft, ChevronRight, Shield,
+    ChevronLeft, ChevronRight, Shield, Home,
 } from 'lucide-react';
 import { classNames } from '@/lib/utils/formatters';
 import { useAppStore } from '@/store/useAppStore';
@@ -25,6 +25,7 @@ const companyNavGroups: NavGroup[] = [
     {
         label: 'Company Portal',
         items: [
+            { label: 'Home', href: '/home', icon: <Home size={18} /> },
             { label: 'Dashboard', href: '/dashboard', icon: <LayoutDashboard size={18} /> },
             { label: 'Compliance Vault', href: '/vault', icon: <FolderLock size={18} /> },
             { label: 'Compliance Score', href: '/score', icon: <BarChart2 size={18} /> },
@@ -40,6 +41,7 @@ const providerNavGroups: NavGroup[] = [
     {
         label: 'Tender Provider Portal',
         items: [
+            { label: 'Home', href: '/home', icon: <Home size={18} /> },
             { label: 'Provider Dashboard', href: '/provider/dashboard', icon: <LayoutDashboard size={18} /> },
             { label: 'Provider Profile', href: '/provider/profile', icon: <Building2 size={18} /> },
             { label: 'My Tenders', href: '/provider/tenders', icon: <FileSearch size={18} /> },
@@ -55,6 +57,7 @@ const adminNavGroups: NavGroup[] = [
     {
         label: 'Admin Portal',
         items: [
+            { label: 'Home', href: '/home', icon: <Home size={18} /> },
             { label: 'Admin Dashboard', href: '/admin/dashboard', icon: <BarChart2 size={18} /> },
             { label: 'Tender Oversight', href: '/admin/tenders', icon: <FileSearch size={18} /> },
             { label: 'Document Review', href: '/admin/documents', icon: <ShieldCheck size={18} /> },
@@ -72,7 +75,7 @@ export function Sidebar() {
     const role = currentUser?.role ?? 'user';
 
     const isActive = (href: string) =>
-        pathname === href || (!['/dashboard', '/admin/dashboard', '/provider/dashboard'].includes(href) && pathname.startsWith(href));
+        href === '/home' ? pathname === '/home' : (pathname === href || (!['/dashboard', '/admin/dashboard', '/provider/dashboard'].includes(href) && pathname.startsWith(href)));
 
     const navGroups = role === 'admin'
         ? adminNavGroups

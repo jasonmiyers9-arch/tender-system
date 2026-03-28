@@ -12,6 +12,7 @@ import { StatusBadge } from '@/components/badges/Badges';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { TableRowSkeleton } from '@/components/ui/Skeleton';
+import { PageHeader } from '@/components/ui/PageHeader';
 import { formatDate, docCategoryLabel } from '@/lib/utils/formatters';
 import type { DocumentStatus, DocumentCategory, VaultDocument } from '@/lib/api/types';
 import { Upload, MoreHorizontal, Plus, FolderLock, AlertTriangle, CheckCircle2, Clock, XCircle } from 'lucide-react';
@@ -45,7 +46,6 @@ export default function VaultPage() {
 
     const router = useRouter();
 
-    // Derived counts from unfiltered docs (always fetch all for stats)
     const allDocsQuery = useVaultDocuments();
     const allDocs = allDocsQuery.data ?? [];
     const today = new Date();
@@ -126,47 +126,54 @@ export default function VaultPage() {
         },
     ];
 
+    const STAT_CARDS = [
+        { label: 'Total Documents', value: allDocs.length, icon: <FolderLock size={18} />, color: '#4F46E5' },
+        { label: 'Verified', value: countVerified, icon: <CheckCircle2 size={18} />, color: '#059669' },
+        { label: 'Expiring Soon', value: countExpiringSoon, icon: <Clock size={18} />, color: '#D97706' },
+        { label: 'Expired', value: countExpired, icon: <XCircle size={18} />, color: '#DC2626' },
+    ];
+
     return (
         <div className="space-y-6 max-w-7xl mx-auto">
-            {/* Header */}
-            <div className="flex items-start justify-between">
-                <div>
-                    <h1 className="text-2xl font-bold text-[--color-text-primary]">Compliance Vault</h1>
-                    <p className="text-sm text-[--color-text-muted] mt-0.5">
-                        Manage all compliance documents for your entity
-                    </p>
-                </div>
-                <Button leftIcon={<Plus size={16} />} onClick={() => setUploadOpen(true)}>
-                    Upload Document
-                </Button>
-            </div>
+            <PageHeader
+                title="Compliance Vault"
+                subtitle="Manage all compliance documents for your entity"
+                icon={<FolderLock size={22} />}
+                actions={
+                    <Button leftIcon={<Plus size={16} />} onClick={() => setUploadOpen(true)}>
+                        Upload Document
+                    </Button>
+                }
+            />
 
-            {/* Stats header */}
+            {/* Stats */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                {[
-                    { label: 'Total Documents', value: allDocs.length, icon: <FolderLock size={16} />, color: 'text-[--color-primary]' },
-                    { label: 'Verified', value: countVerified, icon: <CheckCircle2 size={16} />, color: 'text-[--color-success]' },
-                    { label: 'Expiring ≤ 30 days', value: countExpiringSoon, icon: <Clock size={16} />, color: 'text-[--color-warning]' },
-                    { label: 'Expired', value: countExpired, icon: <XCircle size={16} />, color: 'text-[--color-danger]' },
-                ].map((s) => (
-                    <div key={s.label} className="rounded-xl border border-[--color-border] bg-[--color-surface] p-4 flex items-center gap-3">
-                        <span className={s.color}>{s.icon}</span>
-                        <div>
-                            <p className="text-xl font-bold text-[--color-text-primary]">{s.value}</p>
-                            <p className="text-[10px] text-[--color-text-muted] leading-tight">{s.label}</p>
+                {STAT_CARDS.map((s) => (
+                    <Card key={s.label} padding="sm">
+                        <div className="flex items-center gap-3 py-1">
+                            <div
+                                className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+                                style={{ background: `${s.color}15`, color: s.color }}
+                            >
+                                {s.icon}
+                            </div>
+                            <div>
+                                <p className="text-xl font-bold text-[--color-text-primary]">{s.value}</p>
+                                <p className="text-[10px] text-[--color-text-muted] leading-tight">{s.label}</p>
+                            </div>
                         </div>
-                    </div>
+                    </Card>
                 ))}
             </div>
 
             {/* Expiry warning banner */}
             {(countExpiringSoon > 0 || countExpired > 0) && (
-                <div className="flex items-start gap-3 p-4 rounded-xl border border-amber-500/30 bg-amber-500/10">
+                <div className="flex items-start gap-3 p-4 rounded-xl border border-amber-500/20 bg-amber-500/5">
                     <AlertTriangle size={17} className="text-[--color-warning] flex-shrink-0 mt-0.5" />
                     <div className="flex-1">
                         <p className="text-sm font-semibold text-[--color-text-primary]">
                             {countExpired > 0
-                                ? `${countExpired} document${countExpired > 1 ? 's' : ''} expired${countExpiringSoon > 0 ? ` · ${countExpiringSoon} expiring within 30 days` : ''}`
+                                ? `${countExpired} document${countExpired > 1 ? 's' : ''} expired${countExpiringSoon > 0 ? ` \u00b7 ${countExpiringSoon} expiring within 30 days` : ''}`
                                 : `${countExpiringSoon} document${countExpiringSoon > 1 ? 's' : ''} expiring within 30 days`}
                         </p>
                         <p className="text-xs text-[--color-text-muted] mt-0.5">
@@ -175,7 +182,7 @@ export default function VaultPage() {
                     </div>
                     <Button
                         size="sm"
-                        variant="ghost"
+                        variant="outline"
                         onClick={() => setStatusFilter('expired')}
                     >
                         Filter expired
@@ -207,13 +214,13 @@ export default function VaultPage() {
 
             {/* Table */}
             {docsQuery.isLoading ? (
-                <div className="rounded-xl border border-[--color-border] overflow-hidden">
+                <Card padding="none">
                     <table className="w-full text-sm">
                         <tbody>
                             {[1, 2, 3, 4, 5].map((i) => <TableRowSkeleton key={i} cols={6} />)}
                         </tbody>
                     </table>
-                </div>
+                </Card>
             ) : docsQuery.isError ? (
                 <ErrorState onRetry={() => docsQuery.refetch()} />
             ) : !docsQuery.data?.length ? (

@@ -6,9 +6,11 @@ import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { CardSkeleton, Skeleton } from '@/components/ui/Skeleton';
 import { ErrorState } from '@/components/ui/ErrorState';
+import { PageHeader } from '@/components/ui/PageHeader';
 import { formatDate } from '@/lib/utils/formatters';
 import {
     AlertTriangle,
+    BarChart2,
     CheckCircle2,
     Clock,
     FileX2,
@@ -17,14 +19,13 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 
-// ─── Score gauge (SVG arc) ──────────────────────────────────────────────────
+// --- Score gauge (SVG arc) ---
 
 function ScoreGauge({ score }: { score: number }) {
     const radius = 80;
     const stroke = 14;
     const normalizedRadius = radius - stroke / 2;
     const circumference = normalizedRadius * 2 * Math.PI;
-    // Only fill the top 75% of the circle (from 135° to 405°, i.e. 270° arc)
     const arcFraction = 0.75;
     const arcLength = circumference * arcFraction;
     const offset = arcLength - (score / 100) * arcLength;
@@ -35,30 +36,18 @@ function ScoreGauge({ score }: { score: number }) {
     return (
         <div className="relative flex items-center justify-center" style={{ width: 200, height: 140 }}>
             <svg width={200} height={200} style={{ position: 'absolute', top: -30 }}>
-                {/* Track */}
                 <circle
-                    cx={100}
-                    cy={100}
-                    r={normalizedRadius}
-                    fill="none"
-                    stroke="var(--color-border)"
-                    strokeWidth={stroke}
+                    cx={100} cy={100} r={normalizedRadius}
+                    fill="none" stroke="var(--color-border)" strokeWidth={stroke}
                     strokeDasharray={`${arcLength} ${circumference}`}
-                    strokeDashoffset={0}
-                    strokeLinecap="round"
+                    strokeDashoffset={0} strokeLinecap="round"
                     transform="rotate(135 100 100)"
                 />
-                {/* Progress */}
                 <circle
-                    cx={100}
-                    cy={100}
-                    r={normalizedRadius}
-                    fill="none"
-                    stroke={color}
-                    strokeWidth={stroke}
+                    cx={100} cy={100} r={normalizedRadius}
+                    fill="none" stroke={color} strokeWidth={stroke}
                     strokeDasharray={`${arcLength} ${circumference}`}
-                    strokeDashoffset={offset}
-                    strokeLinecap="round"
+                    strokeDashoffset={offset} strokeLinecap="round"
                     transform="rotate(135 100 100)"
                     style={{ transition: 'stroke-dashoffset 0.6s ease' }}
                 />
@@ -71,7 +60,7 @@ function ScoreGauge({ score }: { score: number }) {
     );
 }
 
-// ─── History bar chart (Tailwind) ───────────────────────────────────────────
+// --- History bar chart ---
 
 function HistoryChart({ points }: { points: { date: string; score: number }[] }) {
     const maxScore = 100;
@@ -80,24 +69,18 @@ function HistoryChart({ points }: { points: { date: string; score: number }[] })
             {points.map((p, i) => {
                 const heightPct = Math.max(4, (p.score / maxScore) * 100);
                 const color =
-                    p.score >= 85
-                        ? 'bg-[#22c55e]'
-                        : p.score >= 65
-                        ? 'bg-[#f59e0b]'
-                        : 'bg-[#ef4444]';
-                const label = p.date.slice(5); // MM-DD
+                    p.score >= 85 ? '#22c55e'
+                    : p.score >= 65 ? '#f59e0b'
+                    : '#ef4444';
+                const label = p.date.slice(5);
                 return (
-                    <div
-                        key={i}
-                        className="flex-1 flex flex-col items-center gap-1 group"
-                        title={`${p.date}: ${p.score}%`}
-                    >
+                    <div key={i} className="flex-1 flex flex-col items-center gap-1 group" title={`${p.date}: ${p.score}%`}>
                         <span className="text-[9px] text-[--color-text-muted] opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
                             {p.score}%
                         </span>
                         <div
-                            className={`w-full rounded-t-sm ${color} transition-all duration-300`}
-                            style={{ height: `${heightPct}%` }}
+                            className="w-full rounded-t-sm transition-all duration-300"
+                            style={{ height: `${heightPct}%`, background: color }}
                         />
                         <span className="text-[9px] text-[--color-text-muted] leading-none">{label}</span>
                     </div>
@@ -107,7 +90,7 @@ function HistoryChart({ points }: { points: { date: string; score: number }[] })
     );
 }
 
-// ─── Category doc card ──────────────────────────────────────────────────────
+// --- Category labels ---
 
 const CATEGORY_LABELS: Record<string, string> = {
     tax: 'Tax Clearance (SARS)',
@@ -119,7 +102,7 @@ const CATEGORY_LABELS: Record<string, string> = {
 };
 
 const CATEGORY_DETAILS: Record<string, string> = {
-    tax: 'SARS Tax Clearance / TCS Pin letter — valid within 12 months',
+    tax: 'SARS Tax Clearance / TCS Pin letter - valid within 12 months',
     legal: 'Company constitution, Memorandum of Incorporation or similar',
     financial: 'Latest audited/reviewed annual financial statements',
     certification: 'CIDB grading, ISO or industry-specific certification',
@@ -127,7 +110,7 @@ const CATEGORY_DETAILS: Record<string, string> = {
     registration: 'CIPC registration certificate',
 };
 
-// ─── Main page ───────────────────────────────────────────────────────────────
+// --- Main page ---
 
 export default function ScorePage() {
     const scoreQuery = useScore();
@@ -141,18 +124,17 @@ export default function ScorePage() {
 
     return (
         <div className="space-y-6 max-w-5xl mx-auto">
-            {/* Header */}
-            <div>
-                <h1 className="text-2xl font-bold text-[--color-text-primary]">Compliance Score</h1>
-                <p className="text-sm text-[--color-text-muted] mt-0.5">
-                    Your tender readiness rating based on document completeness and validity
-                </p>
-            </div>
+            <PageHeader
+                title="Compliance Score"
+                subtitle="Your tender readiness rating based on document completeness and validity"
+                icon={<BarChart2 size={22} />}
+                iconColor="#059669"
+            />
 
             {/* Score + History row */}
             <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
                 {/* Gauge */}
-                <Card className="lg:col-span-2">
+                <Card accent className="lg:col-span-2">
                     {scoreQuery.isLoading ? (
                         <div className="flex flex-col items-center gap-4 py-4">
                             <Skeleton className="w-40 h-32 rounded-full" />
@@ -191,6 +173,7 @@ export default function ScorePage() {
 
                 {/* History chart */}
                 <Card
+                    accent
                     className="lg:col-span-3"
                     header={
                         <div className="flex items-center gap-2">
@@ -207,7 +190,7 @@ export default function ScorePage() {
                         <HistoryChart points={historyQuery.data} />
                     ) : (
                         <div className="h-24 flex items-center justify-center text-sm text-[--color-text-muted]">
-                            Not enough history yet — check back tomorrow
+                            Not enough history yet - check back tomorrow
                         </div>
                     )}
                 </Card>
@@ -253,7 +236,7 @@ export default function ScorePage() {
                                     </p>
                                 </div>
                                 <Link href="/vault">
-                                    <Button size="sm" variant="ghost" className="text-[--color-danger] flex-shrink-0">
+                                    <Button size="sm" variant="outline" className="flex-shrink-0">
                                         Upload
                                     </Button>
                                 </Link>
@@ -284,7 +267,7 @@ export default function ScorePage() {
                                     <span className="text-sm text-[--color-text-primary] font-medium">{filename}</span>
                                 </div>
                                 <Link href="/vault">
-                                    <Button size="sm" variant="ghost">Renew</Button>
+                                    <Button size="sm" variant="outline">Renew</Button>
                                 </Link>
                             </li>
                         ))}
@@ -292,8 +275,9 @@ export default function ScorePage() {
                 </Card>
             )}
 
-            {/* All required categories status */}
+            {/* Required categories checklist */}
             <Card
+                accent
                 header={
                     <h3 className="text-sm font-semibold text-[--color-text-primary]">Required Category Checklist</h3>
                 }

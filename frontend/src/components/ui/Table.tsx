@@ -54,7 +54,7 @@ export function Table<T>({
     return (
         <div
             className={classNames(
-                'w-full overflow-x-auto rounded-xl border border-[--color-border]',
+                'w-full overflow-x-auto rounded-2xl border border-[--color-border] card-shadow bg-[--color-surface]',
                 className
             )}
         >

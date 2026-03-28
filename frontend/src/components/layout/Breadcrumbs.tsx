@@ -32,7 +32,7 @@ export function Breadcrumbs() {
 
     return (
         <nav aria-label="Breadcrumb" className="flex items-center gap-1 text-sm">
-            <Link href="/dashboard" className="text-[--color-text-muted] hover:text-[--color-primary] transition-colors text-xs">
+            <Link href="/home" className="text-[--color-text-muted] hover:text-[--color-primary] transition-colors text-xs">
                 Home
             </Link>
             {crumbs.map((crumb) => (
