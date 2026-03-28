@@ -45,6 +45,11 @@ export interface Company {
     website: string;
     industry: string;
     incorporatedDate: string;
+    // SA-specific compliance fields
+    csdNumber?: string | null;
+    bbbeeLevel?: string | null;
+    cidbGrade?: string | null;
+    province?: string | null;
 }
 
 // ─── Vault / Documents ────────────────────────

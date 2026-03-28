@@ -4,6 +4,7 @@ import { useScore } from '@/lib/hooks/useScore';
 import { useVaultDocuments } from '@/lib/hooks/useVault';
 import { useTenderMatches } from '@/lib/hooks/useTenders';
 import { useAuditLog } from '@/lib/hooks/useAdmin';
+import { useNotifications, useMarkAllNotificationsRead } from '@/lib/hooks/useNotifications';
 import { ScoreCard, StatCard } from '@/components/cards/Cards';
 import { StatusBadge } from '@/components/badges/Badges';
 import { CardSkeleton, Skeleton } from '@/components/ui/Skeleton';
@@ -12,7 +13,7 @@ import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { formatDate, formatDateTime } from '@/lib/utils/formatters';
-import { AlertTriangle, FileSearch, Clock, TrendingUp } from 'lucide-react';
+import { AlertTriangle, FileSearch, Clock, TrendingUp, Bell, CheckCheck } from 'lucide-react';
 import Link from 'next/link';
 import { useAppStore } from '@/store/useAppStore';
 
@@ -22,6 +23,8 @@ export default function DashboardPage() {
     const docsQuery = useVaultDocuments();
     const tendersQuery = useTenderMatches();
     const auditQuery = useAuditLog(1, 5);
+    const notifQuery = useNotifications(5);
+    const markAllRead = useMarkAllNotificationsRead();
 
     const expiringDocs = docsQuery.data?.filter(
         (d) => d.status === 'expired' || d.status === 'uploaded'
@@ -242,6 +245,70 @@ export default function DashboardPage() {
                     )}
                 </Card>
             )}
+
+            {/* Notifications panel */}
+            <Card
+                header={
+                    <>
+                        <div className="flex items-center gap-2">
+                            <Bell size={15} className="text-[--color-primary]" />
+                            <h3 className="text-sm font-semibold text-[--color-text-primary]">Notifications</h3>
+                            {(notifQuery.data?.filter((n) => !n.isRead).length ?? 0) > 0 && (
+                                <Badge variant="danger" size="sm">
+                                    {notifQuery.data!.filter((n) => !n.isRead).length} new
+                                </Badge>
+                            )}
+                        </div>
+                        <div className="flex items-center gap-3">
+                            <Button
+                                size="sm"
+                                variant="ghost"
+                                leftIcon={<CheckCheck size={13} />}
+                                onClick={() => markAllRead.mutate()}
+                                disabled={markAllRead.isPending}
+                            >
+                                Mark all read
+                            </Button>
+                            <Link href="/notifications" className="text-xs text-[--color-primary] hover:underline">
+                                View all
+                            </Link>
+                        </div>
+                    </>
+                }
+                padding="none"
+            >
+                {notifQuery.isLoading ? (
+                    <div className="p-4 space-y-3">
+                        {[1, 2, 3].map((i) => <Skeleton key={i} className="h-12 w-full" />)}
+                    </div>
+                ) : !notifQuery.data?.length ? (
+                    <div className="py-8 text-center text-sm text-[--color-text-muted]">
+                        🔔 You&apos;re all caught up — no notifications
+                    </div>
+                ) : (
+                    <ul className="divide-y divide-[--color-border]">
+                        {notifQuery.data.slice(0, 5).map((n) => (
+                            <li
+                                key={n.id}
+                                className={`flex items-start gap-4 px-6 py-3 transition-colors ${
+                                    n.isRead ? '' : 'bg-[--color-bg]'
+                                }`}
+                            >
+                                <div className={`w-2 h-2 rounded-full flex-shrink-0 mt-2 ${n.isRead ? 'bg-transparent' : 'bg-[--color-primary]'}`} />
+                                <div className="flex-1">
+                                    <p className={`text-sm ${n.isRead ? 'text-[--color-text-muted]' : 'font-semibold text-[--color-text-primary]'}`}>
+                                        {n.title}
+                                    </p>
+                                    <p className="text-xs text-[--color-text-muted] mt-0.5 line-clamp-1">{n.message}</p>
+                                </div>
+                                <p className="text-[10px] text-[--color-text-muted] flex-shrink-0 mt-0.5">
+                                    {formatDate(n.triggerDate)}
+                                </p>
+                            </li>
+                        ))}
+                    </ul>
+                )}
+            </Card>
         </div>
     );
 }

@@ -1,23 +1,22 @@
-from datetime import datetime, timedelta, timezone
-
-import hashlib
+﻿from datetime import datetime, timedelta, timezone
+import logging
 import secrets
 
-import jwt
-import redis.asyncio as redis
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel, EmailStr
-import json
-import urllib.request
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core import security
 from app.core.config import settings
 from app.db.session import get_db
-from app.api.deps import get_current_user, require_admin
-from app.models.domain import CompanyMembership, MembershipRole, MembershipStatus
+from app.api.deps import get_current_user, require_admin, write_audit_log
+from app.models.domain import CompanyMembership, MembershipRole, MembershipStatus, PasswordResetToken
 from app.models.user import Company, User, UserRole
+from app.services.auth_service import enforce_rate_limit, get_owner_company, map_registration_role
+from app.services.email_service import send_password_reset_email, send_verification_email
 
+logger = logging.getLogger("tenderguard.auth")
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
@@ -52,158 +51,26 @@ class UpdateProfileIn(BaseModel):
     name: str
 
 
-async def _enforce_rate_limit(request: Request, bucket: str, limit: int) -> None:
-    ip = request.client.host if request.client else "unknown"
-    key = f"rate:{bucket}:{ip}"
-    client = redis.from_url(settings.REDIS_URL, decode_responses=True)
-    try:
-        count = await client.incr(key)
-        if count == 1:
-            await client.expire(key, settings.AUTH_RATE_WINDOW_SECONDS)
-        if count > limit:
-            raise HTTPException(status_code=429, detail="Too many requests")
-    finally:
-        await client.aclose()
-
-
-def _hash_password(password: str) -> str:
-    iterations = 390000
-    salt = secrets.token_hex(16)
-    dk = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt.encode("utf-8"), iterations)
-    return f"pbkdf2_sha256${iterations}${salt}${dk.hex()}"
-
-
-def _verify_password(password: str, hashed: str) -> bool:
-    if hashed.startswith("dev$"):
-        return hashed == f"dev${password}"
-    if hashed.startswith("pbkdf2_sha256$"):
-        try:
-            _, iter_s, salt, digest = hashed.split("$", 3)
-            dk = hashlib.pbkdf2_hmac(
-                "sha256",
-                password.encode("utf-8"),
-                salt.encode("utf-8"),
-                int(iter_s),
-            )
-            return secrets.compare_digest(digest, dk.hex())
-        except Exception:
-            return False
-    return False
-
-
-def _create_token(user: User, token_type: str, minutes: int) -> str:
-    now = datetime.now(timezone.utc)
-    payload = {
-        "sub": str(user.id),
-        "email": user.email,
-        "role": user.role.value,
-        "type": token_type,
-        "iat": int(now.timestamp()),
-        "exp": int((now + timedelta(minutes=minutes)).timestamp()),
-    }
-    return jwt.encode(payload, settings.SECRET_KEY, algorithm="HS256")
-
-
-def _decode_token(token: str, expected_type: str) -> dict:
-    try:
-        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=["HS256"])
-    except jwt.PyJWTError as exc:
-        raise HTTPException(status_code=401, detail="Invalid token") from exc
-    if payload.get("type") != expected_type:
-        raise HTTPException(status_code=401, detail="Invalid token type")
-    return payload
-
-
-def _create_email_verify_token(user: User) -> str:
-    now = datetime.now(timezone.utc)
-    payload = {
-        "sub": str(user.id),
-        "email": user.email,
-        "type": "email_verify",
-        "iat": int(now.timestamp()),
-        "exp": int((now + timedelta(minutes=15)).timestamp()),
-    }
-    return jwt.encode(payload, settings.SECRET_KEY, algorithm="HS256")
-
-
-def _send_verification_email(email: str, verify_link: str) -> None:
-    if not settings.SENDGRID_API_KEY:
-        return
-    payload = {
-        "personalizations": [{"to": [{"email": email}]}],
-        "from": {"email": settings.SENDGRID_FROM_EMAIL},
-        "subject": "Verify your TenderGuard account",
-        "content": [
-            {
-                "type": "text/plain",
-                "value": f"Verify your email within 15 minutes: {verify_link}",
-            }
-        ],
-    }
-    req = urllib.request.Request(
-        "https://api.sendgrid.com/v3/mail/send",
-        data=json.dumps(payload).encode("utf-8"),
-        headers={
-            "Authorization": f"Bearer {settings.SENDGRID_API_KEY}",
-            "Content-Type": "application/json",
-        },
-        method="POST",
-    )
-    try:
-        with urllib.request.urlopen(req, timeout=10):
-            pass
-    except Exception:
-        # Keep registration non-blocking if email provider fails.
-        return
-
-
-async def _get_owner_company(db: AsyncSession, user_id: int) -> Company | None:
-    return await db.scalar(
-        select(Company)
-        .join(CompanyMembership, CompanyMembership.company_id == Company.id)
-        .where(CompanyMembership.user_id == user_id)
-        .order_by(Company.id.asc())
-        .limit(1)
-    )
-
-
-def _map_registration_role(role: str) -> UserRole:
-    normalized = (role or "company").strip().lower().replace("-", "_").replace(" ", "_")
-    mapping = {
-        "company": UserRole.user,
-        "user": UserRole.user,
-        "tender_provider": UserRole.evaluator,
-        "tenderprovider": UserRole.evaluator,
-        "provider": UserRole.evaluator,
-        "evaluator": UserRole.evaluator,
-        "admin": UserRole.admin,
-    }
-    if normalized not in mapping:
-        raise HTTPException(status_code=400, detail="Invalid role")
-    return mapping[normalized]
-
-
 @router.post("/register")
 async def register(
     payload: RegisterIn,
     request: Request,
     db: AsyncSession = Depends(get_db),
 ):
-    await _enforce_rate_limit(request, "register", settings.REGISTER_RATE_LIMIT)
+    await enforce_rate_limit(request, "register", settings.REGISTER_RATE_LIMIT)
     existing = await db.scalar(select(User).where(User.email == payload.email))
     if existing:
         raise HTTPException(status_code=409, detail="Email already registered")
 
-    mapped_role = _map_registration_role(payload.role)
+    mapped_role = map_registration_role(payload.role)
 
     user = User(
         email=payload.email,
-        password_hash=_hash_password(payload.password),
+        password_hash=security.hash_password(payload.password),
         role=mapped_role,
-        is_verified=True,
-        email_verified=True,
-        verification_status="approved",
-        verified_at=datetime.now(timezone.utc),
+        is_verified=False,
+        email_verified=False,
+        verification_status="pending",
         full_name=payload.name,
     )
     db.add(user)
@@ -233,10 +100,15 @@ async def register(
 
     await db.commit()
 
+    # Send email verification (non-blocking)
+    verify_token = security.create_email_verify_token(user.id, user.email)
+    verify_link = f"{settings.FRONTEND_APP_URL}/verify-email?token={verify_token}"
+    await send_verification_email(user.email, verify_link)
+
     return {
-        "status": "approved",
-        "message": "Account created successfully. You can now sign in.",
-        "verifyLink": None,
+        "status": "pending",
+        "message": "Account created. Please check your email to verify your address.",
+        "verifyLink": verify_link if not settings.SENDGRID_API_KEY else None,
         "user": {
             "id": str(user.id),
             "name": user.full_name,
@@ -249,7 +121,7 @@ async def register(
 
 @router.post("/verify-email")
 async def verify_email(payload: VerifyEmailIn, db: AsyncSession = Depends(get_db)):
-    token_payload = _decode_token(payload.token, "email_verify")
+    token_payload = security.decode_token(payload.token, "email_verify")
     user = await db.get(User, int(token_payload["sub"]))
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
@@ -265,22 +137,22 @@ async def login(
     response: Response,
     db: AsyncSession = Depends(get_db),
 ):
-    await _enforce_rate_limit(request, "login", settings.LOGIN_RATE_LIMIT)
+    await enforce_rate_limit(request, "login", settings.LOGIN_RATE_LIMIT)
     user = await db.scalar(select(User).where(User.email == payload.email))
-    if not user or not _verify_password(payload.password, user.password_hash):
+    if not user or not security.verify_password(payload.password, user.password_hash):
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
     if user.password_hash.startswith("dev$"):
-        user.password_hash = _hash_password(payload.password)
+        user.password_hash = security.hash_password(payload.password)
         await db.commit()
 
     if user.verification_status == "rejected":
         raise HTTPException(status_code=403, detail="account_rejected")
 
-    company = await _get_owner_company(db, user.id)
+    company = await get_owner_company(db, user.id)
 
-    access_token = _create_token(user, "access", settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    refresh_token = _create_token(user, "refresh", 60 * 24 * 14)
+    access_token = security.create_access_token(user.id, user.email, user.role.value, settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    refresh_token = security.create_refresh_token(user.id, user.email, user.role.value)
 
     response.set_cookie(
         key="refresh_token",
@@ -311,12 +183,12 @@ async def refresh(request: Request, db: AsyncSession = Depends(get_db)):
     if not token:
         raise HTTPException(status_code=401, detail="Missing refresh token")
 
-    payload = _decode_token(token, "refresh")
+    payload = security.decode_token(token, "refresh")
     user = await db.get(User, int(payload["sub"]))
     if not user or user.verification_status != "approved":
         raise HTTPException(status_code=401, detail="Invalid session")
 
-    access_token = _create_token(user, "access", settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = security.create_access_token(user.id, user.email, user.role.value, settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     return {"token": access_token}
 
 
@@ -328,7 +200,7 @@ async def logout(response: Response):
 
 @router.get("/me")
 async def me(user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    company = await _get_owner_company(db, user.id)
+    company = await get_owner_company(db, user.id)
     return {
         "id": str(user.id),
         "name": user.full_name or user.email.split("@")[0],
@@ -423,6 +295,9 @@ async def approve_account(
     user.is_verified = True
     user.verified_at = datetime.now(timezone.utc)
     await db.commit()
+    await write_audit_log(db, actor_email=_admin.email, action="APPROVE", entity="User",
+                          entity_id=str(user_id))
+    await db.commit()
     return {"ok": True}
 
 
@@ -455,3 +330,81 @@ async def reset_account_to_pending(
     user.verified_at = None
     await db.commit()
     return {"ok": True}
+
+
+# ---------------------------------------------------------------------------
+# Password reset flow
+# ---------------------------------------------------------------------------
+
+class ForgotPasswordIn(BaseModel):
+    email: EmailStr
+
+
+class ResetPasswordIn(BaseModel):
+    token: str
+    password: str
+
+
+@router.post("/forgot-password")
+async def forgot_password(
+    payload: ForgotPasswordIn,
+    db: AsyncSession = Depends(get_db),
+):
+    """Issue a password reset token. Always returns success to prevent email enumeration."""
+    user = await db.scalar(select(User).where(User.email == payload.email))
+    if user:
+        # Expire any existing tokens for this user
+        existing = (await db.scalars(
+            select(PasswordResetToken).where(
+                PasswordResetToken.user_id == user.id,
+                PasswordResetToken.used.is_(False),
+            )
+        )).all()
+        for t in existing:
+            t.used = True
+
+        raw_token = secrets.token_urlsafe(48)
+        db.add(
+            PasswordResetToken(
+                user_id=user.id,
+                token=raw_token,
+                expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
+            )
+        )
+        await db.commit()
+
+        reset_link = f"{settings.FRONTEND_APP_URL}/reset-password?token={raw_token}"
+        await send_password_reset_email(user.email, reset_link)
+
+    return {
+        "ok": True,
+        "message": "If that email is registered you will receive a reset link shortly.",
+    }
+
+
+@router.post("/reset-password")
+async def reset_password(
+    payload: ResetPasswordIn,
+    db: AsyncSession = Depends(get_db),
+):
+    now = datetime.now(timezone.utc)
+    token_row = await db.scalar(
+        select(PasswordResetToken).where(
+            PasswordResetToken.token == payload.token,
+            PasswordResetToken.used.is_(False),
+        )
+    )
+    if not token_row or token_row.expires_at.replace(tzinfo=timezone.utc) < now:
+        raise HTTPException(status_code=400, detail="Invalid or expired reset token")
+
+    user = await db.get(User, token_row.user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    if len(payload.password) < 8:
+        raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
+
+    user.password_hash = security.hash_password(payload.password)
+    token_row.used = True
+    await db.commit()
+    return {"ok": True, "message": "Password updated successfully. You can now log in."}

@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -17,7 +17,7 @@ export default function LoginPage() {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const router = useRouter();
-    const { setMockToken, setCurrentUser } = useAppStore();
+    const { settoken, setCurrentUser } = useAppStore();
 
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -28,7 +28,7 @@ export default function LoginPage() {
         try {
             const res = await auth.login(email, password);
             // In a real app we'd set cookies. For the mock we just use Zustand.
-            setMockToken(res.token);
+            settoken(res.token);
             setCurrentUser(res.user);
             if (res.user.role === 'admin') {
                 router.push('/admin/dashboard');

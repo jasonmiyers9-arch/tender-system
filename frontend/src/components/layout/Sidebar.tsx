@@ -27,9 +27,11 @@ const companyNavGroups: NavGroup[] = [
         items: [
             { label: 'Dashboard', href: '/dashboard', icon: <LayoutDashboard size={18} /> },
             { label: 'Compliance Vault', href: '/vault', icon: <FolderLock size={18} /> },
+            { label: 'Compliance Score', href: '/score', icon: <BarChart2 size={18} /> },
             { label: 'Tender Matches', href: '/tenders', icon: <FileSearch size={18} /> },
             { label: 'Tender Calendar', href: '/tenders/calendar', icon: <Calendar size={18} /> },
-            { label: 'Company Profile', href: '/company/profile', icon: <Building2 size={18} /> },
+            { label: 'My Applications', href: '/applications', icon: <ClipboardList size={18} /> },
+            { label: 'Company Profile', href: '/company', icon: <Building2 size={18} /> },
         ],
     },
 ];
@@ -40,9 +42,11 @@ const providerNavGroups: NavGroup[] = [
         items: [
             { label: 'Provider Dashboard', href: '/provider/dashboard', icon: <LayoutDashboard size={18} /> },
             { label: 'Provider Profile', href: '/provider/profile', icon: <Building2 size={18} /> },
+            { label: 'My Tenders', href: '/provider/tenders', icon: <FileSearch size={18} /> },
             { label: 'Upload Tender', href: '/provider/tenders/new', icon: <FileSearch size={18} /> },
             { label: 'Tender Review', href: '/verify', icon: <ShieldCheck size={18} /> },
             { label: 'Tender Calendar', href: '/tenders/calendar', icon: <Calendar size={18} /> },
+            { label: 'Applications', href: '/provider/applications', icon: <ClipboardList size={18} /> },
         ],
     },
 ];

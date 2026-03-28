@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
@@ -12,7 +12,7 @@ import { useMarkNotificationRead, useUnreadNotifications } from '@/lib/hooks/use
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8000';
 
 export function AppShell({ children }: { children: React.ReactNode }) {
-    const { mockToken, currentUser, setCurrentUser, setActiveCompany, logout } = useAppStore();
+    const { token, currentUser, setCurrentUser, setActiveCompany, logout } = useAppStore();
     const [sessionReady, setSessionReady] = useState(false);
     const [dismissed, setDismissed] = useState<string[]>([]);
     const unreadQuery = useUnreadNotifications(5);
@@ -21,7 +21,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     const pathname = usePathname();
 
     useEffect(() => {
-        if (!mockToken) {
+        if (!token) {
             setSessionReady(false);
             router.push('/login');
             return;
@@ -56,10 +56,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         return () => {
             cancelled = true;
         };
-    }, [mockToken, router, setCurrentUser, setActiveCompany, logout]);
+    }, [token, router, setCurrentUser, setActiveCompany, logout]);
 
     useEffect(() => {
-        if (!mockToken) return;
+        if (!token) return;
         if (!currentUser) return;
 
         if (pathname.startsWith('/admin') && currentUser.role !== 'admin') {
@@ -73,12 +73,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         }
 
         if (currentUser.role === 'user') {
-            const onboardingAllowedRoutes = ['/onboarding', '/vault'];
-            const canAccessDuringOnboarding = onboardingAllowedRoutes.some((route) => pathname === route || pathname.startsWith(`${route}/`));
-            if (currentUser.onboardingCompleted === false && !canAccessDuringOnboarding) {
-                router.push('/onboarding');
-                return;
-            }
             if (pathname.startsWith('/admin') || pathname.startsWith('/provider')) {
                 router.push('/dashboard');
                 return;
@@ -93,10 +87,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         if (currentUser.role === 'admin' && (pathname === '/dashboard' || pathname === '/verify')) {
             router.push('/admin/dashboard');
         }
-    }, [mockToken, currentUser, pathname, router]);
+    }, [token, currentUser, pathname, router]);
 
     useEffect(() => {
-        if (!mockToken) return;
+        if (!token) return;
 
         const sendHeartbeat = () => {
             fetch(`${API_BASE}/ops/frontend/heartbeat`, {
@@ -114,11 +108,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         sendHeartbeat();
         const timer = setInterval(sendHeartbeat, 60000);
         return () => clearInterval(timer);
-    }, [mockToken, pathname]);
+    }, [token, pathname]);
 
     const popup = (unreadQuery.data ?? []).find((n) => !dismissed.includes(n.id));
 
-    if (!mockToken || !sessionReady) {
+    if (!token || !sessionReady) {
         return (
             <div className="flex h-screen items-center justify-center bg-[--color-bg]">
                 <div className="w-8 h-8 border-2 border-[--color-primary] border-t-transparent rounded-full animate-spin" />

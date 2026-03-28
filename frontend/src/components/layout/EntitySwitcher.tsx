@@ -49,7 +49,7 @@ export function EntitySwitcher() {
                                         setOpen(false);
                                         router.refresh();
                                         if (pathname?.startsWith('/admin')) {
-                                            router.push('/company/profile');
+                                            router.push('/company');
                                         }
                                     } catch (e) {
                                         alert(e instanceof Error ? e.message : 'Failed to switch company');

@@ -1,4 +1,4 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8000';
+﻿const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8000';
 
 export interface TenderApplication {
     id: string;
@@ -23,7 +23,7 @@ function getToken(): string | null {
     const raw = window.localStorage.getItem('tenderguard-app-state');
     if (!raw) return null;
     try {
-        return JSON.parse(raw)?.state?.mockToken ?? null;
+        return JSON.parse(raw)?.state?.token ?? null;
     } catch {
         return null;
     }

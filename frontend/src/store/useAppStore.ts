@@ -1,11 +1,11 @@
-import { create } from 'zustand';
+﻿import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
 export type UserRole = 'user' | 'evaluator' | 'admin';
 
 interface AppState {
     // Auth
-    mockToken: string | null;
+    token: string | null;
     currentUser: {
         id: string;
         name: string;
@@ -21,7 +21,7 @@ interface AppState {
     sidebarCollapsed: boolean;
 
     // Actions
-    setMockToken: (token: string | null) => void;
+    settoken: (token: string | null) => void;
     setCurrentUser: (user: AppState['currentUser']) => void;
     setActiveCompany: (id: string) => void;
     setRole: (role: UserRole) => void;
@@ -32,12 +32,12 @@ interface AppState {
 export const useAppStore = create<AppState>()(
     persist(
         (set) => ({
-            mockToken: null,
+            token: null,
             currentUser: null,
             activeCompanyId: 'company-1',
             sidebarCollapsed: false,
 
-            setMockToken: (token) => set({ mockToken: token }),
+            settoken: (token) => set({ token: token }),
             setCurrentUser: (user) => set({ currentUser: user }),
             setActiveCompany: (id) => set({ activeCompanyId: id }),
             setRole: (role) =>
@@ -47,12 +47,12 @@ export const useAppStore = create<AppState>()(
             toggleSidebar: () =>
                 set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
             logout: () =>
-                set({ mockToken: null, currentUser: null }),
+                set({ token: null, currentUser: null }),
         }),
         {
             name: 'tenderguard-app-state',
             partialize: (s) => ({
-                mockToken: s.mockToken,
+                token: s.token,
                 currentUser: s.currentUser,
                 activeCompanyId: s.activeCompanyId,
             }),

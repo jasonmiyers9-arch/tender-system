@@ -1,10 +1,6 @@
-import type { AdminStats, RenewalItem, AuditEntry, Company, VaultDocument } from './types';
-import {
-    mockAuditLog,
-} from './mockData';
+﻿import type { AdminStats, RenewalItem, AuditEntry, Company, VaultDocument } from './types';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8000';
-const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 function getToken(): string | null {
     if (typeof window === 'undefined') return null;
@@ -12,7 +8,7 @@ function getToken(): string | null {
     if (!raw) return null;
     try {
         const parsed = JSON.parse(raw);
-        return parsed?.state?.mockToken ?? null;
+        return parsed?.state?.token ?? null;
     } catch {
         return null;
     }
@@ -47,15 +43,17 @@ export const admin = {
     async getAuditLog(filters?: {
         page?: number;
         pageSize?: number;
+        actor?: string;
+        action?: string;
     }): Promise<{ entries: AuditEntry[]; total: number }> {
-        await delay(400);
-        const page = filters?.page ?? 1;
-        const pageSize = filters?.pageSize ?? 20;
-        const start = (page - 1) * pageSize;
-        return {
-            entries: mockAuditLog.slice(start, start + pageSize),
-            total: mockAuditLog.length,
-        };
+        const params = new URLSearchParams();
+        if (filters?.page) params.set('page', String(filters.page));
+        if (filters?.pageSize) params.set('page_size', String(filters.pageSize));
+        if (filters?.actor) params.set('actor', filters.actor);
+        if (filters?.action) params.set('action', filters.action);
+        const suffix = params.toString() ? `?${params.toString()}` : '';
+        const res = await authFetch(`/admin/audit${suffix}`);
+        return res.json();
     },
 
     async listCompanies(): Promise<Company[]> {

@@ -1,4 +1,4 @@
-import type { TenderMatch, TenderDetail, TenderReadiness, TenderCalendarItem } from './types';
+﻿import type { TenderMatch, TenderDetail, TenderReadiness, TenderCalendarItem } from './types';
 
 export interface CreateTenderPayload {
     title: string;
@@ -22,7 +22,7 @@ function getToken(): string | null {
     if (!raw) return null;
     try {
         const parsed = JSON.parse(raw);
-        return parsed?.state?.mockToken ?? null;
+        return parsed?.state?.token ?? null;
     } catch {
         return null;
     }
@@ -92,6 +92,24 @@ export const tenders = {
             method: 'POST',
             body: JSON.stringify(payload),
         });
+        return res.json();
+    },
+
+    async listProviderTenders(): Promise<TenderMatch[]> {
+        const res = await authFetch('/tenders');
+        return res.json();
+    },
+
+    async updateTender(id: string, payload: CreateTenderPayload) {
+        const res = await authFetch(`/tenders/${id}`, {
+            method: 'PATCH',
+            body: JSON.stringify(payload),
+        });
+        return res.json();
+    },
+
+    async deleteTender(id: string): Promise<{ ok: boolean }> {
+        const res = await authFetch(`/tenders/${id}`, { method: 'DELETE' });
         return res.json();
     },
 };

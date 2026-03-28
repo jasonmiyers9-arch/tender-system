@@ -4,11 +4,12 @@ import { useEffect, useState } from 'react';
 import { useActiveCompany, useUpdateCompanyProfile } from '@/lib/hooks/useCompanies';
 import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
+import { Select } from '@/components/ui/Select';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { CardSkeleton } from '@/components/ui/Skeleton';
 import { ErrorState } from '@/components/ui/ErrorState';
-import { Building2, Save } from 'lucide-react';
+import { Building2, Save, ShieldCheck } from 'lucide-react';
 
 export default function CompanyProfilePage() {
     const { data: company, isLoading, isError, refetch } = useActiveCompany();
@@ -24,6 +25,11 @@ export default function CompanyProfilePage() {
         website: '',
         address: '',
         incorporatedDate: '',
+        // SA compliance fields
+        csdNumber: '',
+        bbbeeLevel: '',
+        cidbGrade: '',
+        province: '',
     });
 
     useEffect(() => {
@@ -38,6 +44,10 @@ export default function CompanyProfilePage() {
             website: company.website || '',
             address: company.address || '',
             incorporatedDate: company.incorporatedDate || '',
+            csdNumber: company.csdNumber || '',
+            bbbeeLevel: company.bbbeeLevel || '',
+            cidbGrade: company.cidbGrade || '',
+            province: company.province || '',
         });
     }, [company]);
 
@@ -55,6 +65,11 @@ export default function CompanyProfilePage() {
             email: form.email,
             phone: form.phone,
             address: form.address,
+            // SA compliance fields (snake_case for backend)
+            csd_number: form.csdNumber || null,
+            bbbee_level: form.bbbeeLevel || null,
+            cidb_grade: form.cidbGrade || null,
+            province: form.province || null,
         });
         setSaved(true);
         setTimeout(() => setSaved(false), 2000);
@@ -106,6 +121,80 @@ export default function CompanyProfilePage() {
                     <div className="md:col-span-2">
                         <Input label="Registered Address" value={form.address} onChange={(e) => setField('address', e.target.value)} />
                     </div>
+                </div>
+            </Card>
+
+            <Card
+                header={
+                    <div className="flex items-center gap-2">
+                        <ShieldCheck size={16} className="text-[--color-primary]" />
+                        <h3 className="text-sm font-semibold text-[--color-text-primary]">SA Compliance Details</h3>
+                    </div>
+                }
+            >
+                <p className="text-xs text-[--color-text-muted] mb-5">
+                    Required for CSD supplier registration and tender eligibility verification.
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    <Input
+                        label="CSD Supplier Number"
+                        placeholder="e.g. MAAA0123456789"
+                        value={form.csdNumber}
+                        onChange={(e) => setField('csdNumber', e.target.value)}
+                    />
+                    <Select
+                        label="B-BBEE Level"
+                        value={form.bbbeeLevel}
+                        onChange={(e) => setField('bbbeeLevel', e.target.value)}
+                        options={[
+                            { value: '', label: 'Select B-BBEE level…' },
+                            { value: 'Level 1', label: 'Level 1 (110+ points)' },
+                            { value: 'Level 2', label: 'Level 2 (105–109 points)' },
+                            { value: 'Level 3', label: 'Level 3 (100–104 points)' },
+                            { value: 'Level 4', label: 'Level 4 (95–99 points)' },
+                            { value: 'Level 5', label: 'Level 5 (87–94 points)' },
+                            { value: 'Level 6', label: 'Level 6 (75–86 points)' },
+                            { value: 'Level 7', label: 'Level 7 (55–74 points)' },
+                            { value: 'Level 8', label: 'Level 8 (below 55 points)' },
+                            { value: 'Exempt', label: 'Exempt Micro Enterprise' },
+                            { value: 'Non-compliant', label: 'Non-compliant' },
+                        ]}
+                    />
+                    <Select
+                        label="CIDB Grade"
+                        value={form.cidbGrade}
+                        onChange={(e) => setField('cidbGrade', e.target.value)}
+                        options={[
+                            { value: '', label: 'Select CIDB grade…' },
+                            { value: '1', label: 'Grade 1 (up to R200k)' },
+                            { value: '2', label: 'Grade 2 (up to R650k)' },
+                            { value: '3', label: 'Grade 3 (up to R2m)' },
+                            { value: '4', label: 'Grade 4 (up to R6.5m)' },
+                            { value: '5', label: 'Grade 5 (up to R13m)' },
+                            { value: '6', label: 'Grade 6 (up to R40m)' },
+                            { value: '7', label: 'Grade 7 (up to R130m)' },
+                            { value: '8', label: 'Grade 8 (up to R400m)' },
+                            { value: '9', label: 'Grade 9 (over R400m)' },
+                            { value: 'N/A', label: 'Not applicable' },
+                        ]}
+                    />
+                    <Select
+                        label="Province"
+                        value={form.province}
+                        onChange={(e) => setField('province', e.target.value)}
+                        options={[
+                            { value: '', label: 'Select province…' },
+                            { value: 'Eastern Cape', label: 'Eastern Cape' },
+                            { value: 'Free State', label: 'Free State' },
+                            { value: 'Gauteng', label: 'Gauteng' },
+                            { value: 'KwaZulu-Natal', label: 'KwaZulu-Natal' },
+                            { value: 'Limpopo', label: 'Limpopo' },
+                            { value: 'Mpumalanga', label: 'Mpumalanga' },
+                            { value: 'Northern Cape', label: 'Northern Cape' },
+                            { value: 'North West', label: 'North West' },
+                            { value: 'Western Cape', label: 'Western Cape' },
+                        ]}
+                    />
                 </div>
             </Card>
 

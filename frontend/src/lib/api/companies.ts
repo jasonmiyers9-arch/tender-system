@@ -1,4 +1,4 @@
-import type { Company } from './types';
+﻿import type { Company } from './types';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8000';
 
@@ -8,7 +8,7 @@ function getToken(): string | null {
     if (!raw) return null;
     try {
         const parsed = JSON.parse(raw);
-        return parsed?.state?.mockToken ?? null;
+        return parsed?.state?.token ?? null;
     } catch {
         return null;
     }
@@ -44,7 +44,12 @@ export const companies = {
         return { activeCompanyId: json.activeCompanyId };
     },
 
-    async updateProfile(_id: string, data: Partial<Company>): Promise<Company> {
+    async updateProfile(_id: string, data: Partial<Company> & {
+        csd_number?: string | null;
+        bbbee_level?: string | null;
+        cidb_grade?: string | null;
+        province?: string | null;
+    }): Promise<Company> {
         return authFetch('/companies/active', {
             method: 'PATCH',
             body: JSON.stringify(data),

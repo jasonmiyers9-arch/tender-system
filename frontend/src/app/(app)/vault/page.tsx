@@ -14,7 +14,7 @@ import { ErrorState } from '@/components/ui/ErrorState';
 import { TableRowSkeleton } from '@/components/ui/Skeleton';
 import { formatDate, docCategoryLabel } from '@/lib/utils/formatters';
 import type { DocumentStatus, DocumentCategory, VaultDocument } from '@/lib/api/types';
-import { Upload, MoreHorizontal, Plus, FolderLock } from 'lucide-react';
+import { Upload, MoreHorizontal, Plus, FolderLock, AlertTriangle, CheckCircle2, Clock, XCircle } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
 const statusOptions = [
@@ -44,6 +44,18 @@ export default function VaultPage() {
     const [uploadFile, setUploadFile] = useState<File | null>(null);
 
     const router = useRouter();
+
+    // Derived counts from unfiltered docs (always fetch all for stats)
+    const allDocsQuery = useVaultDocuments();
+    const allDocs = allDocsQuery.data ?? [];
+    const today = new Date();
+    const countVerified = allDocs.filter((d) => d.status === 'verified').length;
+    const countExpired = allDocs.filter((d) => d.status === 'expired').length;
+    const countExpiringSoon = allDocs.filter((d) => {
+        if (!d.expiryDate || d.status === 'expired') return false;
+        const diff = (new Date(d.expiryDate).getTime() - today.getTime()) / 86400000;
+        return diff >= 0 && diff <= 30;
+    }).length;
 
     const docsQuery = useVaultDocuments({
         status: statusFilter || undefined,
@@ -128,6 +140,48 @@ export default function VaultPage() {
                     Upload Document
                 </Button>
             </div>
+
+            {/* Stats header */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                {[
+                    { label: 'Total Documents', value: allDocs.length, icon: <FolderLock size={16} />, color: 'text-[--color-primary]' },
+                    { label: 'Verified', value: countVerified, icon: <CheckCircle2 size={16} />, color: 'text-[--color-success]' },
+                    { label: 'Expiring ≤ 30 days', value: countExpiringSoon, icon: <Clock size={16} />, color: 'text-[--color-warning]' },
+                    { label: 'Expired', value: countExpired, icon: <XCircle size={16} />, color: 'text-[--color-danger]' },
+                ].map((s) => (
+                    <div key={s.label} className="rounded-xl border border-[--color-border] bg-[--color-surface] p-4 flex items-center gap-3">
+                        <span className={s.color}>{s.icon}</span>
+                        <div>
+                            <p className="text-xl font-bold text-[--color-text-primary]">{s.value}</p>
+                            <p className="text-[10px] text-[--color-text-muted] leading-tight">{s.label}</p>
+                        </div>
+                    </div>
+                ))}
+            </div>
+
+            {/* Expiry warning banner */}
+            {(countExpiringSoon > 0 || countExpired > 0) && (
+                <div className="flex items-start gap-3 p-4 rounded-xl border border-[#FCD34D] bg-[#FFFBEB]">
+                    <AlertTriangle size={17} className="text-[--color-warning] flex-shrink-0 mt-0.5" />
+                    <div className="flex-1">
+                        <p className="text-sm font-semibold text-[--color-text-primary]">
+                            {countExpired > 0
+                                ? `${countExpired} document${countExpired > 1 ? 's' : ''} expired${countExpiringSoon > 0 ? ` · ${countExpiringSoon} expiring within 30 days` : ''}`
+                                : `${countExpiringSoon} document${countExpiringSoon > 1 ? 's' : ''} expiring within 30 days`}
+                        </p>
+                        <p className="text-xs text-[--color-text-muted] mt-0.5">
+                            Expired or near-expiry documents reduce your Tender Readiness Score. Renew them promptly.
+                        </p>
+                    </div>
+                    <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setStatusFilter('expired')}
+                    >
+                        Filter expired
+                    </Button>
+                </div>
+            )}
 
             {/* Filters */}
             <Card padding="sm">
