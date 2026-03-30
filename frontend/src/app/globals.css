@@ -1,139 +1,158 @@
 @import "tailwindcss";
 
 /* ─────────────────────────────────────────────
-   TenderGuard Pro — Design Tokens
-   All brand colours live here as CSS variables.
-   Components ONLY use utility classes that map
-   to these variables — never raw hex values.
+   TenderGuard Pro — Professional Design System
+   Enterprise SaaS palette. Warm slate-based.
 ──────────────────────────────────────────────── */
+
+/* Enable class-based dark: utilities via next-themes */
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme inline {
-  /* Map standard CSS variables to Tailwind colours */
-  --color-primary: var(--primary);
-  --color-primary-dark: var(--primary-dark);
-  --color-secondary: var(--secondary);
-  --color-accent: var(--accent);
+  --color-primary:        var(--primary);
+  --color-primary-dark:   var(--primary-dark);
+  --color-secondary:      var(--secondary);
+  --color-accent:         var(--accent);
 
   --color-success: var(--success);
   --color-warning: var(--warning);
-  --color-danger: var(--danger);
+  --color-danger:  var(--danger);
+  --color-info:    var(--info);
 
-  --color-bg: var(--bg);
-  --color-surface: var(--surface);
-  --color-border: var(--border);
+  --color-bg:             var(--bg);
+  --color-surface:        var(--surface);
+  --color-surface-raised: var(--surface-raised);
+  --color-border:         var(--border);
+  --color-border-strong:  var(--border-strong);
 
   --color-text-primary: var(--text-primary);
-  --color-text-muted: var(--text-muted);
+  --color-text-muted:   var(--text-muted);
+  --color-text-subtle:  var(--text-subtle);
 
-  --color-sidebar-bg: var(--sidebar-bg);
-  --color-sidebar-text: var(--sidebar-text);
-  --color-sidebar-active: var(--sidebar-active);
+  /* Sidebar — always deep navy, never flips with theme */
+  --color-sidebar-bg:          var(--sidebar-bg);
+  --color-sidebar-border:      var(--sidebar-border);
+  --color-sidebar-text:        var(--sidebar-text);
+  --color-sidebar-text-active: var(--sidebar-text-active);
+  --color-sidebar-active-bg:   var(--sidebar-active-bg);
 
-  --font-sans: 'Inter', system-ui, sans-serif;
+  --font-sans: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
 }
 
 :root {
-  /* Default Light Mode Palette (Premium SaaS look) */
-  --primary: #4F46E5;
-  /* Indigo 600 */
+  /* ── Light Mode ── */
+  --primary:      #4F46E5;
   --primary-dark: #4338CA;
-  --secondary: #0EA5E9;
-  --accent: #8B5CF6;
+  --secondary:    #0891B2;
+  --accent:       #7C3AED;
+  --info:         #0284C7;
 
-  --success: #10B981;
-  --warning: #F59E0B;
-  --danger: #EF4444;
+  --success: #059669;
+  --warning: #D97706;
+  --danger:  #DC2626;
 
-  --bg: #FAFAFA;
-  /* Zinc 50 */
-  --surface: #FFFFFF;
-  --border: #E4E4E7;
-  /* Zinc 200 */
+  --bg:             #EEF2F7; /* cool blue-grey page bg — darker than surface */
+  --surface:        #FFFFFF; /* card surfaces: pure white */
+  --surface-raised: #F8FAFC; /* slightly tinted for card headers/footers */
+  --border:         #CBD5E1; /* slate-300 — clearly visible */
+  --border-strong:  #94A3B8; /* slate-400 — for emphasis */
 
-  --text-primary: #09090B;
-  /* Zinc 950 */
-  --text-muted: #71717A;
-  /* Zinc 500 */
+  --text-primary: #0F172A;
+  --text-muted:   #475569;   /* darker than before for readability */
+  --text-subtle:  #94A3B8;
 
-  --sidebar-bg: #FFFFFF;
-  --sidebar-text: #27272A;
-  --sidebar-active: #4F46E5;
+  /* Sidebar — fixed dark navy regardless of theme */
+  --sidebar-bg:          #0B1120;
+  --sidebar-border:      #1E2D45;
+  --sidebar-text:        #94A3B8;
+  --sidebar-text-active: #E0E7FF;
+  --sidebar-active-bg:   rgba(99, 102, 241, 0.18);
 }
 
 @media (prefers-color-scheme: dark) {
-  :root {
-    /* Dark Mode Palette (Linear/Vercel style deep dark) */
-    --primary: #6366F1;
-    /* Indigo 500 */
-    --primary-dark: #818CF8;
-    --secondary: #38BDF8;
-    --accent: #A78BFA;
+  :root:not(.light) {
+    --primary:      #818CF8;
+    --primary-dark: #6366F1;
+    --secondary:    #22D3EE;
+    --accent:       #A78BFA;
+    --info:         #38BDF8;
 
     --success: #34D399;
     --warning: #FBBF24;
-    --danger: #F87171;
+    --danger:  #F87171;
 
-    --bg: #09090B;
-    /* Zinc 950 */
-    --surface: #18181B;
-    /* Zinc 900 */
-    --border: #27272A;
-    /* Zinc 800 */
+    --bg:             #060D18; /* very deep navy — clear contrast against surface */
+    --surface:        #0F1E35; /* card bg — distinctly lighter than page bg */
+    --surface-raised: #162847; /* card header / elevated panel */
+    --border:         #1E3A5C; /* blue-slate — clearly visible in dark */
+    --border-strong:  #2D5380; /* stronger accent border */
 
-    --text-primary: #FAFAFA;
-    /* Zinc 50 */
-    --text-muted: #A1A1AA;
-    /* Zinc 400 */
+    --text-primary: #E2E8F0;   /* bright enough to pop */
+    --text-muted:   #94A3B8;
+    --text-subtle:  #64748B;
 
-    --sidebar-bg: #09090B;
-    --sidebar-text: #A1A1AA;
-    --sidebar-active: #FAFAFA;
+    --sidebar-bg:          #040B14;
+    --sidebar-border:      #14253D;
+    --sidebar-text:        #64748B;
+    --sidebar-text-active: #E0E7FF;
+    --sidebar-active-bg:   rgba(129, 140, 248, 0.15);
   }
 }
 
 .dark {
-  /* Manual Dark Mode Override */
-  --primary: #6366F1;
-  --primary-dark: #818CF8;
-  --secondary: #38BDF8;
-  --accent: #A78BFA;
+  --primary:      #818CF8;
+  --primary-dark: #6366F1;
+  --secondary:    #22D3EE;
+  --accent:       #A78BFA;
+  --info:         #38BDF8;
 
   --success: #34D399;
   --warning: #FBBF24;
-  --danger: #F87171;
+  --danger:  #F87171;
 
-  --bg: #09090B;
-  --surface: #18181B;
-  --border: #27272A;
+  --bg:             #060D18;
+  --surface:        #0F1E35;
+  --surface-raised: #162847;
+  --border:         #1E3A5C;
+  --border-strong:  #2D5380;
 
-  --text-primary: #FAFAFA;
-  --text-muted: #A1A1AA;
+  --text-primary: #E2E8F0;
+  --text-muted:   #94A3B8;
+  --text-subtle:  #64748B;
 
-  --sidebar-bg: #09090B;
-  --sidebar-text: #A1A1AA;
-  --sidebar-active: #FAFAFA;
+  --sidebar-bg:          #040B14;
+  --sidebar-border:      #14253D;
+  --sidebar-text:        #64748B;
+  --sidebar-text-active: #E0E7FF;
+  --sidebar-active-bg:   rgba(129, 140, 248, 0.15);
 }
 
 .light {
-  /* Manual Light Mode Override (must exist so it can override system dark) */
-  --primary: #4F46E5;
+  --primary:      #4F46E5;
   --primary-dark: #4338CA;
-  --secondary: #0EA5E9;
-  --accent: #8B5CF6;
+  --secondary:    #0891B2;
+  --accent:       #7C3AED;
+  --info:         #0284C7;
 
-  --success: #10B981;
-  --warning: #F59E0B;
-  --danger: #EF4444;
+  --success: #059669;
+  --warning: #D97706;
+  --danger:  #DC2626;
 
-  --bg: #FAFAFA;
-  --surface: #FFFFFF;
-  --border: #E4E4E7;
+  --bg:             #EEF2F7;
+  --surface:        #FFFFFF;
+  --surface-raised: #F8FAFC;
+  --border:         #CBD5E1;
+  --border-strong:  #94A3B8;
 
-  --text-primary: #09090B;
-  --text-muted: #71717A;
+  --text-primary: #0F172A;
+  --text-muted:   #475569;
+  --text-subtle:  #94A3B8;
 
-  --sidebar-bg: #FFFFFF;
-  --sidebar-text: #27272A;
-  --sidebar-active: #4F46E5;
+  --sidebar-bg:          #0B1120;
+  --sidebar-border:      #1E2D45;
+  --sidebar-text:        #94A3B8;
+  --sidebar-text-active: #E0E7FF;
+  --sidebar-active-bg:   rgba(99, 102, 241, 0.18);
 }
 
 /* ─────────────────────────────────────────────
@@ -141,7 +160,11 @@
    Use these in components, not raw hex.
 ──────────────────────────────────────────────── */
 
-/* Scrollbar */
+/* ── Base Reset & Typography ─────────────────── */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
 * {
   scrollbar-width: thin;
   scrollbar-color: var(--color-border) transparent;
@@ -151,11 +174,37 @@ body {
   background-color: var(--color-bg);
   color: var(--color-text-primary);
   font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 1.6;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
-/* Focus ring */
+/* Focus ring — accessible & branded */
 *:focus-visible {
   outline: 2px solid var(--color-primary);
   outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Smooth colour transitions on theme switch */
+body, body * {
+  transition-property: background-color, border-color, color, box-shadow;
+  transition-duration: 120ms;
+  transition-timing-function: ease;
+}
+
+button, a, input, select, textarea {
+  transition-property: background-color, border-color, color, box-shadow, opacity, transform;
+  transition-duration: 120ms;
+}
+
+/* Card elevation system */
+.card-shadow {
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.06), 0 0 0 1px rgba(0,0,0,0.04);
+}
+
+.dark .card-shadow {
+  box-shadow: 0 2px 8px rgba(0,0,0,0.5), 0 0 0 1px rgba(30,58,92,0.8);
 }

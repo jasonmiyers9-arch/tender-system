@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { useMarkAllNotificationsRead, useMarkNotificationRead, useNotifications } from '@/lib/hooks/useNotifications';
 import { Bell, AlertTriangle } from 'lucide-react';
+import { PageHeader } from '@/components/ui/PageHeader';
 
 function formatWhen(ts: string | null): string {
     if (!ts) return 'Just now';
@@ -21,13 +22,13 @@ export default function NotificationsPage() {
 
     return (
         <div className="space-y-6 max-w-4xl mx-auto">
-            <div className="flex items-center justify-between">
-                <div>
-                    <h1 className="text-2xl font-bold text-[--color-text-primary]">Notifications</h1>
-                    <p className="text-sm text-[--color-text-muted] mt-0.5">Document expiry reminders and system alerts.</p>
-                </div>
-                <Button variant="ghost" size="sm" onClick={() => markAll.mutate()} loading={markAll.isPending}>Mark all as read</Button>
-            </div>
+            <PageHeader
+                title="Notifications"
+                subtitle="Document expiry reminders and system alerts."
+                icon={<Bell size={22} />}
+                iconColor="#F59E0B"
+                actions={<Button variant="ghost" size="sm" onClick={() => markAll.mutate()} loading={markAll.isPending}>Mark all as read</Button>}
+            />
 
             <Card padding="none">
                 {!items.length ? (

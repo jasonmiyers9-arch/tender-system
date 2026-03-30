@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { Save, Building2, User } from 'lucide-react';
+import { PageHeader } from '@/components/ui/PageHeader';
 import { useAppStore } from '@/store/useAppStore';
 
 const STORAGE_KEY = 'tenderguard-provider-profile';
@@ -55,15 +56,13 @@ export default function ProviderProfilePage() {
 
     return (
         <div className="space-y-6 max-w-3xl mx-auto">
-            <div className="flex items-start justify-between gap-4">
-                <div>
-                    <h1 className="text-2xl font-bold text-[--color-text-primary]">Provider Profile</h1>
-                    <p className="text-sm text-[--color-text-muted] mt-0.5">
-                        Set the identity and contact details used by the tender provider portal.
-                    </p>
-                </div>
-                <Badge variant="accent" dot>Tender Provider</Badge>
-            </div>
+            <PageHeader
+                title="Provider Profile"
+                subtitle="Set the identity and contact details used by the tender provider portal."
+                icon={<Building2 size={22} />}
+                iconColor="#10B981"
+                actions={<Badge variant="accent" dot>Tender Provider</Badge>}
+            />
 
             <Card
                 header={

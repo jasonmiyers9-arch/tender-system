@@ -2,56 +2,31 @@ from datetime import datetime, timezone
 from pathlib import Path
 from uuid import uuid4
 
-import redis.asyncio as redis
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_user
+from app.api.deps import get_active_company_id, get_current_user
 from app.core.config import settings
 from app.db.session import get_db
-from app.models.domain import CompanyMembership, ComplianceDocument
+from app.models.domain import ComplianceDocument
 from app.models.user import Company, User
 
 router = APIRouter(prefix="/documents", tags=["documents"])
+
+# Allowed upload extensions and max size
+_ALLOWED_EXTENSIONS = {
+    ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".png", ".jpg", ".jpeg",
+    ".txt", ".csv", ".zip",
+}
+_MAX_UPLOAD_BYTES = 10 * 1024 * 1024  # 10 MB
 
 
 def _storage_root() -> Path:
     root = Path(settings.STORAGE_DIR)
     root.mkdir(parents=True, exist_ok=True)
     return root
-
-
-async def _get_active_company_id(db: AsyncSession, user: User) -> int:
-    if getattr(user.role, "value", user.role) == "admin":
-        rows = await db.execute(select(Company.id).order_by(Company.id.asc()))
-        allowed_ids = [int(r[0]) for r in rows.all()]
-    else:
-        rows = await db.execute(
-            select(Company.id)
-            .join(CompanyMembership, CompanyMembership.company_id == Company.id)
-            .where(CompanyMembership.user_id == user.id)
-            .order_by(Company.id.asc())
-        )
-        allowed_ids = [int(r[0]) for r in rows.all()]
-
-    if not allowed_ids:
-        fallback = await db.scalar(select(Company.id).order_by(Company.id.asc()).limit(1))
-        if fallback is None:
-            raise HTTPException(status_code=404, detail="No company found")
-        allowed_ids = [int(fallback)]
-
-    client = redis.from_url(settings.REDIS_URL, decode_responses=True)
-    try:
-        raw = await client.get(f"active_company:{user.id}")
-        active_id = int(raw) if raw else None
-        if active_id not in allowed_ids:
-            active_id = allowed_ids[0]
-            await client.set(f"active_company:{user.id}", str(active_id))
-        return active_id
-    finally:
-        await client.aclose()
 
 
 def _onboarding_profile_ok(company: Company) -> bool:
@@ -88,14 +63,28 @@ async def upload_document(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    company_id = await _get_active_company_id(db, user)
-
+    # Validate file extension
     safe_name = Path(file.filename or "document.bin").name
+    ext = Path(safe_name).suffix.lower()
+    if ext not in _ALLOWED_EXTENSIONS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"File type '{ext}' is not allowed. Accepted: {', '.join(sorted(_ALLOWED_EXTENSIONS))}",
+        )
+
+    # Validate file size (read into memory, check before saving)
+    content = await file.read()
+    if len(content) > _MAX_UPLOAD_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail=f"File too large. Maximum size is {_MAX_UPLOAD_BYTES // (1024*1024)} MB.",
+        )
+
+    company_id = await get_active_company_id(db, user)
+
     key = f"company_{company_id}/{uuid4().hex}_{safe_name}"
     target = _storage_root() / key
     target.parent.mkdir(parents=True, exist_ok=True)
-
-    content = await file.read()
     target.write_bytes(content)
 
     issue_dt = datetime.fromisoformat(issue_date) if issue_date else None
@@ -137,7 +126,7 @@ async def list_documents(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    company_id = await _get_active_company_id(db, user)
+    company_id = await get_active_company_id(db, user)
     q = select(ComplianceDocument).where(ComplianceDocument.company_id == company_id)
     if category:
         q = q.where(ComplianceDocument.category == category)
@@ -151,7 +140,7 @@ async def list_documents(
 
 @router.get("/{doc_id}")
 async def get_document(doc_id: int, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    company_id = await _get_active_company_id(db, user)
+    company_id = await get_active_company_id(db, user)
     doc = await db.scalar(
         select(ComplianceDocument).where(ComplianceDocument.id == doc_id, ComplianceDocument.company_id == company_id)
     )
@@ -179,7 +168,7 @@ async def get_document(doc_id: int, user: User = Depends(get_current_user), db: 
 
 @router.post("/{doc_id}/request-verification")
 async def request_verification(doc_id: int, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    company_id = await _get_active_company_id(db, user)
+    company_id = await get_active_company_id(db, user)
     doc = await db.scalar(
         select(ComplianceDocument).where(ComplianceDocument.id == doc_id, ComplianceDocument.company_id == company_id)
     )
@@ -195,7 +184,7 @@ async def request_verification(doc_id: int, user: User = Depends(get_current_use
 
 @router.get("/{doc_id}/download")
 async def download_document(doc_id: int, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    company_id = await _get_active_company_id(db, user)
+    company_id = await get_active_company_id(db, user)
     doc = await db.scalar(
         select(ComplianceDocument).where(ComplianceDocument.id == doc_id, ComplianceDocument.company_id == company_id)
     )
@@ -207,3 +196,38 @@ async def download_document(doc_id: int, user: User = Depends(get_current_user),
         raise HTTPException(status_code=404, detail="Stored file missing")
 
     return FileResponse(path=file_path, filename=doc.filename, media_type="application/octet-stream")
+
+
+from pydantic import BaseModel
+
+
+class RenewDocumentIn(BaseModel):
+    issue_date: str | None = None
+    expiry_date: str | None = None
+
+
+@router.patch("/{doc_id}/renew")
+async def renew_document(
+    doc_id: int,
+    payload: RenewDocumentIn,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Update expiry/issue dates on an existing document — used to renew expired documents."""
+    company_id = await get_active_company_id(db, user)
+    doc = await db.scalar(
+        select(ComplianceDocument).where(ComplianceDocument.id == doc_id, ComplianceDocument.company_id == company_id)
+    )
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    if payload.issue_date:
+        doc.issue_date = datetime.fromisoformat(payload.issue_date)
+    if payload.expiry_date:
+        doc.expiry_date = datetime.fromisoformat(payload.expiry_date)
+
+    # Reset status to uploaded so admin can re-verify
+    doc.status = "uploaded"
+    await db.commit()
+    await db.refresh(doc)
+    return {"ok": True, **_doc_to_item(doc, user)}

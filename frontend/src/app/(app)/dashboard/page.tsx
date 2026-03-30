@@ -4,6 +4,7 @@ import { useScore } from '@/lib/hooks/useScore';
 import { useVaultDocuments } from '@/lib/hooks/useVault';
 import { useTenderMatches } from '@/lib/hooks/useTenders';
 import { useAuditLog } from '@/lib/hooks/useAdmin';
+import { useNotifications, useMarkAllNotificationsRead } from '@/lib/hooks/useNotifications';
 import { ScoreCard, StatCard } from '@/components/cards/Cards';
 import { StatusBadge } from '@/components/badges/Badges';
 import { CardSkeleton, Skeleton } from '@/components/ui/Skeleton';
@@ -12,7 +13,8 @@ import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { formatDate, formatDateTime } from '@/lib/utils/formatters';
-import { AlertTriangle, FileSearch, Clock, TrendingUp } from 'lucide-react';
+import { AlertTriangle, FileSearch, Clock, TrendingUp, Bell, CheckCheck, LayoutDashboard } from 'lucide-react';
+import { PageHeader } from '@/components/ui/PageHeader';
 import Link from 'next/link';
 import { useAppStore } from '@/store/useAppStore';
 
@@ -22,6 +24,8 @@ export default function DashboardPage() {
     const docsQuery = useVaultDocuments();
     const tendersQuery = useTenderMatches();
     const auditQuery = useAuditLog(1, 5);
+    const notifQuery = useNotifications(5);
+    const markAllRead = useMarkAllNotificationsRead();
 
     const expiringDocs = docsQuery.data?.filter(
         (d) => d.status === 'expired' || d.status === 'uploaded'
@@ -32,17 +36,17 @@ export default function DashboardPage() {
     return (
         <div className="space-y-6 max-w-7xl mx-auto">
             {/* Page header */}
-            <div>
-                <h1 className="text-2xl font-bold text-[--color-text-primary]">Dashboard</h1>
-                <p className="text-sm text-[--color-text-muted] mt-0.5">
-                    Your compliance overview at a glance
-                </p>
-            </div>
+            <PageHeader
+                title="Dashboard"
+                subtitle="Your compliance overview at a glance"
+                icon={<LayoutDashboard size={22} />}
+                iconColor="#4F46E5"
+            />
 
             {showOnboardingChecklist && (
-                <div className="rounded-xl border border-[#93C5FD] bg-[#EFF6FF] p-4">
-                    <p className="text-sm font-semibold text-[#1E40AF]">Onboarding checklist</p>
-                    <p className="text-xs text-[#1D4ED8] mt-1">
+                <div className="rounded-xl border border-blue-500/30 bg-blue-500/10 p-4">
+                    <p className="text-sm font-semibold text-blue-600 dark:text-blue-400">Onboarding checklist</p>
+                    <p className="text-xs text-[--color-text-muted] mt-1">
                         Upload at least 5 documents to complete onboarding visibility. Priority first 3: B-BBEE certificate, SARS TCS Pin, CIPC registration certificate.
                     </p>
                 </div>
@@ -91,7 +95,7 @@ export default function DashboardPage() {
 
             {/* Alerts */}
             {(docsQuery.data?.filter((d) => d.status === 'expired').length ?? 0) > 0 && (
-                <div className="flex items-start gap-3 p-4 rounded-xl border border-[#FCD34D] bg-[#FFFBEB]">
+                <div className="flex items-start gap-3 p-4 rounded-xl border border-amber-500/30 bg-amber-500/10">
                     <AlertTriangle size={18} className="text-[--color-warning] flex-shrink-0 mt-0.5" />
                     <div className="flex-1">
                         <p className="text-sm font-semibold text-[--color-text-primary]">
@@ -226,7 +230,7 @@ export default function DashboardPage() {
                             {auditQuery.data?.entries.map((entry) => (
                                 <li key={entry.id} className="flex items-start gap-4 px-6 py-3">
                                     <div className="w-7 h-7 rounded-full bg-[--color-primary] flex items-center justify-center flex-shrink-0 mt-0.5">
-                                        <span className="text-[--color-text-primary] text-[10px] font-bold">
+                                        <span className="text-white text-[10px] font-bold">
                                             {entry.actor.charAt(0)}
                                         </span>
                                     </div>
@@ -242,6 +246,70 @@ export default function DashboardPage() {
                     )}
                 </Card>
             )}
+
+            {/* Notifications panel */}
+            <Card
+                header={
+                    <>
+                        <div className="flex items-center gap-2">
+                            <Bell size={15} className="text-[--color-primary]" />
+                            <h3 className="text-sm font-semibold text-[--color-text-primary]">Notifications</h3>
+                            {(notifQuery.data?.filter((n) => !n.isRead).length ?? 0) > 0 && (
+                                <Badge variant="danger" size="sm">
+                                    {notifQuery.data!.filter((n) => !n.isRead).length} new
+                                </Badge>
+                            )}
+                        </div>
+                        <div className="flex items-center gap-3">
+                            <Button
+                                size="sm"
+                                variant="ghost"
+                                leftIcon={<CheckCheck size={13} />}
+                                onClick={() => markAllRead.mutate()}
+                                disabled={markAllRead.isPending}
+                            >
+                                Mark all read
+                            </Button>
+                            <Link href="/notifications" className="text-xs text-[--color-primary] hover:underline">
+                                View all
+                            </Link>
+                        </div>
+                    </>
+                }
+                padding="none"
+            >
+                {notifQuery.isLoading ? (
+                    <div className="p-4 space-y-3">
+                        {[1, 2, 3].map((i) => <Skeleton key={i} className="h-12 w-full" />)}
+                    </div>
+                ) : !notifQuery.data?.length ? (
+                    <div className="py-8 text-center text-sm text-[--color-text-muted]">
+                        🔔 You&apos;re all caught up — no notifications
+                    </div>
+                ) : (
+                    <ul className="divide-y divide-[--color-border]">
+                        {notifQuery.data.slice(0, 5).map((n) => (
+                            <li
+                                key={n.id}
+                                className={`flex items-start gap-4 px-6 py-3 transition-colors ${
+                                    n.isRead ? '' : 'bg-[--color-bg]'
+                                }`}
+                            >
+                                <div className={`w-2 h-2 rounded-full flex-shrink-0 mt-2 ${n.isRead ? 'bg-transparent' : 'bg-[--color-primary]'}`} />
+                                <div className="flex-1">
+                                    <p className={`text-sm ${n.isRead ? 'text-[--color-text-muted]' : 'font-semibold text-[--color-text-primary]'}`}>
+                                        {n.title}
+                                    </p>
+                                    <p className="text-xs text-[--color-text-muted] mt-0.5 line-clamp-1">{n.message}</p>
+                                </div>
+                                <p className="text-[10px] text-[--color-text-muted] flex-shrink-0 mt-0.5">
+                                    {formatDate(n.triggerDate)}
+                                </p>
+                            </li>
+                        ))}
+                    </ul>
+                )}
+            </Card>
         </div>
     );
 }

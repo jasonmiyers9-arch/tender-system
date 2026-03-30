@@ -1,0 +1,9 @@
+{
+  "include": ["app", "tests"],
+  "exclude": ["main_alembic"],
+  "venvPath": "..",
+  "venv": ".venv",
+  "pythonVersion": "3.11",
+  "typeCheckingMode": "basic",
+  "reportMissingModuleSource": "none"
+}

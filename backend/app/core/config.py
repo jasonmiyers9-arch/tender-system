@@ -1,4 +1,6 @@
 from pydantic_settings import BaseSettings
+from pydantic import model_validator
+import warnings
 
 
 class Settings(BaseSettings):
@@ -22,13 +24,14 @@ class Settings(BaseSettings):
 
     # Postgres
     POSTGRES_SERVER: str = "localhost"
+    POSTGRES_PORT: int = 5432
     POSTGRES_USER: str = "tenderadmin"
     POSTGRES_PASSWORD: str = "tenderpassword"
     POSTGRES_DB: str = "tenderguard"
 
     @property
     def SQLALCHEMY_DATABASE_URI(self) -> str:
-        return f"postgresql+asyncpg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@{self.POSTGRES_SERVER}/{self.POSTGRES_DB}"
+        return f"postgresql+asyncpg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@{self.POSTGRES_SERVER}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
 
     @property
     def cors_origins_list(self) -> list[str]:
@@ -40,6 +43,18 @@ class Settings(BaseSettings):
 
     class Config:
         case_sensitive = True
+        env_file = ".env"
+        env_file_encoding = "utf-8"
 
+    @model_validator(mode="after")
+    def _validate_secret_key(self):
+        default = "t3nd3rgu4rd_s3cur3_k3y_123!"
+        if self.SECRET_KEY == default and self.ENVIRONMENT != "dev":
+            warnings.warn(
+                "SECRET_KEY is set to the default insecure value. "
+                "Override it via the SECRET_KEY environment variable before deploying.",
+                stacklevel=2,
+            )
+        return self
 
 settings = Settings()

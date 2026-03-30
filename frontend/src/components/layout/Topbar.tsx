@@ -29,7 +29,7 @@ export function Topbar() {
     };
 
     return (
-        <header className="h-14 flex items-center justify-between px-6 bg-[--color-surface] border-b border-[--color-border] flex-shrink-0 gap-4">
+        <header className="h-[60px] flex items-center justify-between px-6 bg-[--color-surface] border-b border-[--color-border] shadow-sm flex-shrink-0 gap-4">
             {/* Left: Breadcrumbs */}
             <div className="flex-1 min-w-0">
                 <Breadcrumbs />
@@ -45,7 +45,11 @@ export function Topbar() {
                 <Link href="/notifications" className="relative p-2 rounded-lg hover:bg-[--color-bg] text-[--color-text-muted] hover:text-[--color-text-primary] transition-colors">
                     <Bell size={18} />
                     {(unreadQuery.data?.length ?? 0) > 0 && (
-                        <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-[--color-danger]" />
+                        <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] rounded-full bg-[--color-danger] flex items-center justify-center px-1">
+                            <span className="text-[10px] font-bold text-white leading-none">
+                                {(unreadQuery.data?.length ?? 0) > 9 ? '9+' : unreadQuery.data?.length}
+                            </span>
+                        </span>
                     )}
                 </Link>
 
@@ -55,9 +59,9 @@ export function Topbar() {
                         onClick={() => setUserMenuOpen((o) => !o)}
                         className="flex items-center gap-2 pl-3 pr-2 py-1.5 rounded-lg hover:bg-[--color-bg] transition-colors"
                     >
-                        <div className="w-7 h-7 rounded-full bg-[--color-primary] flex items-center justify-center">
-                            <span className="text-[--color-text-primary] text-xs font-bold">
-                                {currentUser?.name?.charAt(0) ?? 'U'}
+                        <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: 'linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%)' }}>
+                            <span className="text-white text-xs font-bold">
+                                {currentUser?.name?.charAt(0).toUpperCase() ?? 'U'}
                             </span>
                         </div>
                         <div className="text-left hidden sm:block">
@@ -91,7 +95,7 @@ export function Topbar() {
                                 <div className="border-t border-[--color-border] mt-1">
                                     <button
                                         onClick={handleLogout}
-                                        className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-[--color-danger] hover:bg-[#FEE2E2] transition-colors"
+                                        className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-[--color-danger] hover:bg-red-500/10 transition-colors"
                                     >
                                         <LogOut size={15} /> Sign Out
                                     </button>

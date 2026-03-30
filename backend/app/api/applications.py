@@ -1,22 +1,26 @@
-from datetime import datetime
+﻿"""Applications API — TenderApplication stored in PostgreSQL."""
+from datetime import datetime, timezone
 from pathlib import Path
-import json
 import uuid
-
-from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_user
+from app.api.deps import get_active_company_id, get_current_user, write_audit_log
 from app.core.config import settings
 from app.db.session import get_db
-from app.models.domain import ComplianceDocument
+from app.models.domain import (
+    ApplicationStatus,
+    ComplianceDocument,
+    Tender,
+    TenderApplication,
+    TenderStatus,
+)
 from app.models.user import Company, User
-from app.api.tenders import _get_active_company_id, _load_provider_tenders
 
 router = APIRouter(tags=["applications"])
 
@@ -25,104 +29,127 @@ class RejectApplicationIn(BaseModel):
     reason: str | None = None
 
 
-def _apps_file() -> Path:
-    root = Path(settings.STORAGE_DIR)
-    root.mkdir(parents=True, exist_ok=True)
-    return root / "tender_applications.json"
+def _serialize_app(app: TenderApplication, tender: Tender | None = None, company: Company | None = None) -> dict:
+    t = tender or app.tender
+    c = company or app.company
+    deadline = ""
+    if t and t.deadline:
+        deadline = t.deadline.isoformat() if hasattr(t.deadline, "isoformat") else str(t.deadline)
+    return {
+        "id": app.id,
+        "tenderId": str(app.tender_id),
+        "tenderTitle": t.title if t else "Unknown",
+        "tenderOrganization": t.organization if t else "",
+        "tenderDeadline": deadline,
+        "tenderValue": t.value if t else "",
+        "companyId": app.company_id,
+        "companyName": c.name if c else f"Company {app.company_id}",
+        "appliedBy": app.applied_by,
+        "appliedAt": app.applied_at.isoformat() if app.applied_at else None,
+        "status": app.status.value if hasattr(app.status, "value") else str(app.status),
+        "reviewedBy": app.reviewed_by,
+        "reviewedAt": app.reviewed_at.isoformat() if app.reviewed_at else None,
+        "rejectionReason": app.rejection_reason,
+    }
 
 
-def _load_apps() -> list[dict]:
-    f = _apps_file()
-    if not f.exists():
-        return []
-    try:
-        data = json.loads(f.read_text(encoding="utf-8"))
-        return data if isinstance(data, list) else []
-    except json.JSONDecodeError:
-        return []
-
-
-def _save_apps(items: list[dict]) -> None:
-    _apps_file().write_text(json.dumps(items, indent=2), encoding="utf-8")
+async def _load_app_with_relations(db: AsyncSession, app_id: str) -> TenderApplication | None:
+    return await db.scalar(
+        select(TenderApplication)
+        .where(TenderApplication.id == app_id)
+        .options(selectinload(TenderApplication.tender), selectinload(TenderApplication.company))
+    )
 
 
 @router.post("/tenders/{tender_id}/apply")
 async def apply_for_tender(
-    tender_id: str,
+    tender_id: int,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     role = getattr(user.role, "value", user.role)
     if role != "user":
-        raise HTTPException(status_code=403, detail=f"Only company users can apply for tenders (your role: {role}, email: {user.email})")
+        raise HTTPException(
+            status_code=403,
+            detail=f"Only company users can apply for tenders (your role: {role}, email: {user.email})",
+        )
 
-    all_tenders = _load_provider_tenders()
-    tender = next((t for t in all_tenders if t["id"] == tender_id and t.get("status") == "published"), None)
-    if not tender:
+    tender = await db.get(Tender, tender_id)
+    if not tender or tender.status != TenderStatus.published:
         raise HTTPException(status_code=404, detail="Tender not found or not published")
 
-    company_id = await _get_active_company_id(db, user)
-    company = await db.get(Company, company_id)
-    company_name = company.name if company else f"Company {company_id}"
+    company_id = await get_active_company_id(db, user)
 
-    apps = _load_apps()
-    existing = next((a for a in apps if a["tenderId"] == tender_id and a["companyId"] == company_id), None)
+    existing = await db.scalar(
+        select(TenderApplication).where(
+            TenderApplication.tender_id == tender_id,
+            TenderApplication.company_id == company_id,
+        )
+    )
     if existing:
         raise HTTPException(status_code=409, detail="You have already applied for this tender")
 
-    application = {
-        "id": f"app-{uuid.uuid4().hex[:8]}",
-        "tenderId": tender_id,
-        "tenderTitle": tender["title"],
-        "tenderOrganization": tender["organization"],
-        "tenderDeadline": tender["deadline"],
-        "tenderValue": tender["value"],
-        "providerEmail": tender.get("createdBy"),
-        "companyId": company_id,
-        "companyName": company_name,
-        "appliedBy": user.email,
-        "appliedAt": datetime.utcnow().isoformat(),
-        "status": "pending",
-    }
-    apps.append(application)
-    _save_apps(apps)
-    return {"ok": True, "application": application}
+    app_id = f"app-{uuid.uuid4().hex[:8]}"
+    application = TenderApplication(
+        id=app_id,
+        tender_id=tender_id,
+        company_id=company_id,
+        applied_by=user.email,
+        applied_at=datetime.now(timezone.utc),
+        status=ApplicationStatus.pending,
+    )
+    db.add(application)
+    await db.commit()
+
+    full = await _load_app_with_relations(db, app_id)
+    return {"ok": True, "application": _serialize_app(full)}
 
 
 @router.get("/tenders/{tender_id}/applications")
 async def list_tender_applications(
-    tender_id: str,
+    tender_id: int,
     user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     role = getattr(user.role, "value", user.role)
     if role not in {"admin", "evaluator"}:
         raise HTTPException(status_code=403, detail="Forbidden")
 
     if role == "evaluator":
-        all_tenders = _load_provider_tenders()
-        my_tender_ids = {t["id"] for t in all_tenders if t.get("createdBy") == user.email}
-        if tender_id not in my_tender_ids:
+        tender = await db.get(Tender, tender_id)
+        if not tender or tender.created_by_email != user.email:
             raise HTTPException(status_code=403, detail="This is not your tender")
 
-    apps = _load_apps()
-    return [a for a in apps if a["tenderId"] == tender_id]
+    apps = (
+        await db.scalars(
+            select(TenderApplication)
+            .where(TenderApplication.tender_id == tender_id)
+            .options(selectinload(TenderApplication.tender), selectinload(TenderApplication.company))
+        )
+    ).all()
+    return [_serialize_app(a) for a in apps]
 
 
 @router.get("/providers/applications")
 async def list_all_provider_applications(
     user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     role = getattr(user.role, "value", user.role)
     if role not in {"admin", "evaluator"}:
         raise HTTPException(status_code=403, detail="Forbidden")
 
-    apps = _load_apps()
-    if role == "admin":
-        return apps
-
-    all_tenders = _load_provider_tenders()
-    my_tender_ids = {t["id"] for t in all_tenders if t.get("createdBy") == user.email}
-    return [a for a in apps if a["tenderId"] in my_tender_ids]
+    q = (
+        select(TenderApplication)
+        .options(selectinload(TenderApplication.tender), selectinload(TenderApplication.company))
+    )
+    if role == "evaluator":
+        # Only applications for tenders created by this evaluator
+        q = q.join(Tender, Tender.id == TenderApplication.tender_id).where(
+            Tender.created_by_email == user.email
+        )
+    apps = (await db.scalars(q)).all()
+    return [_serialize_app(a) for a in apps]
 
 
 @router.get("/companies/my-applications")
@@ -134,14 +161,21 @@ async def list_my_applications(
     if role != "user":
         raise HTTPException(status_code=403, detail="Forbidden")
 
-    company_id = await _get_active_company_id(db, user)
-    apps = _load_apps()
-    return [a for a in apps if a["companyId"] == company_id]
+    company_id = await get_active_company_id(db, user)
+    apps = (
+        await db.scalars(
+            select(TenderApplication)
+            .where(TenderApplication.company_id == company_id)
+            .options(selectinload(TenderApplication.tender), selectinload(TenderApplication.company))
+            .order_by(TenderApplication.applied_at.desc())
+        )
+    ).all()
+    return [_serialize_app(a) for a in apps]
 
 
 @router.get("/companies/my-applications/{tender_id}")
 async def get_my_application_for_tender(
-    tender_id: str,
+    tender_id: int,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -149,38 +183,44 @@ async def get_my_application_for_tender(
     if role != "user":
         raise HTTPException(status_code=403, detail="Forbidden")
 
-    company_id = await _get_active_company_id(db, user)
-    apps = _load_apps()
-    app = next((a for a in apps if a["tenderId"] == tender_id and a["companyId"] == company_id), None)
-    return app
+    company_id = await get_active_company_id(db, user)
+    app = await db.scalar(
+        select(TenderApplication)
+        .where(
+            TenderApplication.tender_id == tender_id,
+            TenderApplication.company_id == company_id,
+        )
+        .options(selectinload(TenderApplication.tender), selectinload(TenderApplication.company))
+    )
+    return _serialize_app(app) if app else None
 
 
 @router.post("/applications/{app_id}/approve")
 async def approve_application(
     app_id: str,
     user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     role = getattr(user.role, "value", user.role)
     if role not in {"admin", "evaluator"}:
         raise HTTPException(status_code=403, detail="Only providers and admins can approve applications")
 
-    apps = _load_apps()
-    idx = next((i for i, a in enumerate(apps) if a["id"] == app_id), None)
-    if idx is None:
+    app = await _load_app_with_relations(db, app_id)
+    if not app:
         raise HTTPException(status_code=404, detail="Application not found")
+    if role == "evaluator" and (not app.tender or app.tender.created_by_email != user.email):
+        raise HTTPException(status_code=403, detail="This is not your tender")
 
-    if role == "evaluator":
-        all_tenders = _load_provider_tenders()
-        my_tender_ids = {t["id"] for t in all_tenders if t.get("createdBy") == user.email}
-        if apps[idx]["tenderId"] not in my_tender_ids:
-            raise HTTPException(status_code=403, detail="This is not your tender")
+    app.status = ApplicationStatus.approved
+    app.reviewed_by = user.email
+    app.reviewed_at = datetime.now(timezone.utc)
+    app.rejection_reason = None
+    await db.commit()
 
-    apps[idx]["status"] = "approved"
-    apps[idx]["reviewedBy"] = user.email
-    apps[idx]["reviewedAt"] = datetime.utcnow().isoformat()
-    apps[idx].pop("rejectionReason", None)
-    _save_apps(apps)
-    return {"ok": True, "application": apps[idx]}
+    await write_audit_log(db, actor_email=user.email, action="APPROVE", entity="TenderApplication",
+                          entity_id=app_id)
+    await db.commit()
+    return {"ok": True, "application": _serialize_app(app)}
 
 
 @router.post("/applications/{app_id}/reject")
@@ -188,29 +228,29 @@ async def reject_application(
     app_id: str,
     payload: RejectApplicationIn,
     user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     role = getattr(user.role, "value", user.role)
     if role not in {"admin", "evaluator"}:
         raise HTTPException(status_code=403, detail="Only providers and admins can reject applications")
 
-    apps = _load_apps()
-    idx = next((i for i, a in enumerate(apps) if a["id"] == app_id), None)
-    if idx is None:
+    app = await _load_app_with_relations(db, app_id)
+    if not app:
         raise HTTPException(status_code=404, detail="Application not found")
+    if role == "evaluator" and (not app.tender or app.tender.created_by_email != user.email):
+        raise HTTPException(status_code=403, detail="This is not your tender")
 
-    if role == "evaluator":
-        all_tenders = _load_provider_tenders()
-        my_tender_ids = {t["id"] for t in all_tenders if t.get("createdBy") == user.email}
-        if apps[idx]["tenderId"] not in my_tender_ids:
-            raise HTTPException(status_code=403, detail="This is not your tender")
-
-    apps[idx]["status"] = "rejected"
-    apps[idx]["reviewedBy"] = user.email
-    apps[idx]["reviewedAt"] = datetime.utcnow().isoformat()
+    app.status = ApplicationStatus.rejected
+    app.reviewed_by = user.email
+    app.reviewed_at = datetime.now(timezone.utc)
     if payload.reason:
-        apps[idx]["rejectionReason"] = payload.reason
-    _save_apps(apps)
-    return {"ok": True, "application": apps[idx]}
+        app.rejection_reason = payload.reason
+    await db.commit()
+
+    await write_audit_log(db, actor_email=user.email, action="REJECT", entity="TenderApplication",
+                          entity_id=app_id, metadata={"reason": payload.reason})
+    await db.commit()
+    return {"ok": True, "application": _serialize_app(app)}
 
 
 @router.get("/applications/{app_id}/company-documents")
@@ -223,30 +263,25 @@ async def get_application_company_documents(
     if role not in {"admin", "evaluator"}:
         raise HTTPException(status_code=403, detail="Forbidden")
 
-    apps = _load_apps()
-    app = next((a for a in apps if a["id"] == app_id), None)
+    app = await _load_app_with_relations(db, app_id)
     if not app:
         raise HTTPException(status_code=404, detail="Application not found")
+    if role == "evaluator" and (not app.tender or app.tender.created_by_email != user.email):
+        raise HTTPException(status_code=403, detail="This is not your tender")
 
-    if role == "evaluator":
-        all_tenders = _load_provider_tenders()
-        my_tender_ids = {t["id"] for t in all_tenders if t.get("createdBy") == user.email}
-        if app["tenderId"] not in my_tender_ids:
-            raise HTTPException(status_code=403, detail="This is not your tender")
-
-    company_id = app["companyId"]
-    company = await db.get(Company, company_id)
-
-    docs = (await db.scalars(
-        select(ComplianceDocument)
-        .where(ComplianceDocument.company_id == company_id)
-        .order_by(ComplianceDocument.created_at.desc())
-    )).all()
+    company_id = app.company_id
+    docs = (
+        await db.scalars(
+            select(ComplianceDocument)
+            .where(ComplianceDocument.company_id == company_id)
+            .order_by(ComplianceDocument.created_at.desc())
+        )
+    ).all()
 
     return {
         "companyId": company_id,
-        "companyName": app.get("companyName", f"Company {company_id}"),
-        "appliedBy": app.get("appliedBy"),
+        "companyName": app.company.name if app.company else f"Company {company_id}",
+        "appliedBy": app.applied_by,
         "documents": [
             {
                 "id": str(doc.id),
@@ -272,29 +307,22 @@ async def download_application_document(
     if role not in {"admin", "evaluator"}:
         raise HTTPException(status_code=403, detail="Forbidden")
 
-    apps = _load_apps()
-    app = next((a for a in apps if a["id"] == app_id), None)
+    app = await _load_app_with_relations(db, app_id)
     if not app:
         raise HTTPException(status_code=404, detail="Application not found")
+    if role == "evaluator" and (not app.tender or app.tender.created_by_email != user.email):
+        raise HTTPException(status_code=403, detail="This is not your tender")
 
-    if role == "evaluator":
-        all_tenders = _load_provider_tenders()
-        my_tender_ids = {t["id"] for t in all_tenders if t.get("createdBy") == user.email}
-        if app["tenderId"] not in my_tender_ids:
-            raise HTTPException(status_code=403, detail="This is not your tender")
-
-    company_id = app["companyId"]
     doc = await db.scalar(
         select(ComplianceDocument).where(
             ComplianceDocument.id == doc_id,
-            ComplianceDocument.company_id == company_id,
+            ComplianceDocument.company_id == app.company_id,
         )
     )
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
 
-    storage_root = Path(settings.STORAGE_DIR)
-    file_path = storage_root / doc.storage_key
+    file_path = Path(settings.STORAGE_DIR) / doc.storage_key
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="Stored file missing")
 

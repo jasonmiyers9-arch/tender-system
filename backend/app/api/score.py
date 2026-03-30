@@ -1,50 +1,17 @@
 from datetime import date, timedelta
 
-import redis.asyncio as redis
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_user
-from app.core.config import settings
+from app.api.deps import get_active_company_id, get_current_user
 from app.db.session import get_db
-from app.models.domain import CompanyMembership, ComplianceDocument
-from app.models.user import Company, User
+from app.models.domain import ComplianceDocument, ScoreSnapshot
+from app.models.user import User
 
 router = APIRouter(prefix="/score", tags=["score"])
 
 REQUIRED_CATEGORIES = ["tax", "legal", "financial", "certification", "bbbee", "registration"]
-
-
-async def _get_active_company_id(db: AsyncSession, user: User) -> int:
-    if getattr(user.role, "value", user.role) == "admin":
-        rows = await db.execute(select(Company.id).order_by(Company.id.asc()))
-        allowed_ids = [int(r[0]) for r in rows.all()]
-    else:
-        rows = await db.execute(
-            select(Company.id)
-            .join(CompanyMembership, CompanyMembership.company_id == Company.id)
-            .where(CompanyMembership.user_id == user.id)
-            .order_by(Company.id.asc())
-        )
-        allowed_ids = [int(r[0]) for r in rows.all()]
-
-    if not allowed_ids:
-        fallback = await db.scalar(select(Company.id).order_by(Company.id.asc()).limit(1))
-        if fallback is None:
-            raise HTTPException(status_code=404, detail="No company found")
-        allowed_ids = [int(fallback)]
-
-    client = redis.from_url(settings.REDIS_URL, decode_responses=True)
-    try:
-        raw = await client.get(f"active_company:{user.id}")
-        active_id = int(raw) if raw else None
-        if active_id not in allowed_ids:
-            active_id = allowed_ids[0]
-            await client.set(f"active_company:{user.id}", str(active_id))
-        return active_id
-    finally:
-        await client.aclose()
 
 
 def _band_for(score: int) -> str:
@@ -60,7 +27,7 @@ async def get_current_score(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    company_id = await _get_active_company_id(db, user)
+    company_id = await get_active_company_id(db, user)
     docs = (
         await db.scalars(
             select(ComplianceDocument)
@@ -113,22 +80,58 @@ async def get_current_score(
     }
 
 
+async def _persist_snapshot(db: AsyncSession, company_id: int, score: int) -> None:
+    """Upsert today's score snapshot for the company (ignore if already exists)."""
+    today = date.today()
+    existing = await db.scalar(
+        select(ScoreSnapshot).where(
+            ScoreSnapshot.company_id == company_id,
+            ScoreSnapshot.snapshot_date == today,
+        )
+    )
+    if existing:
+        existing.score = score
+    else:
+        db.add(ScoreSnapshot(company_id=company_id, score=score, snapshot_date=today))
+    await db.commit()
+
+
 @router.get("/history")
 async def get_score_history(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    company_id = await get_active_company_id(db, user)
     current = await get_current_score(user=user, db=db)
-    base = int(current["score"])
-    today = date.today()
 
-    points = []
-    for days_ago, delta in [(6, -10), (5, -8), (4, -6), (3, -4), (2, -3), (1, -1), (0, 0)]:
-        points.append(
-            {
-                "date": (today - timedelta(days=days_ago)).isoformat(),
-                "score": max(0, min(100, base + delta)),
-            }
+    # Persist today's snapshot so history grows over time
+    await _persist_snapshot(db, company_id, int(current["score"]))
+
+    # Read up to 30 days of real snapshots
+    snapshots = (
+        await db.scalars(
+            select(ScoreSnapshot)
+            .where(ScoreSnapshot.company_id == company_id)
+            .order_by(ScoreSnapshot.snapshot_date.desc())
+            .limit(30)
         )
+    ).all()
+
+    points = [
+        {"date": s.snapshot_date.isoformat(), "score": s.score}
+        for s in reversed(snapshots)
+    ]
+
+    # If less than 7 days of history, synthesize earlier points from current score
+    if len(points) < 7:
+        existing_dates = {p["date"] for p in points}
+        base = int(current["score"])
+        today = date.today()
+        synthetic = []
+        for days_ago, delta in [(6, -10), (5, -8), (4, -6), (3, -4), (2, -3), (1, -1)]:
+            d = (today - timedelta(days=days_ago)).isoformat()
+            if d not in existing_dates:
+                synthetic.append({"date": d, "score": max(0, min(100, base + delta))})
+        points = sorted(synthetic + points, key=lambda x: x["date"])
 
     return points

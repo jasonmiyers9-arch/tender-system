@@ -6,7 +6,9 @@ import { Card } from '@/components/ui/Card';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { TableRowSkeleton } from '@/components/ui/Skeleton';
 import { Badge } from '@/components/ui/Badge';
+import { PageHeader } from '@/components/ui/PageHeader';
 import { formatDateTime } from '@/lib/utils/formatters';
+import { ScrollText } from 'lucide-react';
 import type { AuditEntry } from '@/lib/api/types';
 import { useState } from 'react';
 
@@ -43,10 +45,12 @@ export default function AdminAuditLogPage() {
 
     return (
         <div className="space-y-6 max-w-7xl mx-auto flex flex-col h-full pb-10">
-            <div>
-                <h1 className="text-2xl font-bold text-[--color-text-primary]">Platform Audit Log</h1>
-                <p className="text-sm text-[--color-text-muted] mt-0.5">Immutable record of all platform activity and compliance changes.</p>
-            </div>
+            <PageHeader
+                title="Platform Audit Log"
+                subtitle="Immutable record of all platform activity and compliance changes."
+                icon={<ScrollText size={22} />}
+                iconColor="#6366F1"
+            />
 
             <Card padding="none" className="flex-1 flex flex-col min-h-0">
                 <div className="flex-1 overflow-auto">
@@ -58,7 +62,7 @@ export default function AdminAuditLogPage() {
                         <Table columns={columns} data={data?.entries ?? []} keyExtractor={a => a.id} />
                     )}
                 </div>
-                <div className="border-t border-[--color-border] bg-[--color-surface] rounded-b-xl">
+                <div className="border-t border-[--color-border] bg-[--color-surface] rounded-b-2xl">
                     <Pagination
                         page={page}
                         pageSize={PAGE_SIZE}

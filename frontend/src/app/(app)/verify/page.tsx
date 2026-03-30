@@ -9,6 +9,7 @@ import { ScoreBandBadge } from '@/components/badges/Badges';
 import { TableRowSkeleton } from '@/components/ui/Skeleton';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Search, Building2, ShieldCheck } from 'lucide-react';
+import { PageHeader } from '@/components/ui/PageHeader';
 import Link from 'next/link';
 
 export default function VerifySearchPage() {
@@ -17,17 +18,12 @@ export default function VerifySearchPage() {
 
     return (
         <div className="max-w-4xl mx-auto space-y-6">
-            <div className="text-center py-8">
-                <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-[--color-primary] text-[--color-text-primary] mb-6 shadow-sm">
-                    <ShieldCheck size={32} />
-                </div>
-                <h1 className="text-3xl font-bold text-[--color-text-primary] mb-3">
-                    TenderGuard Evaluator Portal
-                </h1>
-                <p className="text-base text-[--color-text-muted] max-w-xl mx-auto">
-                    Search and verify company compliance records in real-time. Enter a registered entity name or CIPC registration number.
-                </p>
-            </div>
+            <PageHeader
+                title="TenderGuard Evaluator Portal"
+                subtitle="Search and verify company compliance records in real-time. Enter a registered entity name or CIPC registration number."
+                icon={<ShieldCheck size={22} />}
+                iconColor="#4F46E5"
+            />
 
             <Card padding="lg" className="max-w-2xl mx-auto">
                 <div className="relative">

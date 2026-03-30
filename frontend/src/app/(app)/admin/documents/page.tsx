@@ -8,6 +8,7 @@ import { ErrorState } from '@/components/ui/ErrorState';
 import { StatusBadge } from '@/components/badges/Badges';
 import { formatDate, docCategoryLabel } from '@/lib/utils/formatters';
 import { CheckCircle, Download, FileText, XCircle } from 'lucide-react';
+import { PageHeader } from '@/components/ui/PageHeader';
 import Link from 'next/link';
 
 export default function AdminDocumentsPage() {
@@ -23,17 +24,17 @@ export default function AdminDocumentsPage() {
 
     return (
         <div className="space-y-6 max-w-6xl mx-auto">
-            <div className="flex items-start justify-between gap-4">
-                <div>
-                    <h1 className="text-2xl font-bold text-[--color-text-primary]">Pending Document Review</h1>
-                    <p className="text-sm text-[--color-text-muted] mt-1">
-                        Review newly uploaded compliance documents across all companies.
-                    </p>
-                </div>
-                <Link href="/admin/companies">
-                    <Button variant="ghost">View Companies</Button>
-                </Link>
-            </div>
+            <PageHeader
+                title="Pending Document Review"
+                subtitle="Review newly uploaded compliance documents across all companies."
+                icon={<FileText size={22} />}
+                iconColor="#F59E0B"
+                actions={
+                    <Link href="/admin/companies">
+                        <Button variant="ghost">View Companies</Button>
+                    </Link>
+                }
+            />
 
             <Card>
                 {docs.length === 0 ? (

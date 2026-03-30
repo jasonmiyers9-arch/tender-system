@@ -105,7 +105,7 @@ export default function TenderApplyWorkflowPage({ params }: { params: Promise<{ 
                         <Button variant="secondary" className="w-full" onClick={() => router.push('/vault')}>
                             Upload / Fix Documents
                         </Button>
-                        <Button variant="secondary" className="w-full" onClick={() => router.push('/company/profile')}>
+                        <Button variant="secondary" className="w-full" onClick={() => router.push('/company')}>
                             Complete Company Profile
                         </Button>
                         <Button

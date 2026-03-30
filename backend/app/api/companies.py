@@ -1,11 +1,10 @@
-import redis.asyncio as redis
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
-from app.core.config import settings
+from app.db.redis import get_redis
 from app.db.session import get_db
 from app.models.domain import CompanyMembership, ComplianceDocument
 from app.models.user import Company, User
@@ -75,20 +74,14 @@ async def _get_user_companies(db: AsyncSession, user: User) -> list[Company]:
 
 
 async def _get_active_company_id(user_id: int) -> int | None:
-    client = redis.from_url(settings.REDIS_URL, decode_responses=True)
-    try:
-        raw = await client.get(f'active_company:{user_id}')
-        return int(raw) if raw else None
-    finally:
-        await client.aclose()
+    r = get_redis()
+    raw = await r.get(f'active_company:{user_id}')
+    return int(raw) if raw else None
 
 
 async def _set_active_company_id(user_id: int, company_id: int) -> None:
-    client = redis.from_url(settings.REDIS_URL, decode_responses=True)
-    try:
-        await client.set(f'active_company:{user_id}', str(company_id))
-    finally:
-        await client.aclose()
+    r = get_redis()
+    await r.set(f'active_company:{user_id}', str(company_id))
 
 
 @router.get('')

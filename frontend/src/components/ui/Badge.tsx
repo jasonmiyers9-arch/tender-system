@@ -12,18 +12,18 @@ interface BadgeProps {
 }
 
 const variantClasses: Record<BadgeVariant, string> = {
-    success: 'bg-[#DCFCE7] text-[#15803D] border-[#86EFAC]',
-    warning: 'bg-[#FEF3C7] text-[#B45309] border-[#FCD34D]',
-    danger: 'bg-[#FEE2E2] text-[#B91C1C] border-[#FCA5A5]',
-    accent: 'bg-[#DBEAFE] text-[#1D4ED8] border-[#93C5FD]',
+    success: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/25',
+    warning: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/25',
+    danger:  'bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/25',
+    accent:  'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/25',
     default: 'bg-[--color-bg] text-[--color-text-muted] border-[--color-border]',
 };
 
 const dotClasses: Record<BadgeVariant, string> = {
-    success: 'bg-[#16A34A]',
-    warning: 'bg-[#D97706]',
-    danger: 'bg-[#DC2626]',
-    accent: 'bg-[#3B82F6]',
+    success: 'bg-emerald-500',
+    warning: 'bg-amber-500',
+    danger:  'bg-red-500',
+    accent:  'bg-indigo-500',
     default: 'bg-[--color-text-muted]',
 };
 

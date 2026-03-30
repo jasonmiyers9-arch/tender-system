@@ -4,27 +4,28 @@ import Link from 'next/link';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
-import { FileSearch, Calendar, ShieldCheck, Building2 } from 'lucide-react';
+import { FileSearch, Calendar, ShieldCheck, Building2, LayoutDashboard } from 'lucide-react';
+import { PageHeader } from '@/components/ui/PageHeader';
 
 export default function ProviderDashboardPage() {
     return (
         <div className="space-y-6 max-w-7xl mx-auto">
-            <div className="flex items-start justify-between gap-4">
-                <div>
-                    <h1 className="text-2xl font-bold text-[--color-text-primary]">Tender Provider Dashboard</h1>
-                    <p className="text-sm text-[--color-text-muted] mt-0.5">
-                        Manage tender issuers, review company readiness, and track provider-side activity.
-                    </p>
-                </div>
-                <div className="flex gap-3">
-                    <Link href="/provider/profile">
-                        <Button variant="ghost">Provider Profile</Button>
-                    </Link>
-                    <Link href="/provider/tenders/new">
-                        <Button>Upload Tender</Button>
-                    </Link>
-                </div>
-            </div>
+            <PageHeader
+                title="Tender Provider Dashboard"
+                subtitle="Manage tender issuers, review company readiness, and track provider-side activity."
+                icon={<LayoutDashboard size={22} />}
+                iconColor="#3B82F6"
+                actions={
+                    <div className="flex gap-3">
+                        <Link href="/provider/profile">
+                            <Button variant="ghost">Provider Profile</Button>
+                        </Link>
+                        <Link href="/provider/tenders/new">
+                            <Button>Upload Tender</Button>
+                        </Link>
+                    </div>
+                }
+            />
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <Card>

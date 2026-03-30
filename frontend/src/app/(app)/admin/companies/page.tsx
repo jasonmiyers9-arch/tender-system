@@ -13,6 +13,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { Search, Building2 } from 'lucide-react';
+import { PageHeader } from '@/components/ui/PageHeader';
 
 export default function AdminCompaniesPage() {
     const { data: companies, isLoading, isError, refetch } = useAdminCompanies();
@@ -56,25 +57,29 @@ export default function AdminCompaniesPage() {
     return (
         <div className="space-y-6 max-w-7xl mx-auto">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div>
-                    <h1 className="text-2xl font-bold text-[--color-text-primary]">Client Portfolio</h1>
-                    <p className="text-sm text-[--color-text-muted] mt-0.5">Manage all registered entities on the platform.</p>
-                </div>
-                <div className="flex w-full sm:w-auto gap-3">
-                    <Link href="/admin/documents" className="inline-flex">
-                        <button className="inline-flex items-center justify-center px-4 py-2 text-sm font-medium rounded-lg bg-[--color-primary] text-[--color-text-primary] shadow-sm hover:bg-[--color-primary-dark] transition-all duration-150">
-                            Review Uploaded Documents
-                        </button>
-                    </Link>
-                    <div className="w-full sm:w-72">
-                        <Input
-                            placeholder="Search clients..."
-                            value={search}
-                            onChange={e => setSearch(e.target.value)}
-                            leftIcon={<Search size={16} />}
-                        />
-                    </div>
-                </div>
+                <PageHeader
+                    title="Client Portfolio"
+                    subtitle="Manage all registered entities on the platform."
+                    icon={<Building2 size={22} />}
+                    iconColor="#10B981"
+                    actions={
+                        <div className="flex w-full sm:w-auto gap-3">
+                            <Link href="/admin/documents" className="inline-flex">
+                                <button className="inline-flex items-center justify-center px-4 py-2 text-sm font-medium rounded-lg bg-[--color-primary] text-white shadow-sm hover:opacity-90 transition-all duration-150">
+                                    Review Uploaded Documents
+                                </button>
+                            </Link>
+                            <div className="w-full sm:w-72">
+                                <Input
+                                    placeholder="Search clients..."
+                                    value={search}
+                                    onChange={e => setSearch(e.target.value)}
+                                    leftIcon={<Search size={16} />}
+                                />
+                            </div>
+                        </div>
+                    }
+                />
             </div>
 
             <Card padding="none">
