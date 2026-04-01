@@ -8,7 +8,7 @@ import { TableRowSkeleton } from '@/components/ui/Skeleton';
 import { Badge } from '@/components/ui/Badge';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { formatDateTime } from '@/lib/utils/formatters';
-import { ScrollText } from 'lucide-react';
+import { Activity } from 'lucide-react';
 import type { AuditEntry } from '@/lib/api/types';
 import { useState } from 'react';
 
@@ -48,7 +48,7 @@ export default function AdminAuditLogPage() {
             <PageHeader
                 title="Platform Audit Log"
                 subtitle="Immutable record of all platform activity and compliance changes."
-                icon={<ScrollText size={22} />}
+                icon={<Activity size={22} />}
                 iconColor="#6366F1"
             />
 

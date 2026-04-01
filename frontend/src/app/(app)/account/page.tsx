@@ -5,7 +5,7 @@ import { useAppStore } from '@/store/useAppStore';
 import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
-import { Mail, Shield } from 'lucide-react';
+import { User, Shield } from 'lucide-react';
 import { auth } from '@/lib/api/auth';
 
 export default function AccountProfilePage() {
@@ -49,7 +49,7 @@ export default function AccountProfilePage() {
                     <div className="space-y-1">
                         <h2 className="text-xl font-bold text-[--color-text-primary]">{currentUser.name}</h2>
                         <div className="flex items-center gap-2 text-sm text-[--color-text-muted]">
-                            <Mail size={14} /> {currentUser.email}
+                            <User size={14} /> {currentUser.email}
                         </div>
                         <div className="flex items-center gap-2 text-sm text-[--color-text-muted] mt-1">
                             <Shield size={14} /> Role: <span className="capitalize font-medium text-[--color-text-primary]">{currentUser.role}</span>

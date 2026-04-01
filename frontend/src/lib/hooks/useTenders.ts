@@ -79,25 +79,3 @@ export function useDeleteTender() {
         },
     });
 }
-
-export function useApproveTender() {
-    const qc = useQueryClient();
-    return useMutation({
-        mutationFn: (id: string) => tenders.approveTender(id),
-        onSuccess: () => {
-            qc.invalidateQueries({ queryKey: ['tenders'] });
-            qc.invalidateQueries({ queryKey: ['provider-tenders'] });
-        },
-    });
-}
-
-export function useRejectTender() {
-    const qc = useQueryClient();
-    return useMutation({
-        mutationFn: ({ id, reason }: { id: string; reason?: string }) => tenders.rejectTender(id, reason),
-        onSuccess: () => {
-            qc.invalidateQueries({ queryKey: ['tenders'] });
-            qc.invalidateQueries({ queryKey: ['provider-tenders'] });
-        },
-    });
-}

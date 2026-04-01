@@ -41,6 +41,17 @@ class Settings(BaseSettings):
     REDIS_URL: str = "redis://localhost:6379/0"
     STORAGE_DIR: str = "./storage"
 
+    # Firebase storage support for document uploads
+    FIREBASE_PROJECT_ID: str = ""
+    FIREBASE_CLIENT_EMAIL: str = ""
+    FIREBASE_PRIVATE_KEY: str = ""
+    FIREBASE_PRIVATE_KEY_ID: str = ""
+    FIREBASE_CLIENT_ID: str = ""
+    FIREBASE_STORAGE_BUCKET: str = ""
+
+    # AI pipeline hook for document ingestion
+    DOCUMENT_AI_ENABLED: bool = False
+
     class Config:
         case_sensitive = True
         env_file = ".env"

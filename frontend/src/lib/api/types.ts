@@ -118,6 +118,14 @@ export interface TenderMatch {
     gaps: string[];
     category: string;
     location: string;
+    description?: string;
+    requirements?: string[];
+    eligibilityCriteria?: string[];
+    recommendedDocuments?: string[];
+    required_categories?: string[];
+    rejectionReason?: string;
+    status?: 'draft' | 'pending' | 'published' | 'rejected';
+    createdAt?: string;
 }
 
 export interface TenderDetail extends TenderMatch {

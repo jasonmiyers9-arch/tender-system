@@ -48,12 +48,12 @@ export default function EditTenderPage() {
             deadline: tender.deadline,
             value: tender.value,
             category: tender.category,
-            description: tender.description,
-            requirements: tender.requirements.join('\n'),
-            eligibilityCriteria: tender.eligibilityCriteria.join('\n'),
+            description: tender.description ?? '',
+            requirements: (tender.requirements ?? []).join('\n'),
+            eligibilityCriteria: (tender.eligibilityCriteria ?? []).join('\n'),
             location: tender.location,
         });
-        setRequiredCategories(tender.required_categories);
+        setRequiredCategories(tender.required_categories ?? []);
         setLoaded(true);
     }, [tenders, tenderId, loaded]);
 
