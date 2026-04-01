@@ -322,6 +322,50 @@ async function updateCompanyProfile(companyId: string, payload: Partial<Company>
   return mapCompanyToPublic(company);
 }
 
+async function createTender(payload: {
+  title: string;
+  organization: string;
+  deadline: string;
+  value: string;
+  category: string;
+  location: string;
+  description: string;
+  requirements: string[];
+  eligibilityCriteria: string[];
+  required_categories?: string[];
+  companyId?: string;
+}): Promise<InternalTender> {
+  const tenderId = createId();
+  const tender: InternalTender = {
+    id: tenderId,
+    title: payload.title,
+    organization: payload.organization,
+    deadline: payload.deadline,
+    value: payload.value,
+    category: payload.category,
+    location: payload.location,
+    description: payload.description,
+    requirements: payload.requirements || [],
+    eligibilityCriteria: payload.eligibilityCriteria || [],
+    recommendedDocuments: payload.required_categories || [],
+    required_categories: payload.required_categories || [],
+    matchScore: 0,
+    gaps: [],
+    status: 'draft',
+    isSystem: false,
+    createdAt: new Date().toISOString(),
+  };
+
+  if (isFirestoreAvailable()) {
+    const db = getFirestore()!;
+    await db.collection(TENDERS_COLLECTION).doc(tenderId).set(tender);
+  } else {
+    MEMORY_DB.tenders.push(tender);
+  }
+
+  return tender;
+}
+
 async function listTenders(): Promise<TenderMatch[]> {
   if (isFirestoreAvailable()) {
     await ensureFirestoreSeed();
@@ -329,7 +373,7 @@ async function listTenders(): Promise<TenderMatch[]> {
     const snapshot = await db.collection(TENDERS_COLLECTION).get();
     return snapshot.docs.map((doc: any) => mapTenderToMatch(doc.data() as InternalTender));
   }
-  return DEFAULT_TENDERS.map(mapTenderToMatch);
+  return MEMORY_DB.tenders.map(mapTenderToMatch);
 }
 
 async function getTenderById(tenderId: string): Promise<TenderDetail | null> {
@@ -533,6 +577,7 @@ export {
   getCompanyById,
   setActiveCompany,
   updateCompanyProfile,
+  createTender,
   listTenders,
   getTenderById,
   getTenderReadiness,

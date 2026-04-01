@@ -24,18 +24,23 @@ export async function POST(req: Request) {
     return NextResponse.json({ detail: 'Unauthorized' }, { status: 401 });
   }
 
-  const user = await getUserByToken(token);
-  if (!user) {
-    return NextResponse.json({ detail: 'Unauthorized' }, { status: 401 });
-  }
+  try {
+    const user = await getUserByToken(token);
+    if (!user) {
+      return NextResponse.json({ detail: 'Unauthorized' }, { status: 401 });
+    }
 
-  const companies = await listCompaniesForUser(user.id);
-  const activeCompanyId = user.activeCompanyId ?? companies[0]?.id;
-  if (!activeCompanyId) {
-    return NextResponse.json({ detail: 'Company context required' }, { status: 400 });
-  }
+    let activeCompanyId = user.activeCompanyId;
+    if (!activeCompanyId) {
+      const companies = await listCompaniesForUser(user.id);
+      activeCompanyId = companies[0]?.id;
+    }
 
-  const formData = await req.formData();
+    if (!activeCompanyId) {
+      return NextResponse.json({ detail: 'Company context required' }, { status: 400 });
+    }
+
+    const formData = await req.formData();
   const file = formData.get('file');
   const category = String(formData.get('category') || '').trim();
 
@@ -71,14 +76,19 @@ export async function POST(req: Request) {
     return NextResponse.json({ detail: 'Failed to save document to storage.' }, { status: 500 });
   }
 
-  const document = await createDocument({
-    companyId: activeCompanyId,
-    name: safeFileName,
-    category: documentCategory,
-    fileUrl,
-    expiryDate: null,
-  });
+    const document = await createDocument({
+      companyId: activeCompanyId,
+      name: safeFileName,
+      category: documentCategory,
+      fileUrl,
+      expiryDate: null,
+    });
 
-  enqueueDocumentAiProcessing(document.id, fileUrl, activeCompanyId);
-  return NextResponse.json(document);
+    enqueueDocumentAiProcessing(document.id, storageKey, activeCompanyId);
+
+    return NextResponse.json(document, { status: 201 });
+  } catch (error) {
+    console.error('POST /api/documents/upload error:', error);
+    return NextResponse.json({ detail: 'Failed to upload document' }, { status: 500 });
+  }
 }

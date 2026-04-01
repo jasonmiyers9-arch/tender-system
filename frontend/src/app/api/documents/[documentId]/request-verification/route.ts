@@ -17,22 +17,31 @@ export async function POST(
     return NextResponse.json({ detail: 'Unauthorized' }, { status: 401 });
   }
 
-  const user = await getUserByToken(token);
-  if (!user) {
-    return NextResponse.json({ detail: 'Unauthorized' }, { status: 401 });
-  }
+  try {
+    const user = await getUserByToken(token);
+    if (!user) {
+      return NextResponse.json({ detail: 'Unauthorized' }, { status: 401 });
+    }
 
-  const companies = await listCompaniesForUser(user.id);
-  const activeCompanyId = user.activeCompanyId ?? companies[0]?.id;
-  if (!activeCompanyId) {
-    return NextResponse.json({ detail: 'Company context required' }, { status: 400 });
-  }
+    let activeCompanyId = user.activeCompanyId;
+    if (!activeCompanyId) {
+      const companies = await listCompaniesForUser(user.id);
+      activeCompanyId = companies[0]?.id;
+    }
 
-  const { documentId } = await params;
-  const document = await getDocumentById(documentId);
-  if (!document || document.companyId !== user.activeCompanyId) {
-    return NextResponse.json({ detail: 'Document not found' }, { status: 404 });
-  }
+    if (!activeCompanyId) {
+      return NextResponse.json({ detail: 'Company context required' }, { status: 400 });
+    }
 
-  return NextResponse.json({ ok: true, status: 'verification_requested' });
+    const { documentId } = await params;
+    const document = await getDocumentById(documentId);
+    if (!document || document.companyId !== activeCompanyId) {
+      return NextResponse.json({ detail: 'Document not found' }, { status: 404 });
+    }
+
+    return NextResponse.json({ ok: true, status: 'verification_requested' });
+  } catch (error) {
+    console.error('POST /api/documents/[documentId]/request-verification error:', error);
+    return NextResponse.json({ detail: 'Failed to request verification' }, { status: 500 });
+  }
 }

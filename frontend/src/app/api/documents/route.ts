@@ -14,17 +14,26 @@ export async function GET(req: Request) {
     return NextResponse.json({ detail: 'Unauthorized' }, { status: 401 });
   }
 
-  const user = await getUserByToken(token);
-  if (!user) {
-    return NextResponse.json({ detail: 'Unauthorized' }, { status: 401 });
-  }
+  try {
+    const user = await getUserByToken(token);
+    if (!user) {
+      return NextResponse.json({ detail: 'Unauthorized' }, { status: 401 });
+    }
 
-  const companies = await listCompaniesForUser(user.id);
-  const activeCompanyId = user.activeCompanyId ?? companies[0]?.id;
-  if (!activeCompanyId) {
-    return NextResponse.json({ detail: 'Company context required' }, { status: 400 });
-  }
+    let activeCompanyId = user.activeCompanyId;
+    if (!activeCompanyId) {
+      const companies = await listCompaniesForUser(user.id);
+      activeCompanyId = companies[0]?.id;
+    }
 
-  const documents = await listDocumentsForCompany(activeCompanyId);
-  return NextResponse.json(documents);
+    if (!activeCompanyId) {
+      return NextResponse.json({ detail: 'Company context required', items: [] }, { status: 200 });
+    }
+
+    const documents = await listDocumentsForCompany(activeCompanyId);
+    return NextResponse.json(documents);
+  } catch (error) {
+    console.error('GET /api/documents error:', error);
+    return NextResponse.json({ detail: 'Failed to retrieve documents', items: [] }, { status: 200 });
+  }
 }
