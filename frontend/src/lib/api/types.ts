@@ -124,6 +124,7 @@ export interface TenderMatch {
     recommendedDocuments?: string[];
     required_categories?: string[];
     rejectionReason?: string;
+    createdBy?: string;
     status?: 'draft' | 'pending' | 'published' | 'rejected';
     createdAt?: string;
 }

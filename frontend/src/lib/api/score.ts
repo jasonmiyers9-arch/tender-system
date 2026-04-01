@@ -31,12 +31,12 @@ async function authFetch(path: string, init?: RequestInit) {
 }
 
 export const score = {
-    async getCurrent(_companyId: string): Promise<ComplianceScore> {
+    async getCurrent(): Promise<ComplianceScore> {
         const res = await authFetch('/score/current');
         return res.json();
     },
 
-    async getHistory(_companyId: string): Promise<ScoreHistoryPoint[]> {
+    async getHistory(): Promise<ScoreHistoryPoint[]> {
         const res = await authFetch('/score/history');
         return res.json();
     },

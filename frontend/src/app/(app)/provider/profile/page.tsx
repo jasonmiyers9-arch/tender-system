@@ -31,6 +31,8 @@ export default function ProviderProfilePage() {
         if (!raw) return;
         try {
             const parsed = JSON.parse(raw);
+            // Restore form from localStorage on mount - intentional pattern
+            // eslint-disable-next-line react-hooks/set-state-in-effect
             setForm((prev) => ({
                 ...prev,
                 ...parsed,

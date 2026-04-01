@@ -42,6 +42,8 @@ export default function EditTenderPage() {
         if (!tenders || loaded) return;
         const tender = tenders.find((t) => t.id === tenderId);
         if (!tender) return;
+        // Populate form with tender data on load - intentional pattern
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setForm({
             title: tender.title,
             organization: tender.organization,

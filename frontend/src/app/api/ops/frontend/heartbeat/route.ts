@@ -8,7 +8,7 @@ export async function POST(req: Request) {
     const userAgent = typeof body.user_agent === 'string' ? body.user_agent : null;
     recordHeartbeat({ route, user_agent: userAgent });
     return NextResponse.json({ ok: true });
-  } catch (error) {
+  } catch {
     return NextResponse.json({ detail: 'Invalid heartbeat payload' }, { status: 400 });
   }
 }

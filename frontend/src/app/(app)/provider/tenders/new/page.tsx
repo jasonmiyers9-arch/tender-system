@@ -41,6 +41,8 @@ export default function NewProviderTenderPage() {
         if (!raw) return;
         try {
             const profile = JSON.parse(raw);
+            // Pre-fill form from saved profile - intentional pattern
+            // eslint-disable-next-line react-hooks/set-state-in-effect
             setForm((prev) => ({
                 ...prev,
                 organization: profile.organizationName || prev.organization,

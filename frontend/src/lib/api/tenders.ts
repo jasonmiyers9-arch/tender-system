@@ -47,7 +47,7 @@ async function authFetch(path: string, init?: RequestInit) {
 }
 
 export const tenders = {
-    async listMatches(_companyId: string): Promise<TenderMatch[]> {
+    async listMatches(): Promise<TenderMatch[]> {
         const res = await authFetch('/tenders');
         return res.json();
     },

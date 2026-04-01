@@ -37,6 +37,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         if (!_hasHydrated) return;
 
         if (!token) {
+            // Update session state for auth guard - intentional pattern
+            // eslint-disable-next-line react-hooks/set-state-in-effect
             setSessionReady(false);
             router.push('/login?reason=auth_required');
             return;
@@ -52,7 +54,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                     if (cancelled) return;
                     setCurrentUser(user);
                     try {
-                        const active = await companies.getActive('current');
+                        const active = await companies.getActive();
                         if (!cancelled && active?.id) setActiveCompany(active.id);
                     } catch { /* non-blocking */ }
                 })
@@ -72,7 +74,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 if (cancelled) return;
                 setCurrentUser(user);
                 try {
-                    const active = await companies.getActive('current');
+                    const active = await companies.getActive();
                     if (!cancelled && active?.id) setActiveCompany(active.id);
                 } catch { /* non-blocking */ }
                 if (!cancelled) setSessionReady(true);
@@ -84,7 +86,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 }
             });
         return () => { cancelled = true; };
-    }, [_hasHydrated, token, router, setCurrentUser, setActiveCompany, logout]);
+    }, [_hasHydrated, token, currentUser, router, setCurrentUser, setActiveCompany, logout]);
 
     // ─── 2. Role-based route guard ────────────────────────────────────────────
     useEffect(() => {
@@ -153,6 +155,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         const ACTIVITY_EVENTS = ['mousemove', 'mousedown', 'keydown', 'scroll', 'touchstart', 'click'];
         const handleActivity = () => resetIdleTimers();
 
+        // Initialize idle timers on mount - intentional pattern
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         resetIdleTimers();
         ACTIVITY_EVENTS.forEach((e) => window.addEventListener(e, handleActivity, { passive: true }));
 

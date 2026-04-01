@@ -9,6 +9,7 @@ import { CardSkeleton } from '@/components/ui/Skeleton';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { StatusBadge } from '@/components/badges/Badges';
 import { formatDate } from '@/lib/utils/formatters';
+import type { DocumentStatus } from '@/lib/api/types';
 import { ArrowLeft, Edit, FileText, CheckCircle, XCircle, Download } from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';
 import Link from 'next/link';
@@ -73,7 +74,7 @@ export default function AdminCompanyDetailPage({ params }: { params: Promise<{ c
                                 <p className="text-xs text-[--color-text-muted] mt-1">Expiry: {formatDate(doc.expiryDate)}</p>
                             </div>
                             <div className="flex items-center gap-4">
-                                <StatusBadge status={doc.status as any} />
+                                <StatusBadge status={doc.status as DocumentStatus} />
                                 <div className="flex gap-2 border-l border-[--color-border] pl-4">
                                     <button
                                         className="p-1.5 rounded-md text-[--color-primary] hover:bg-[#DBEAFE] transition-colors"

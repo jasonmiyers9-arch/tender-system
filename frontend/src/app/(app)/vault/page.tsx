@@ -118,7 +118,7 @@ export default function VaultPage() {
             key: 'actions',
             header: '',
             width: '60px',
-            render: (_doc: VaultDocument) => (
+            render: () => (
                 <button className="p-1 rounded hover:bg-[--color-bg] text-[--color-text-muted]">
                     <MoreHorizontal size={16} />
                 </button>

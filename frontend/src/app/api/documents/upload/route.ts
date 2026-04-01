@@ -44,11 +44,12 @@ export async function POST(req: Request) {
   const file = formData.get('file');
   const category = String(formData.get('category') || '').trim();
 
-  if (!file || typeof (file as any).arrayBuffer !== 'function') {
+  if (!file || !(file instanceof Blob)) {
     return NextResponse.json({ detail: 'File upload is required' }, { status: 400 });
   }
+  const uploadedFile = file as File;
 
-  const filename = String((file as any).name || 'document.bin');
+  const filename = String(uploadedFile.name || 'document.bin');
   const ext = path.extname(filename).toLowerCase();
   if (!ALLOWED_EXTENSIONS.has(ext)) {
     return NextResponse.json(
@@ -61,18 +62,18 @@ export async function POST(req: Request) {
     ? (category as DocumentCategory)
     : 'tax';
 
-  const buffer = Buffer.from(await (file as any).arrayBuffer());
+  const buffer = Buffer.from(await uploadedFile.arrayBuffer());
   const safeFileName = filename.replace(/[^a-zA-Z0-9._-]/g, '_');
   const storageKey = `company_${activeCompanyId}/${Date.now()}_${safeFileName}`;
 
   let fileUrl: string;
   try {
     if (isFirebaseStorageConfigured()) {
-      fileUrl = await uploadDocumentToFirebase(storageKey, buffer, (file as any).type || 'application/octet-stream');
+      fileUrl = await uploadDocumentToFirebase(storageKey, buffer, uploadedFile.type || 'application/octet-stream');
     } else {
       fileUrl = writeLocalFallback(storageKey, buffer);
     }
-  } catch (error) {
+  } catch {
     return NextResponse.json({ detail: 'Failed to save document to storage.' }, { status: 500 });
   }
 

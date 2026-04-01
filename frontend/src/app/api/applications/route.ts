@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { listApplicationsForCompany, mapUserToAuthUser } from '@/lib/server/firestoreService';
+import { listApplicationsForCompany } from '@/lib/server/firestoreService';
 import { getUserByToken } from '@/lib/server/firestoreService';
 
 function parseToken(req: Request): string | null {

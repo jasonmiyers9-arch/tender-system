@@ -6,7 +6,7 @@ export function useScore() {
     const activeCompanyId = useAppStore((s) => s.activeCompanyId);
     return useQuery({
         queryKey: ['score', activeCompanyId],
-        queryFn: () => score.getCurrent(activeCompanyId),
+        queryFn: () => score.getCurrent(),
         enabled: !!activeCompanyId,
     });
 }
@@ -15,7 +15,7 @@ export function useScoreHistory() {
     const activeCompanyId = useAppStore((s) => s.activeCompanyId);
     return useQuery({
         queryKey: ['score-history', activeCompanyId],
-        queryFn: () => score.getHistory(activeCompanyId),
+        queryFn: () => score.getHistory(),
         enabled: !!activeCompanyId,
     });
 }

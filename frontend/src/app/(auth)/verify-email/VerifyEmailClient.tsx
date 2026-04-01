@@ -15,6 +15,8 @@ export default function VerifyEmailClient() {
     useEffect(() => {
         const token = params.get('token');
         if (!token) {
+            // Update status based on token presence - intentional pattern
+            // eslint-disable-next-line react-hooks/set-state-in-effect
             setStatus('error');
             setMessage('Missing verification token.');
             return;
