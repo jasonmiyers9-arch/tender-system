@@ -12,7 +12,7 @@ function getToken(): string | null {
     }
 }
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8000';
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? '/api';
 
 export const auth = {
     async me(): Promise<AuthUser> {
@@ -37,6 +37,28 @@ export const auth = {
         if (!res.ok) {
             const err = await res.json().catch(() => ({ detail: 'Login failed' }));
             throw new Error(err.detail ?? 'Login failed');
+        }
+
+        return res.json();
+    },
+
+    async googleSignIn(): Promise<LoginResponse> {
+        if (typeof window === 'undefined') {
+            throw new Error('Google sign-in is only available in the browser.');
+        }
+
+        const { signInWithGooglePopup } = await import('@/lib/firebaseClient');
+        const { idToken } = await signInWithGooglePopup();
+
+        const res = await fetch(`${API_BASE}/auth/google`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ idToken }),
+        });
+
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({ detail: 'Google sign-in failed' }));
+            throw new Error(err.detail ?? 'Google sign-in failed');
         }
 
         return res.json();

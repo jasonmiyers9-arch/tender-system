@@ -1,0 +1,32 @@
+import { NextResponse } from 'next/server';
+import { verifyIdToken } from '@/lib/server/firebaseAdmin';
+import { getOrCreateGoogleUser, mapUserToAuthUser } from '@/lib/server/firestoreService';
+
+export async function POST(req: Request) {
+  const body = await req.json();
+  const idToken = String(body.idToken ?? '').trim();
+
+  if (!idToken) {
+    return NextResponse.json({ detail: 'Google ID token is required' }, { status: 400 });
+  }
+
+  try {
+    const decoded = await verifyIdToken(idToken);
+    if (!decoded.email) {
+      return NextResponse.json({ detail: 'Google account email is required' }, { status: 400 });
+    }
+
+    const user = await getOrCreateGoogleUser({
+      uid: decoded.uid,
+      email: decoded.email,
+      fullName: decoded.name ?? decoded.email.split('@')[0],
+    });
+
+    return NextResponse.json({ token: user.id, user: mapUserToAuthUser(user) });
+  } catch (error) {
+    return NextResponse.json(
+      { detail: error instanceof Error ? error.message : 'Google sign-in failed' },
+      { status: 401 }
+    );
+  }
+}

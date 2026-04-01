@@ -1,0 +1,7 @@
+[build]
+  base = "frontend"
+  command = "npm install && npm run build"
+  publish = "frontend/.next"
+
+[dev]
+  command = "cd frontend && npm run dev"
