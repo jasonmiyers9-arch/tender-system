@@ -1,9 +1,10 @@
 import { initializeApp, getApps } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
 
-function normalizeBucket(bucket?: string): string | null {
-  if (!bucket) return null;
+function normalizeBucket(bucket?: string): string | undefined {
+  if (!bucket) return undefined;
   const trimmed = bucket.trim();
+  if (!trimmed) return undefined;
   return trimmed.startsWith('gs://') ? trimmed.slice(5) : trimmed;
 }
 
