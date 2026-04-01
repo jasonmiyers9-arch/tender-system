@@ -485,6 +485,26 @@ async function verifyDocument(documentId: string, verifiedBy: string): Promise<I
   return doc;
 }
 
+async function renewDocument(documentId: string, expiryDate: string | null): Promise<InternalDocument> {
+  const doc = await getDocumentById(documentId);
+  if (!doc) throw new Error('Document not found');
+
+  doc.expiryDate = expiryDate;
+  if (doc.status === 'expired' && expiryDate) {
+    doc.status = 'uploaded';
+  }
+
+  if (isFirestoreAvailable()) {
+    const db = getFirestore()!;
+    await db.collection(DOCUMENTS_COLLECTION).doc(documentId).update({
+      expiryDate: doc.expiryDate,
+      status: doc.status,
+    });
+  }
+
+  return doc;
+}
+
 const MEMORY_DB = {
   users: [DEFAULT_USER],
   companies: DEFAULT_COMPANIES,
@@ -516,5 +536,6 @@ export {
   getDocumentById,
   createDocument,
   verifyDocument,
+  renewDocument,
   mapUserToAuthUser,
 };

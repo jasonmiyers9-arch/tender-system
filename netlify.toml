@@ -3,5 +3,8 @@
   command = "npm install && npm run build"
   publish = "frontend/.next"
 
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
+
 [dev]
   command = "cd frontend && npm run dev"

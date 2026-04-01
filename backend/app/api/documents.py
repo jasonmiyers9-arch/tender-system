@@ -2,8 +2,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
-from fastapi.responses import FileResponse
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, UploadFile
+from fastapi.responses import FileResponse, RedirectResponse
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -12,6 +12,12 @@ from app.core.config import settings
 from app.db.session import get_db
 from app.models.domain import ComplianceDocument
 from app.models.user import Company, User
+from app.services.document_ai import enqueue_document_ai_processing
+from app.services.firebase_storage import (
+    generate_firebase_signed_download_url,
+    is_firebase_storage_configured,
+    upload_document_to_firebase,
+)
 
 router = APIRouter(prefix="/documents", tags=["documents"])
 
@@ -60,6 +66,7 @@ async def upload_document(
     category: str = Form(...),
     issue_date: str | None = Form(default=None),
     expiry_date: str | None = Form(default=None),
+    background_tasks: BackgroundTasks,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -83,9 +90,18 @@ async def upload_document(
     company_id = await get_active_company_id(db, user)
 
     key = f"company_{company_id}/{uuid4().hex}_{safe_name}"
-    target = _storage_root() / key
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_bytes(content)
+    if is_firebase_storage_configured():
+        try:
+            upload_document_to_firebase(key, content, content_type=file.content_type or "application/octet-stream")
+        except Exception as exc:
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to save document to Firebase Storage.",
+            ) from exc
+    else:
+        target = _storage_root() / key
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(content)
 
     issue_dt = datetime.fromisoformat(issue_date) if issue_date else None
     expiry_dt = datetime.fromisoformat(expiry_date) if expiry_date else None
@@ -116,6 +132,7 @@ async def upload_document(
         company.onboarding_completed = _onboarding_profile_ok(company) and docs_count >= 3
         await db.commit()
 
+    background_tasks.add_task(enqueue_document_ai_processing, doc.id, doc.storage_key, company_id)
     return _doc_to_item(doc, user)
 
 
@@ -190,6 +207,13 @@ async def download_document(doc_id: int, user: User = Depends(get_current_user),
     )
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
+
+    if is_firebase_storage_configured():
+        try:
+            url = generate_firebase_signed_download_url(doc.storage_key)
+        except FileNotFoundError:
+            raise HTTPException(status_code=404, detail="Stored file missing")
+        return RedirectResponse(url)
 
     file_path = _storage_root() / doc.storage_key
     if not file_path.exists():

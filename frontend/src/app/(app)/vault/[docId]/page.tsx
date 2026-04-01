@@ -71,7 +71,7 @@ export default function VaultDocumentPage() {
                                 ['Last Updated', formatDate(doc.lastUpdated)],
                                 ['File Size', doc.fileSize],
                                 ['File Type', doc.fileType],
-                                ...Object.entries(doc.metadata).map(([k, v]) => [k, v]),
+                                ...Object.entries(doc.metadata ?? {}).map(([k, v]) => [k, v]),
                             ].map(([label, value]) => (
                                 <div key={String(label)}>
                                     <dt className="text-[--color-text-muted] mb-0.5">{label}</dt>
@@ -84,7 +84,7 @@ export default function VaultDocumentPage() {
                     {/* Timeline */}
                     <Card header={<h3 className="text-sm font-semibold text-[--color-text-primary]">Status Timeline</h3>}>
                         <ol className="relative border-l border-[--color-border] ml-3 space-y-6">
-                            {doc.timeline.map((evt) => (
+                            {(doc.timeline ?? []).map((evt) => (
                                 <li key={evt.id} className="ml-6">
                                     <span className="absolute -left-3 flex items-center justify-center w-6 h-6 rounded-full bg-[--color-primary] text-[--color-text-primary]">
                                         {timelineIcons[evt.action] ?? <Clock size={12} />}
