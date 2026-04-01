@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import * as path from 'node:path';
-import { getUserByToken, createDocument } from '../../../../lib/server/firestoreService';
+import { getUserByToken, listCompaniesForUser, createDocument } from '../../../../lib/server/firestoreService';
 import { uploadDocumentToFirebase, isFirebaseStorageConfigured, writeLocalFallback } from '../../../../lib/server/firebaseStorage';
 import { enqueueDocumentAiProcessing } from '../../../../lib/server/documentAi';
 
@@ -24,20 +24,32 @@ export async function POST(req: Request) {
     return NextResponse.json({ detail: 'Unauthorized' }, { status: 401 });
   }
 
-  const user = await getUserByToken(token);
-  if (!user || !user.activeCompanyId) {
-    return NextResponse.json({ detail: 'Company context required' }, { status: 400 });
-  }
+  try {
+    const user = await getUserByToken(token);
+    if (!user) {
+      return NextResponse.json({ detail: 'Unauthorized' }, { status: 401 });
+    }
 
-  const formData = await req.formData();
+    let activeCompanyId = user.activeCompanyId;
+    if (!activeCompanyId) {
+      const companies = await listCompaniesForUser(user.id);
+      activeCompanyId = companies[0]?.id;
+    }
+
+    if (!activeCompanyId) {
+      return NextResponse.json({ detail: 'Company context required' }, { status: 400 });
+    }
+
+    const formData = await req.formData();
   const file = formData.get('file');
   const category = String(formData.get('category') || '').trim();
 
-  if (!file || typeof (file as any).arrayBuffer !== 'function') {
+  if (!file || !(file instanceof Blob)) {
     return NextResponse.json({ detail: 'File upload is required' }, { status: 400 });
   }
+  const uploadedFile = file as File;
 
-  const filename = String((file as any).name || 'document.bin');
+  const filename = String(uploadedFile.name || 'document.bin');
   const ext = path.extname(filename).toLowerCase();
   if (!ALLOWED_EXTENSIONS.has(ext)) {
     return NextResponse.json(
@@ -50,29 +62,34 @@ export async function POST(req: Request) {
     ? (category as DocumentCategory)
     : 'tax';
 
-  const buffer = Buffer.from(await (file as any).arrayBuffer());
+  const buffer = Buffer.from(await uploadedFile.arrayBuffer());
   const safeFileName = filename.replace(/[^a-zA-Z0-9._-]/g, '_');
-  const storageKey = `company_${user.activeCompanyId}/${Date.now()}_${safeFileName}`;
+  const storageKey = `company_${activeCompanyId}/${Date.now()}_${safeFileName}`;
 
   let fileUrl: string;
   try {
     if (isFirebaseStorageConfigured()) {
-      fileUrl = await uploadDocumentToFirebase(storageKey, buffer, (file as any).type || 'application/octet-stream');
+      fileUrl = await uploadDocumentToFirebase(storageKey, buffer, uploadedFile.type || 'application/octet-stream');
     } else {
       fileUrl = writeLocalFallback(storageKey, buffer);
     }
-  } catch (error) {
+  } catch {
     return NextResponse.json({ detail: 'Failed to save document to storage.' }, { status: 500 });
   }
 
-  const document = await createDocument({
-    companyId: user.activeCompanyId,
-    name: safeFileName,
-    category: documentCategory,
-    fileUrl,
-    expiryDate: null,
-  });
+    const document = await createDocument({
+      companyId: activeCompanyId,
+      name: safeFileName,
+      category: documentCategory,
+      fileUrl,
+      expiryDate: null,
+    });
 
-  enqueueDocumentAiProcessing(document.id, fileUrl, user.activeCompanyId);
-  return NextResponse.json(document);
+    enqueueDocumentAiProcessing(document.id, storageKey, activeCompanyId);
+
+    return NextResponse.json(document, { status: 201 });
+  } catch (error) {
+    console.error('POST /api/documents/upload error:', error);
+    return NextResponse.json({ detail: 'Failed to upload document' }, { status: 500 });
+  }
 }

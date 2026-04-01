@@ -15,7 +15,7 @@ export function useActiveCompany() {
     const activeCompanyId = useAppStore((s) => s.activeCompanyId);
     return useQuery({
         queryKey: ['company', activeCompanyId],
-        queryFn: () => companies.getActive(activeCompanyId),
+        queryFn: () => companies.getActive(),
         enabled: !!activeCompanyId,
     });
 }
@@ -37,8 +37,8 @@ export function useUpdateCompanyProfile() {
     const activeCompanyId = useAppStore((s) => s.activeCompanyId);
     const queryClient = useQueryClient();
     return useMutation({
-        mutationFn: (data: Parameters<typeof companies.updateProfile>[1]) =>
-            companies.updateProfile(activeCompanyId, data),
+        mutationFn: (data: Parameters<typeof companies.updateProfile>[0]) =>
+            companies.updateProfile(data),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['company', activeCompanyId] });
         },

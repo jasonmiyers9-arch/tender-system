@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getApplicationById, submitApplication, getUserByToken, listDocumentsForCompany } from '@/lib/server/firestoreService';
+import { getApplicationById, submitApplication } from '@/lib/server/firestoreService';
 
 function parseToken(req: Request): string | null {
   const header = req.headers.get('authorization');

@@ -7,6 +7,7 @@ import { CardSkeleton } from '@/components/ui/Skeleton';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { StatusBadge } from '@/components/badges/Badges';
 import { formatDate, docCategoryLabel } from '@/lib/utils/formatters';
+import type { DocumentCategory, DocumentStatus } from '@/lib/api/types';
 import { CheckCircle, Download, FileText, XCircle } from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';
 import Link from 'next/link';
@@ -50,14 +51,14 @@ export default function AdminDocumentsPage() {
                                     <div className="mt-2 flex flex-wrap gap-2 text-xs text-[--color-text-muted]">
                                         <span>{doc.companyName}</span>
                                         <span>•</span>
-                                        <span>{docCategoryLabel(doc.category as any)}</span>
+                                        <span>{docCategoryLabel(doc.category as DocumentCategory)}</span>
                                         <span>•</span>
                                         <span>Uploaded {formatDate(doc.lastUpdated)}</span>
                                     </div>
                                 </div>
 
                                 <div className="flex flex-wrap items-center gap-2 lg:justify-end">
-                                    <StatusBadge status={doc.status as any} />
+                                    <StatusBadge status={doc.status as DocumentStatus} />
                                     <Link href={`/admin/companies/${doc.companyId}`}>
                                         <Button variant="ghost" size="sm">Open Company</Button>
                                     </Link>

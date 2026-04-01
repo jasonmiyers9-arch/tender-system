@@ -2,15 +2,14 @@
 
 import { use } from 'react';
 import { useVerifyCompany } from '@/lib/hooks/useVerify';
-import { useUploadDocument } from '@/lib/hooks/useVault'; // Reusing mutation for mock action
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { ScoreBandBadge, StatusBadge } from '@/components/badges/Badges';
-import { CardSkeleton, TableRowSkeleton } from '@/components/ui/Skeleton';
+import { CardSkeleton } from '@/components/ui/Skeleton';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { formatDate, docCategoryLabel, formatDateTime } from '@/lib/utils/formatters';
-import { Download, Building2, CheckCircle2, ShieldAlert, FileText, CheckCircle, Clock, Upload, XCircle } from 'lucide-react';
+import { Download, Building2, FileText, CheckCircle, Clock, Upload, XCircle } from 'lucide-react';
 
 const timelineIcons: Record<string, React.ReactNode> = {
     'Document uploaded': <Upload size={14} />,

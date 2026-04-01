@@ -7,6 +7,7 @@ import { TableRowSkeleton } from '@/components/ui/Skeleton';
 import { Badge } from '@/components/ui/Badge';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { formatDate, formatDateTime } from '@/lib/utils/formatters';
+import type { TenderMatch } from '@/lib/api/types';
 import { FileText } from 'lucide-react';
 
 export default function AdminTendersPage() {
@@ -53,7 +54,7 @@ export default function AdminTendersPage() {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-[--color-border]">
-                            {(tenders ?? []).map((t: any) => (
+                            {(tenders ?? []).map((t: TenderMatch) => (
                                 <tr key={t.id} className="bg-[--color-surface]">
                                     <td className="px-4 py-3 text-[--color-text-primary] font-medium">{t.title}</td>
                                     <td className="px-4 py-3 text-[--color-text-primary]">{t.organization}</td>

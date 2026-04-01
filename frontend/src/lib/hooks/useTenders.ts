@@ -6,7 +6,7 @@ export function useTenderMatches() {
     const activeCompanyId = useAppStore((s) => s.activeCompanyId);
     return useQuery({
         queryKey: ['tenders', activeCompanyId],
-        queryFn: () => tenders.listMatches(activeCompanyId),
+        queryFn: () => tenders.listMatches(),
         enabled: !!activeCompanyId,
     });
 }

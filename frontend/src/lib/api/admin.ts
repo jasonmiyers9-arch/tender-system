@@ -1,4 +1,4 @@
-﻿import type { AdminStats, RenewalItem, AuditEntry, Company, VaultDocument } from './types';
+﻿import type { AdminStats, RenewalItem, AuditEntry, Company } from './types';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? '/api';
 

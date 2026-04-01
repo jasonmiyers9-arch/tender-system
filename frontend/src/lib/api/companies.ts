@@ -32,7 +32,7 @@ export const companies = {
         return json.items ?? [];
     },
 
-    async getActive(_id: string): Promise<Company> {
+    async getActive(): Promise<Company> {
         return authFetch('/companies/active');
     },
 
@@ -44,7 +44,7 @@ export const companies = {
         return { activeCompanyId: json.activeCompanyId };
     },
 
-    async updateProfile(_id: string, data: Partial<Company> & {
+    async updateProfile(data: Partial<Company> & {
         csd_number?: string | null;
         bbbee_level?: string | null;
         cidb_grade?: string | null;

@@ -1,12 +1,10 @@
 'use client';
 
 import { useAdminDashboard, useRenewalsPipeline } from '@/lib/hooks/useAdmin';
-import { Card } from '@/components/ui/Card';
 import { StatCard } from '@/components/cards/Cards';
 import { Badge } from '@/components/ui/Badge';
 import { CardSkeleton } from '@/components/ui/Skeleton';
 import { ErrorState } from '@/components/ui/ErrorState';
-import { formatDate } from '@/lib/utils/formatters';
 import type { RenewalItem } from '@/lib/api/types';
 import { Building2, FileCheck, AlertTriangle, ShieldCheck, Clock, LayoutDashboard } from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';

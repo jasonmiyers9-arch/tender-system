@@ -55,7 +55,7 @@ function mapTenderToMatch(tender: InternalTender): TenderMatch {
     eligibilityCriteria: tender.eligibilityCriteria,
     recommendedDocuments: tender.recommendedDocuments,
     required_categories: tender.required_categories || [],
-    rejectionReason: (tender as any).rejectionReason ?? null,
+    rejectionReason: tender.rejectionReason ?? undefined,
     status: tender.status ?? 'draft',
     createdAt: tender.createdAt ?? new Date().toISOString(),
   };
@@ -263,7 +263,7 @@ async function listCompaniesForUser(userId: string): Promise<Company[]> {
     await ensureFirestoreSeed();
     const db = getFirestore()!;
     const snapshot = await db.collection(COMPANIES_COLLECTION).where('memberIds', 'array-contains', userId).get();
-    return snapshot.docs.map((doc: any) => mapCompanyToPublic(doc.data() as InternalCompany));
+    return snapshot.docs.map((doc) => mapCompanyToPublic(doc.data() as InternalCompany));
   }
 
   return MEMORY_DB.companies.filter((company) => company.memberIds.includes(userId)).map(mapCompanyToPublic);
@@ -322,14 +322,58 @@ async function updateCompanyProfile(companyId: string, payload: Partial<Company>
   return mapCompanyToPublic(company);
 }
 
+async function createTender(payload: {
+  title: string;
+  organization: string;
+  deadline: string;
+  value: string;
+  category: string;
+  location: string;
+  description: string;
+  requirements: string[];
+  eligibilityCriteria: string[];
+  required_categories?: string[];
+  companyId?: string;
+}): Promise<InternalTender> {
+  const tenderId = createId();
+  const tender: InternalTender = {
+    id: tenderId,
+    title: payload.title,
+    organization: payload.organization,
+    deadline: payload.deadline,
+    value: payload.value,
+    category: payload.category,
+    location: payload.location,
+    description: payload.description,
+    requirements: payload.requirements || [],
+    eligibilityCriteria: payload.eligibilityCriteria || [],
+    recommendedDocuments: payload.required_categories || [],
+    required_categories: payload.required_categories || [],
+    matchScore: 0,
+    gaps: [],
+    status: 'draft',
+    isSystem: false,
+    createdAt: new Date().toISOString(),
+  };
+
+  if (isFirestoreAvailable()) {
+    const db = getFirestore()!;
+    await db.collection(TENDERS_COLLECTION).doc(tenderId).set(tender);
+  } else {
+    MEMORY_DB.tenders.push(tender);
+  }
+
+  return tender;
+}
+
 async function listTenders(): Promise<TenderMatch[]> {
   if (isFirestoreAvailable()) {
     await ensureFirestoreSeed();
     const db = getFirestore()!;
     const snapshot = await db.collection(TENDERS_COLLECTION).get();
-    return snapshot.docs.map((doc: any) => mapTenderToMatch(doc.data() as InternalTender));
+    return snapshot.docs.map((doc) => mapTenderToMatch(doc.data() as InternalTender));
   }
-  return DEFAULT_TENDERS.map(mapTenderToMatch);
+  return MEMORY_DB.tenders.map(mapTenderToMatch);
 }
 
 async function getTenderById(tenderId: string): Promise<TenderDetail | null> {
@@ -362,7 +406,7 @@ async function listApplicationsForCompany(companyId: string): Promise<InternalAp
   if (isFirestoreAvailable()) {
     const db = getFirestore()!;
     const snapshot = await db.collection(APPLICATIONS_COLLECTION).where('companyId', '==', companyId).get();
-    return snapshot.docs.map((doc: any) => doc.data() as InternalApplication);
+    return snapshot.docs.map((doc) => doc.data() as InternalApplication);
   }
   return MEMORY_DB.applications.filter((app) => app.companyId === companyId);
 }
@@ -428,7 +472,7 @@ async function listDocumentsForCompany(companyId: string): Promise<InternalDocum
   if (isFirestoreAvailable()) {
     const db = getFirestore()!;
     const snapshot = await db.collection(DOCUMENTS_COLLECTION).where('companyId', '==', companyId).get();
-    return snapshot.docs.map((doc: any) => doc.data() as InternalDocument);
+    return snapshot.docs.map((doc) => doc.data() as InternalDocument);
   }
   return MEMORY_DB.documents.filter((doc) => doc.companyId === companyId);
 }
@@ -533,6 +577,7 @@ export {
   getCompanyById,
   setActiveCompany,
   updateCompanyProfile,
+  createTender,
   listTenders,
   getTenderById,
   getTenderReadiness,

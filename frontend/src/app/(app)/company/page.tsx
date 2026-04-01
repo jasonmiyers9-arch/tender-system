@@ -35,6 +35,8 @@ export default function CompanyProfilePage() {
 
     useEffect(() => {
         if (!company) return;
+        // Sync form state with server data on company load - intentional pattern
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setForm({
             name: company.name || '',
             registrationNumber: company.registrationNumber || '',
