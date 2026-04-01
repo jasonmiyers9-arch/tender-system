@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getDocumentById, getUserByToken, renewDocument } from '../../../../../lib/server/firestoreService';
+import { getDocumentById, getUserByToken, listCompaniesForUser, renewDocument } from '../../../../../lib/server/firestoreService';
 
 function parseToken(req: Request): string | null {
   const header = req.headers.get('authorization');
@@ -18,7 +18,13 @@ export async function PATCH(
   }
 
   const user = await getUserByToken(token);
-  if (!user || !user.activeCompanyId) {
+  if (!user) {
+    return NextResponse.json({ detail: 'Unauthorized' }, { status: 401 });
+  }
+
+  const companies = await listCompaniesForUser(user.id);
+  const activeCompanyId = user.activeCompanyId ?? companies[0]?.id;
+  if (!activeCompanyId) {
     return NextResponse.json({ detail: 'Company context required' }, { status: 400 });
   }
 

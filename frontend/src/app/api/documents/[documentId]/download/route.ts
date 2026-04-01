@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import * as fs from 'node:fs';
-import { getDocumentById, getUserByToken } from '../../../../../lib/server/firestoreService';
+import { getDocumentById, getUserByToken, listCompaniesForUser } from '../../../../../lib/server/firestoreService';
 import { isFirebaseStorageConfigured, generateFirebaseSignedDownloadUrl } from '../../../../../lib/server/firebaseStorage';
 
 function parseToken(req: Request): string | null {
@@ -20,7 +20,13 @@ export async function GET(
   }
 
   const user = await getUserByToken(token);
-  if (!user || !user.activeCompanyId) {
+  if (!user) {
+    return NextResponse.json({ detail: 'Unauthorized' }, { status: 401 });
+  }
+
+  const companies = await listCompaniesForUser(user.id);
+  const activeCompanyId = user.activeCompanyId ?? companies[0]?.id;
+  if (!activeCompanyId) {
     return NextResponse.json({ detail: 'Company context required' }, { status: 400 });
   }
 

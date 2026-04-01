@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import * as path from 'node:path';
-import { getUserByToken, createDocument } from '../../../../lib/server/firestoreService';
+import { getUserByToken, listCompaniesForUser, createDocument } from '../../../../lib/server/firestoreService';
 import { uploadDocumentToFirebase, isFirebaseStorageConfigured, writeLocalFallback } from '../../../../lib/server/firebaseStorage';
 import { enqueueDocumentAiProcessing } from '../../../../lib/server/documentAi';
 
@@ -25,7 +25,13 @@ export async function POST(req: Request) {
   }
 
   const user = await getUserByToken(token);
-  if (!user || !user.activeCompanyId) {
+  if (!user) {
+    return NextResponse.json({ detail: 'Unauthorized' }, { status: 401 });
+  }
+
+  const companies = await listCompaniesForUser(user.id);
+  const activeCompanyId = user.activeCompanyId ?? companies[0]?.id;
+  if (!activeCompanyId) {
     return NextResponse.json({ detail: 'Company context required' }, { status: 400 });
   }
 
@@ -52,7 +58,7 @@ export async function POST(req: Request) {
 
   const buffer = Buffer.from(await (file as any).arrayBuffer());
   const safeFileName = filename.replace(/[^a-zA-Z0-9._-]/g, '_');
-  const storageKey = `company_${user.activeCompanyId}/${Date.now()}_${safeFileName}`;
+  const storageKey = `company_${activeCompanyId}/${Date.now()}_${safeFileName}`;
 
   let fileUrl: string;
   try {
@@ -66,13 +72,13 @@ export async function POST(req: Request) {
   }
 
   const document = await createDocument({
-    companyId: user.activeCompanyId,
+    companyId: activeCompanyId,
     name: safeFileName,
     category: documentCategory,
     fileUrl,
     expiryDate: null,
   });
 
-  enqueueDocumentAiProcessing(document.id, fileUrl, user.activeCompanyId);
+  enqueueDocumentAiProcessing(document.id, fileUrl, activeCompanyId);
   return NextResponse.json(document);
 }
