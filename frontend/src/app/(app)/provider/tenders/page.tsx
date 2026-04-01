@@ -75,7 +75,7 @@ export default function MyTendersPage() {
                     <EmptyState
                         title="No tenders yet"
                         description="Create your first tender to get started."
-                        action={<Link href="/provider/tenders/new"><Button>Upload Tender</Button></Link>}
+                        action={{ label: 'Upload Tender', onClick: () => router.push('/provider/tenders/new') }}
                     />
                 </Card>
             ) : (
@@ -103,9 +103,9 @@ export default function MyTendersPage() {
                                         </td>
                                         <td className="px-4 py-3 text-[--color-text-primary]">{t.organization}</td>
                                         <td className="px-4 py-3 text-[--color-text-muted]">{formatDate(t.deadline)}</td>
-                                        <td className="px-4 py-3 text-[--color-text-muted]">{formatDateTime(t.createdAt)}</td>
+                                        <td className="px-4 py-3 text-[--color-text-muted]">{t.createdAt ? formatDateTime(t.createdAt) : '-'}</td>
                                         <td className="px-4 py-3">
-                                            <Badge variant={statusVariant(t.status)} size="sm">{t.status}</Badge>
+                                            <Badge variant={statusVariant(t.status ?? 'draft')} size="sm">{t.status ?? 'draft'}</Badge>
                                         </td>
                                         <td className="px-4 py-3">
                                             <div className="flex items-center justify-end gap-2">

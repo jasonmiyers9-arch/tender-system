@@ -50,6 +50,14 @@ function mapTenderToMatch(tender: InternalTender): TenderMatch {
     gaps: tender.gaps,
     category: tender.category,
     location: tender.location,
+    description: tender.description,
+    requirements: tender.requirements,
+    eligibilityCriteria: tender.eligibilityCriteria,
+    recommendedDocuments: tender.recommendedDocuments,
+    required_categories: tender.required_categories || [],
+    rejectionReason: (tender as any).rejectionReason ?? null,
+    status: tender.status ?? 'draft',
+    createdAt: tender.createdAt ?? new Date().toISOString(),
   };
 }
 

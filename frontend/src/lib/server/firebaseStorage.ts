@@ -2,10 +2,17 @@ import admin from 'firebase-admin';
 import { mkdirSync, writeFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
 
+function normalizeBucket(bucket?: string): string | undefined {
+  if (!bucket) return undefined;
+  const trimmed = bucket.trim();
+  if (!trimmed) return undefined;
+  return trimmed.startsWith('gs://') ? trimmed.slice(5) : trimmed;
+}
+
 const projectId = process.env.FIREBASE_PROJECT_ID;
 const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
 const rawPrivateKey = process.env.FIREBASE_PRIVATE_KEY;
-const storageBucket = process.env.FIREBASE_STORAGE_BUCKET;
+const storageBucket = normalizeBucket(process.env.FIREBASE_STORAGE_BUCKET ?? 'gs://tender-f8e31.firebasestorage.app');
 
 function normalizePrivateKey(key?: string): string | null {
   if (!key) return null;

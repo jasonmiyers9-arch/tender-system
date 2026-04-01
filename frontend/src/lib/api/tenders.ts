@@ -1,5 +1,7 @@
 ﻿import type { TenderMatch, TenderDetail, TenderReadiness, TenderCalendarItem } from './types';
 
+export type ProviderTender = TenderMatch;
+
 export interface CreateTenderPayload {
     title: string;
     organization: string;

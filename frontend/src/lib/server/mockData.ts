@@ -1,4 +1,4 @@
-import type { Company, TenderDetail } from '@/lib/api/types';
+import type { Company, TenderDetail, TenderMatch } from '@/lib/api/types';
 
 export interface InternalUser {
   id: string;
@@ -17,7 +17,7 @@ export interface InternalCompany extends Company {
 }
 
 export interface InternalTender extends TenderDetail {
-  status: string;
+  status: NonNullable<TenderMatch['status']>;
   isSystem: boolean;
 }
 
