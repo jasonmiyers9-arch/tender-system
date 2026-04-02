@@ -62,11 +62,11 @@ def _doc_to_item(doc: ComplianceDocument, user: User) -> dict:
 
 @router.post("/upload")
 async def upload_document(
+    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     category: str = Form(...),
     issue_date: str | None = Form(default=None),
     expiry_date: str | None = Form(default=None),
-    background_tasks: BackgroundTasks,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):

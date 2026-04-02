@@ -557,13 +557,34 @@ async function renewDocument(documentId: string, expiryDate: string | null): Pro
   return doc;
 }
 
-const MEMORY_DB = {
-  users: [DEFAULT_USER],
-  companies: DEFAULT_COMPANIES,
-  tenders: DEFAULT_TENDERS,
-  applications: DEFAULT_APPLICATIONS,
-  documents: DEFAULT_DOCUMENTS,
+// In Next.js dev mode each route compiles into its own module scope, so a
+// plain `const` resets on every hot-reload.  Pinning to `globalThis` makes
+// it a true process-level singleton, so registered users and uploaded
+// documents survive hot-reloads without needing a real database.
+type _MemDB = {
+  users: InternalUser[];
+  companies: InternalCompany[];
+  tenders: InternalTender[];
+  applications: InternalApplication[];
+  documents: InternalDocument[];
 };
+
+declare global {
+  // eslint-disable-next-line no-var
+  var __tenderguard_memory_db: _MemDB | undefined;
+}
+
+if (!globalThis.__tenderguard_memory_db) {
+  globalThis.__tenderguard_memory_db = {
+    users: [DEFAULT_USER],
+    companies: DEFAULT_COMPANIES,
+    tenders: DEFAULT_TENDERS,
+    applications: DEFAULT_APPLICATIONS,
+    documents: DEFAULT_DOCUMENTS,
+  };
+}
+
+const MEMORY_DB = globalThis.__tenderguard_memory_db;
 
 export {
   getUserDocumentById,

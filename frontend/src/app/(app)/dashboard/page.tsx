@@ -1,7 +1,7 @@
 'use client';
 
-import { useScore } from '@/lib/hooks/useScore';
 import { useVaultDocuments } from '@/lib/hooks/useVault';
+import { buildComplianceScore } from '@/lib/utils/calculateReadinessScore';
 import { useTenderMatches } from '@/lib/hooks/useTenders';
 import { useAuditLog } from '@/lib/hooks/useAdmin';
 import { useNotifications, useMarkAllNotificationsRead } from '@/lib/hooks/useNotifications';
@@ -19,9 +19,9 @@ import Link from 'next/link';
 import { useAppStore } from '@/store/useAppStore';
 
 export default function DashboardPage() {
-    const scoreQuery = useScore();
     const role = useAppStore((s) => s.currentUser?.role ?? 'user');
     const docsQuery = useVaultDocuments();
+    const computedScore = buildComplianceScore(Array.isArray(docsQuery.data) ? docsQuery.data : []);
     const tendersQuery = useTenderMatches();
     const auditQuery = useAuditLog(1, 5);
     const notifQuery = useNotifications(5);
@@ -56,16 +56,11 @@ export default function DashboardPage() {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                 {/* Score card */}
                 <div className="lg:col-span-1">
-                    {scoreQuery.isLoading ? (
+                    {docsQuery.isLoading ? (
                         <CardSkeleton />
-                    ) : scoreQuery.isError ? (
-                        <ErrorState
-                            onRetry={() => scoreQuery.refetch()}
-                            message="Unable to load compliance score."
-                        />
-                    ) : scoreQuery.data ? (
-                        <ScoreCard score={scoreQuery.data} />
-                    ) : null}
+                    ) : (
+                        <ScoreCard score={computedScore} />
+                    )}
                 </div>
 
                 {/* Stat cards */}

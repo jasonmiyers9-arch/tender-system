@@ -15,6 +15,14 @@ import type { TenderCalendarItem } from '@/lib/api/types';
 import { tenders } from '@/lib/api/tenders';
 
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+/** Format a Date as YYYY-MM-DD using LOCAL time, not UTC. */
+function localDateStr(d: Date): string {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+}
 const MONTH_NAMES = [
     'January', 'February', 'March', 'April', 'May', 'June',
     'July', 'August', 'September', 'October', 'November', 'December',
@@ -165,7 +173,7 @@ export default function TenderCalendarPage() {
     };
 
     const upcomingItems = items
-        .filter((i) => i.date >= today.toISOString().slice(0, 10))
+        .filter((i) => i.date >= localDateStr(today))
         .sort((a, b) => a.date.localeCompare(b.date))
         .slice(0, 6);
 
@@ -225,8 +233,8 @@ export default function TenderCalendarPage() {
                     {/* Day cells */}
                     <div className="grid grid-cols-7">
                         {cells.map((cellDate, i) => {
-                            const key = cellDate.toISOString().slice(0, 10);
-                            const isToday = key === today.toISOString().slice(0, 10);
+                            const key = localDateStr(cellDate);
+                            const isToday = key === localDateStr(today);
                             const isOtherMonth = cellDate.getMonth() !== viewMonth;
                             return (
                                 <DayCell
