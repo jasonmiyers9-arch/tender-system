@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_current_user
 from app.db.redis import get_redis
 from app.db.session import get_db
-from app.models.domain import CompanyMembership, ComplianceDocument
+from app.models.domain import CompanyMembership, ComplianceDocument, MembershipRole
 from app.models.user import Company, User
 
 router = APIRouter(prefix='/companies', tags=['companies'])
@@ -34,19 +34,29 @@ class UpdateCompanyProfileIn(BaseModel):
     address: str | None = None
 
 
-def _serialize_company(c: Company) -> dict:
+def _serialize_company(c: Company, verification_status: str | None = None) -> dict:
+    status = 'pending'
+    if verification_status == 'approved':
+        status = 'verified'
+    elif verification_status == 'rejected':
+        status = 'rejected'
+
     return {
         'id': str(c.id),
         'name': c.name,
         'registrationNumber': c.reg_number or '',
         'vatNumber': c.vat or '',
-        'status': 'verified',
+        'status': status,
         'address': c.address or '',
         'phone': c.phone or '',
         'email': c.contact_email or '',
         'website': '',
         'industry': c.industry_sector or '',
         'incorporatedDate': c.created_at.date().isoformat() if c.created_at else '',
+        'csdNumber': c.csd_number or '',
+        'bbbeeLevel': c.bbbee_level or '',
+        'cidbGrade': c.cidb_grade or '',
+        'province': c.province or '',
     }
 
 
@@ -73,6 +83,22 @@ async def _get_user_companies(db: AsyncSession, user: User) -> list[Company]:
     return list(rows.scalars().all())
 
 
+async def _get_company_status_map(db: AsyncSession, companies: list[Company]) -> dict[int, str]:
+    if not companies:
+        return {}
+
+    company_ids = [c.id for c in companies]
+    rows = await db.execute(
+        select(CompanyMembership.company_id, User.verification_status)
+        .join(User, User.id == CompanyMembership.user_id)
+        .where(
+            CompanyMembership.company_id.in_(company_ids),
+            CompanyMembership.role == MembershipRole.owner,
+        )
+    )
+    return {int(company_id): str(verification_status or 'pending') for company_id, verification_status in rows.all()}
+
+
 async def _get_active_company_id(user_id: int) -> int | None:
     r = get_redis()
     raw = await r.get(f'active_company:{user_id}')
@@ -94,7 +120,8 @@ async def list_companies(user: User = Depends(get_current_user), db: AsyncSessio
     if active_id is None:
         await _set_active_company_id(user.id, companies[0].id)
 
-    return {'items': [_serialize_company(c) for c in companies]}
+    status_map = await _get_company_status_map(db, companies)
+    return {'items': [_serialize_company(c, status_map.get(c.id)) for c in companies]}
 
 
 @router.get('/active')
@@ -111,7 +138,8 @@ async def get_active_company(user: User = Depends(get_current_user), db: AsyncSe
         await _set_active_company_id(user.id, active_id)
 
     active = next(c for c in companies if c.id == active_id)
-    return _serialize_company(active)
+    status_map = await _get_company_status_map(db, [active])
+    return _serialize_company(active, status_map.get(active.id))
 
 
 @router.post('/switch')
@@ -130,7 +158,8 @@ async def switch_company(
 
     await _set_active_company_id(user.id, payload.company_id)
     active = next(c for c in companies if c.id == payload.company_id)
-    return {'activeCompanyId': str(payload.company_id), 'company': _serialize_company(active)}
+    status_map = await _get_company_status_map(db, [active])
+    return {'activeCompanyId': str(payload.company_id), 'company': _serialize_company(active, status_map.get(active.id))}
 
 
 @router.get('/onboarding/status')
@@ -208,7 +237,8 @@ async def update_active_company(
 
     await db.commit()
     await db.refresh(company)
-    return _serialize_company(company)
+    status_map = await _get_company_status_map(db, [company])
+    return _serialize_company(company, status_map.get(company.id))
 
 
 @router.post('/onboarding')
@@ -241,4 +271,5 @@ async def complete_onboarding(
     await db.commit()
     await _set_active_company_id(user.id, company.id)
 
-    return {'ok': True, 'company': _serialize_company(company), 'onboardingCompleted': bool(company.onboarding_completed)}
+    status_map = await _get_company_status_map(db, [company])
+    return {'ok': True, 'company': _serialize_company(company, status_map.get(company.id)), 'onboardingCompleted': bool(company.onboarding_completed)}
