@@ -493,7 +493,13 @@ async function createDocument(payload: {
   name: string;
   category: 'tax' | 'legal' | 'financial' | 'certification' | 'bbbee' | 'registration';
   fileUrl: string;
+  storagePath?: string;
   expiryDate?: string | null;
+  fileSize?: number;
+  mimeType?: string;
+  pageCount?: number;
+  extractedText?: string;
+  documentAnalysis?: InternalDocument['documentAnalysis'];
 }): Promise<InternalDocument> {
   const docId = createId();
   const document: InternalDocument = {
@@ -503,10 +509,16 @@ async function createDocument(payload: {
     category: payload.category,
     status: 'uploaded',
     fileUrl: payload.fileUrl,
+    storagePath: payload.storagePath,
     expiryDate: payload.expiryDate || null,
     uploadedAt: new Date().toISOString(),
     verifiedAt: null,
     verifiedBy: null,
+    fileSize: payload.fileSize,
+    mimeType: payload.mimeType,
+    pageCount: payload.pageCount,
+    extractedText: payload.extractedText,
+    documentAnalysis: payload.documentAnalysis,
   };
 
   if (isFirestoreAvailable()) {
@@ -517,6 +529,38 @@ async function createDocument(payload: {
   }
 
   return document;
+}
+
+async function updateDocument(
+  documentId: string,
+  updates: Partial<Pick<InternalDocument, 
+    'name' | 'category' | 'status' | 'expiryDate' | 'verified' | 'fileSize' | 
+    'mimeType' | 'pageCount' | 'extractedText' | 'documentAnalysis'
+  >>
+): Promise<InternalDocument> {
+  const doc = await getDocumentById(documentId);
+  if (!doc) throw new Error('Document not found');
+
+  Object.assign(doc, updates);
+
+  if (isFirestoreAvailable()) {
+    const db = getFirestore()!;
+    await db.collection(DOCUMENTS_COLLECTION).doc(documentId).update(updates);
+  }
+
+  return doc;
+}
+
+async function deleteDocument(documentId: string): Promise<void> {
+  if (isFirestoreAvailable()) {
+    const db = getFirestore()!;
+    await db.collection(DOCUMENTS_COLLECTION).doc(documentId).delete();
+  } else {
+    const index = MEMORY_DB.documents.findIndex(d => d.id === documentId);
+    if (index !== -1) {
+      MEMORY_DB.documents.splice(index, 1);
+    }
+  }
 }
 
 async function verifyDocument(documentId: string, verifiedBy: string): Promise<InternalDocument> {
@@ -611,6 +655,8 @@ export {
   listDocumentsForCompany,
   getDocumentById,
   createDocument,
+  updateDocument,
+  deleteDocument,
   verifyDocument,
   renewDocument,
   mapUserToAuthUser,
