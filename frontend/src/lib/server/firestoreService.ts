@@ -1,6 +1,6 @@
 import type { AuthUser, Company, TenderDetail, TenderMatch, TenderReadiness } from '@/lib/api/types';
 import { getFirestore, isFirestoreAvailable } from './firebaseAdmin';
-import { DEFAULT_COMPANIES, DEFAULT_TENDERS, DEFAULT_USERS, DEFAULT_APPLICATIONS, DEFAULT_DOCUMENTS, InternalCompany, InternalTender, InternalUser, InternalApplication, InternalDocument } from './mockData';
+import { DEFAULT_COMPANIES, DEFAULT_TENDERS, DEFAULT_USER, DEFAULT_APPLICATIONS, DEFAULT_DOCUMENTS, InternalCompany, InternalTender, InternalUser, InternalApplication, InternalDocument } from './mockData';
 
 const USERS_COLLECTION = 'users';
 const COMPANIES_COLLECTION = 'companies';
@@ -97,7 +97,7 @@ async function ensureFirestoreSeed() {
   const userSnapshot = await db.collection(USERS_COLLECTION).limit(1).get();
   if (!userSnapshot.empty) return;
 
-  for (const user of DEFAULT_USERS) {
+  for (const user of [DEFAULT_USER]) {
     await db.collection(USERS_COLLECTION).doc(user.id).set(user);
   }
   for (const company of DEFAULT_COMPANIES) {
@@ -622,7 +622,7 @@ declare global {
 
 if (!globalThis.__tenderguard_memory_db) {
   globalThis.__tenderguard_memory_db = {
-    users: [...DEFAULT_USERS],
+    users: [DEFAULT_USER],
     companies: DEFAULT_COMPANIES,
     tenders: DEFAULT_TENDERS,
     applications: DEFAULT_APPLICATIONS,

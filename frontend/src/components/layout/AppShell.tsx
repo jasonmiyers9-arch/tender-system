@@ -32,17 +32,23 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     // ─── 1. Auth guard — instant render if session already in store ──────────
     // currentUser + token are persisted in localStorage via Zustand persist.
     // After hydration both are available immediately — no API call needed to render.
-    // auth.me() runs silently in the background to refresh user data.
+    // auth.me() runs once per token (tracked via ref) to avoid infinite loops.
+    const authCheckedRef = useRef(false);
+
     useEffect(() => {
         if (!_hasHydrated) return;
 
         if (!token) {
-            // Update session state for auth guard - intentional pattern
-            // eslint-disable-next-line react-hooks/set-state-in-effect
+            authCheckedRef.current = false;
             setSessionReady(false);
             router.push('/login?reason=auth_required');
             return;
         }
+
+        // Only run the auth check once per token — prevents loop caused by
+        // setCurrentUser triggering a re-render that would re-fire this effect.
+        if (authCheckedRef.current) return;
+        authCheckedRef.current = true;
 
         // If we already have the user from localStorage → show UI immediately
         if (currentUser) {
@@ -86,7 +92,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 }
             });
         return () => { cancelled = true; };
-    }, [_hasHydrated, token, currentUser, router, setCurrentUser, setActiveCompany, logout]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [_hasHydrated, token]);
 
     // ─── 2. Role-based route guard ────────────────────────────────────────────
     useEffect(() => {

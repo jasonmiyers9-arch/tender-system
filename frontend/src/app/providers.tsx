@@ -12,7 +12,8 @@ export function Providers({ children }: { children: React.ReactNode }) {
             new QueryClient({
                 defaultOptions: {
                     queries: {
-                        staleTime: 60 * 1000,
+                        staleTime: 5 * 60 * 1000,   // 5 min — avoid redundant refetches
+                        gcTime: 10 * 60 * 1000,      // 10 min — keep cache warm
                         // Never retry 4xx errors — they won't succeed on retry.
                         retry: (failureCount, error) => {
                             const msg = error instanceof Error ? error.message : '';
@@ -20,6 +21,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
                             return failureCount < 1;
                         },
                         refetchOnWindowFocus: false,
+                        refetchOnReconnect: false,
                     },
                 },
             })
