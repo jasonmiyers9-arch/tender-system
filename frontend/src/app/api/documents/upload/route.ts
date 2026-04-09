@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import * as path from 'node:path';
-import { getUserByToken, listCompaniesForUser, createDocument } from '../../../../lib/server/firestoreService';
+import { getUserByToken, listCompaniesForUser, createDocument, ensureUserCompanyContext } from '../../../../lib/server/firestoreService';
 import { uploadDocumentToFirebase, isFirebaseStorageConfigured, writeLocalFallback } from '../../../../lib/server/firebaseStorage';
 import { enqueueDocumentAiProcessing } from '../../../../lib/server/documentAi';
 import { summarizeDocumentForKnowledgeBase } from '../../../../lib/server/documentSummary';
@@ -35,6 +35,11 @@ export async function POST(req: Request) {
     if (!activeCompanyId) {
       const companies = await listCompaniesForUser(user.id);
       activeCompanyId = companies[0]?.id;
+    }
+
+    if (!activeCompanyId) {
+      const ensured = await ensureUserCompanyContext(user.id);
+      activeCompanyId = ensured?.id ?? null;
     }
 
     if (!activeCompanyId) {

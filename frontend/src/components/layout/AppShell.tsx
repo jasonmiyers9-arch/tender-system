@@ -94,7 +94,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 }
             });
         return () => { cancelled = true; };
-    }, [_hasHydrated, token, currentUser, router, setCurrentUser, setActiveCompany, logout]);
+    }, [_hasHydrated, token, router, setCurrentUser, setActiveCompany, logout]);
 
     // ─── 2. Role-based route guard ────────────────────────────────────────────
     useEffect(() => {

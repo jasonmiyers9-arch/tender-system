@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/Badge';
 import { CardSkeleton } from '@/components/ui/Skeleton';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { ErrorState } from '@/components/ui/ErrorState';
+import { Input } from '@/components/ui/Input';
 import { docCategoryLabel, formatDateTime } from '@/lib/utils/formatters';
 import { Brain, FileText, ChevronRight } from 'lucide-react';
 
@@ -17,6 +18,11 @@ export default function KnowledgePage() {
     const docsQuery = useVaultDocuments();
     const docs = docsQuery.data ?? [];
     const [selectedDocId, setSelectedDocId] = useState<string>('');
+    const [question, setQuestion] = useState('');
+    const [answer, setAnswer] = useState('');
+    const [answerModel, setAnswerModel] = useState('');
+    const [asking, setAsking] = useState(false);
+    const [askError, setAskError] = useState('');
     const router = useRouter();
 
     const selectedFallbackId = useMemo(() => docs[0]?.id ?? '', [docs]);
@@ -32,6 +38,39 @@ export default function KnowledgePage() {
     }, [selectedDocId, selectedFallbackId, docs]);
 
     const detailQuery = useVaultDocument(selectedDocId);
+
+    async function askKnowledge() {
+        if (!selectedDocId || !question.trim()) return;
+
+        setAsking(true);
+        setAskError('');
+        setAnswer('');
+
+        try {
+            const raw = window.localStorage.getItem('tenderguard-app-state');
+            const token = raw ? JSON.parse(raw)?.state?.token : null;
+            const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+            if (token) headers.Authorization = `Bearer ${token}`;
+
+            const res = await fetch('/api/knowledge/ask', {
+                method: 'POST',
+                headers,
+                body: JSON.stringify({ documentId: selectedDocId, question: question.trim() }),
+            });
+
+            const json = (await res.json()) as { answer?: string; model?: string; detail?: string };
+            if (!res.ok) {
+                throw new Error(json.detail ?? `Request failed (${res.status})`);
+            }
+
+            setAnswer(json.answer ?? 'No answer returned.');
+            setAnswerModel(json.model ?? 'unknown');
+        } catch (error) {
+            setAskError(error instanceof Error ? error.message : 'Failed to get answer');
+        } finally {
+            setAsking(false);
+        }
+    }
 
     if (docsQuery.isLoading) {
         return <CardSkeleton />;
@@ -148,6 +187,33 @@ export default function KnowledgePage() {
                                         No extracted text available for this file.
                                     </p>
                                 )}
+                            </Card>
+
+                            <Card header={<h3 className="text-sm font-semibold text-[--color-text-primary]">Ask AI About This Document</h3>}>
+                                <div className="space-y-3">
+                                    <Input
+                                        placeholder="Ask a question about this document..."
+                                        value={question}
+                                        onChange={(e) => setQuestion(e.target.value)}
+                                    />
+                                    <div className="flex justify-end">
+                                        <Button onClick={askKnowledge} loading={asking} disabled={!question.trim()}>
+                                            Ask AI
+                                        </Button>
+                                    </div>
+
+                                    {askError && (
+                                        <p className="text-xs text-[--color-danger]">{askError}</p>
+                                    )}
+
+                                    {answer && (
+                                        <div className="rounded-lg border border-[--color-border] bg-[--color-bg] p-3">
+                                            <p className="text-xs uppercase tracking-wide text-[--color-text-muted] mb-1">AI Answer</p>
+                                            <p className="text-sm text-[--color-text-primary] whitespace-pre-wrap leading-relaxed">{answer}</p>
+                                            <p className="text-[11px] text-[--color-text-muted] mt-2">Model: {answerModel}</p>
+                                        </div>
+                                    )}
+                                </div>
                             </Card>
                         </>
                     )}

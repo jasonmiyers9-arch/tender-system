@@ -326,6 +326,70 @@ async function setActiveCompany(userId: string, companyId: string): Promise<Comp
   return company;
 }
 
+async function ensureUserCompanyContext(userId: string): Promise<Company | null> {
+  const user = await getUserDocumentById(userId);
+  if (!user) return null;
+
+  // Only auto-provision for standard company users.
+  if (user.role !== 'user') return null;
+
+  const existingCompanies = await listCompaniesForUser(userId);
+  if (existingCompanies.length > 0) {
+    const fallback = existingCompanies[0];
+    if (!user.activeCompanyId) {
+      user.activeCompanyId = fallback.id;
+      user.companyId = fallback.id;
+      if (isFirestoreAvailable()) {
+        const db = getFirestore()!;
+        await db.collection(USERS_COLLECTION).doc(userId).set(
+          {
+            activeCompanyId: fallback.id,
+            companyId: fallback.id,
+          },
+          { merge: true }
+        );
+      }
+    }
+    return fallback;
+  }
+
+  const companyId = createId();
+  const today = new Date().toISOString().slice(0, 10);
+  const newCompany: InternalCompany = {
+    id: companyId,
+    name: `${user.fullName || 'My'} Company`,
+    registrationNumber: '',
+    vatNumber: '',
+    status: 'pending',
+    address: '',
+    phone: '',
+    email: user.email,
+    website: '',
+    industry: '',
+    incorporatedDate: today,
+    memberIds: [userId],
+  };
+
+  user.activeCompanyId = companyId;
+  user.companyId = companyId;
+
+  if (isFirestoreAvailable()) {
+    const db = getFirestore()!;
+    await db.collection(COMPANIES_COLLECTION).doc(companyId).set(newCompany);
+    await db.collection(USERS_COLLECTION).doc(userId).set(
+      {
+        activeCompanyId: companyId,
+        companyId,
+      },
+      { merge: true }
+    );
+  } else {
+    MEMORY_DB.companies.push(newCompany);
+  }
+
+  return mapCompanyToPublic(newCompany);
+}
+
 async function updateCompanyProfile(companyId: string, payload: Partial<Company>): Promise<Company> {
   const updatedFields: Partial<InternalCompany> = {};
   if (payload.name !== undefined) updatedFields.name = payload.name;
@@ -769,6 +833,7 @@ export {
   updateUserName,
   listCompaniesForUser,
   listAllCompanies,
+  ensureUserCompanyContext,
   getCompanyById,
   setActiveCompany,
   updateCompanyProfile,

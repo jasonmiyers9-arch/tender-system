@@ -2,7 +2,7 @@ import { getFirestore, isFirestoreAvailable } from './firebaseAdmin';
 
 const SETTINGS_COLLECTION = 'app_settings';
 const AI_SETTINGS_DOC = 'ai_provider';
-const DEFAULT_OPENROUTER_MODEL = 'openai/gpt-4o-mini';
+const DEFAULT_OPENROUTER_MODEL = 'openai/gpt-oss-120b:free';
 
 type StoredAiSettings = {
   openRouterApiKey?: string;
