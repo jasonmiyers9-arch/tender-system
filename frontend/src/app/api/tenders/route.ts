@@ -8,8 +8,30 @@ function parseToken(req: Request): string | null {
   return type.toLowerCase() === 'bearer' ? token : null;
 }
 
-export async function GET() {
-  const items = await listTenders();
+export async function GET(req: Request) {
+  const url = new URL(req.url);
+  const mineOnly = url.searchParams.get('mine') === 'true';
+
+  let items;
+  if (mineOnly) {
+    const token = parseToken(req);
+    if (!token) {
+      return NextResponse.json({ detail: 'Unauthorized' }, { status: 401 });
+    }
+
+    const user = await getUserByToken(token);
+    if (!user) {
+      return NextResponse.json({ detail: 'Unauthorized' }, { status: 401 });
+    }
+    if (user.role !== 'evaluator' && user.role !== 'admin') {
+      return NextResponse.json({ detail: 'Forbidden' }, { status: 403 });
+    }
+
+    items = await listTenders({ createdBy: user.id, includeSystem: false });
+  } else {
+    items = await listTenders();
+  }
+
   return NextResponse.json(items, {
     status: 200,
     headers: {
@@ -29,6 +51,9 @@ export async function POST(req: Request) {
     if (!user) {
       return NextResponse.json({ detail: 'Unauthorized' }, { status: 401 });
     }
+    if (user.role !== 'evaluator' && user.role !== 'admin') {
+      return NextResponse.json({ detail: 'Forbidden' }, { status: 403 });
+    }
 
     const body = await req.json();
     const {
@@ -42,6 +67,7 @@ export async function POST(req: Request) {
       requirements,
       eligibilityCriteria,
       required_categories,
+      status,
     } = body;
 
     if (!title || !organization || !deadline || !value || !category || !location || !description) {
@@ -62,6 +88,8 @@ export async function POST(req: Request) {
       requirements: Array.isArray(requirements) ? requirements : [],
       eligibilityCriteria: Array.isArray(eligibilityCriteria) ? eligibilityCriteria : [],
       required_categories: Array.isArray(required_categories) ? required_categories : [],
+      status: status === 'published' ? 'published' : 'draft',
+      createdBy: user.id,
       companyId: user.activeCompanyId ?? undefined,
     });
 

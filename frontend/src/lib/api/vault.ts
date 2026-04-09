@@ -35,10 +35,13 @@ export const vault = {
         if (filters?.category) params.set('category', filters.category);
         const suffix = params.toString() ? `?${params.toString()}` : '';
         const res = await authFetch(`/documents${suffix}`);
-        const json = await res.json();
+        const json: unknown = await res.json();
+
+        // Some API paths return { items: [] } on soft failures; normalize to an array for callers.
         if (Array.isArray(json)) return json as VaultDocument[];
-        if (Array.isArray((json as { items?: unknown[] })?.items)) {
-            return (json as { items: VaultDocument[] }).items;
+        if (json && typeof json === 'object' && 'items' in json) {
+            const items = (json as { items?: unknown }).items;
+            return Array.isArray(items) ? (items as VaultDocument[]) : [];
         }
         return [];
     },
@@ -52,11 +55,13 @@ export const vault = {
         name: string;
         category: DocumentCategory;
         file: File;
+        runAi?: boolean;
     }): Promise<VaultDocument> {
         const token = getToken();
         const form = new FormData();
         form.set('file', data.file, data.file.name || `${data.name}.pdf`);
         form.set('category', data.category);
+        form.set('run_ai', data.runAi === false ? 'false' : 'true');
 
         const headers: Record<string, string> = {};
         if (token) headers.Authorization = `Bearer ${token}`;
@@ -66,7 +71,16 @@ export const vault = {
             headers,
             body: form,
         });
-        if (!res.ok) throw new Error(`Upload failed (${res.status})`);
+        if (!res.ok) {
+            let detail = '';
+            try {
+                const json = await res.json() as { detail?: string };
+                detail = json.detail ? `: ${json.detail}` : '';
+            } catch {
+                // ignore json parse errors and keep generic message
+            }
+            throw new Error(`Upload failed (${res.status})${detail}`);
+        }
         return res.json();
     },
 

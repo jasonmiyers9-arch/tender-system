@@ -16,6 +16,10 @@ const categoryOptions = [
     { value: 'registration', label: 'Registration' },
 ];
 
+function normalizeDateInput(value: string): string {
+    return value ? value.replace(/\//g, '-') : value;
+}
+
 const PROVIDER_PROFILE_KEY = 'tenderguard-provider-profile';
 
 export default function NewProviderTenderPage() {
@@ -63,6 +67,7 @@ export default function NewProviderTenderPage() {
         try {
             await createTender.mutateAsync({
                 ...form,
+                deadline: normalizeDateInput(form.deadline),
                 requirements: form.requirements.split('\n').map((v) => v.trim()).filter(Boolean),
                 eligibilityCriteria: form.eligibilityCriteria.split('\n').map((v) => v.trim()).filter(Boolean),
                 required_categories: requiredCategories,

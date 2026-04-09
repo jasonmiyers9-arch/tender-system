@@ -183,4 +183,32 @@ export const admin = {
         });
         return res.json();
     },
+
+    async getAiSettings(): Promise<{
+        hasOpenRouterKey: boolean;
+        openRouterKeyMasked: string | null;
+        openRouterModel: string;
+        updatedAt: string | null;
+        source: 'admin' | 'env' | 'none';
+    }> {
+        const res = await authFetch('/admin/ai-settings');
+        return res.json();
+    },
+
+    async updateAiSettings(payload: {
+        openRouterApiKey?: string;
+        openRouterModel?: string;
+    }): Promise<{
+        hasOpenRouterKey: boolean;
+        openRouterKeyMasked: string | null;
+        openRouterModel: string;
+        updatedAt: string | null;
+        source: 'admin' | 'env' | 'none';
+    }> {
+        const res = await authFetch('/admin/ai-settings', {
+            method: 'PUT',
+            body: JSON.stringify(payload),
+        });
+        return res.json();
+    },
 };

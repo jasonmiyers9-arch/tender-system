@@ -13,6 +13,24 @@ function createId() {
   return `${Math.random().toString(36).slice(2)}${Date.now().toString(36)}`;
 }
 
+function stripUndefined<T>(value: T): T {
+  if (Array.isArray(value)) {
+    return value.map((item) => stripUndefined(item)) as T;
+  }
+
+  if (value && typeof value === 'object') {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      if (v !== undefined) {
+        out[k] = stripUndefined(v);
+      }
+    }
+    return out as T;
+  }
+
+  return value;
+}
+
 function mapUserToAuthUser(user: InternalUser): AuthUser {
   return {
     id: user.id,
@@ -79,6 +97,7 @@ function mapTenderToMatch(tender: InternalTender): TenderMatch {
     recommendedDocuments: tender.recommendedDocuments,
     required_categories: tender.required_categories || [],
     rejectionReason: tender.rejectionReason ?? undefined,
+    createdBy: tender.createdBy,
     status: tender.status ?? 'draft',
     createdAt: tender.createdAt ?? new Date().toISOString(),
   };
@@ -359,6 +378,17 @@ async function listCompaniesForUser(userId: string): Promise<Company[]> {
   return fallbackCompany ? [fallbackCompany] : [];
 }
 
+async function listAllCompanies(): Promise<Company[]> {
+  if (isFirestoreAvailable()) {
+    await ensureFirestoreSeed();
+    const db = getFirestore()!;
+    const snapshot = await db.collection(COMPANIES_COLLECTION).get();
+    return snapshot.docs.map((doc) => mapCompanyToPublic(doc.data() as InternalCompany));
+  }
+
+  return MEMORY_DB.companies.map(mapCompanyToPublic);
+}
+
 async function getCompanyById(companyId: string): Promise<Company | null> {
   if (isFirestoreAvailable()) {
     await ensureFirestoreSeed();
@@ -399,6 +429,70 @@ async function setActiveCompany(userId: string, companyId: string): Promise<Comp
   return company;
 }
 
+async function ensureUserCompanyContext(userId: string): Promise<Company | null> {
+  const user = await getUserDocumentById(userId);
+  if (!user) return null;
+
+  // Only auto-provision for standard company users.
+  if (user.role !== 'user') return null;
+
+  const existingCompanies = await listCompaniesForUser(userId);
+  if (existingCompanies.length > 0) {
+    const fallback = existingCompanies[0];
+    if (!user.activeCompanyId) {
+      user.activeCompanyId = fallback.id;
+      user.companyId = fallback.id;
+      if (isFirestoreAvailable()) {
+        const db = getFirestore()!;
+        await db.collection(USERS_COLLECTION).doc(userId).set(
+          {
+            activeCompanyId: fallback.id,
+            companyId: fallback.id,
+          },
+          { merge: true }
+        );
+      }
+    }
+    return fallback;
+  }
+
+  const companyId = createId();
+  const today = new Date().toISOString().slice(0, 10);
+  const newCompany: InternalCompany = {
+    id: companyId,
+    name: `${user.fullName || 'My'} Company`,
+    registrationNumber: '',
+    vatNumber: '',
+    status: 'pending',
+    address: '',
+    phone: '',
+    email: user.email,
+    website: '',
+    industry: '',
+    incorporatedDate: today,
+    memberIds: [userId],
+  };
+
+  user.activeCompanyId = companyId;
+  user.companyId = companyId;
+
+  if (isFirestoreAvailable()) {
+    const db = getFirestore()!;
+    await db.collection(COMPANIES_COLLECTION).doc(companyId).set(newCompany);
+    await db.collection(USERS_COLLECTION).doc(userId).set(
+      {
+        activeCompanyId: companyId,
+        companyId,
+      },
+      { merge: true }
+    );
+  } else {
+    MEMORY_DB.companies.push(newCompany);
+  }
+
+  return mapCompanyToPublic(newCompany);
+}
+
 async function updateCompanyProfile(companyId: string, payload: Partial<Company>): Promise<Company> {
   const updatedFields: Partial<InternalCompany> = {};
   if (payload.name !== undefined) updatedFields.name = payload.name;
@@ -436,14 +530,17 @@ async function createTender(payload: {
   requirements: string[];
   eligibilityCriteria: string[];
   required_categories?: string[];
+  status?: InternalTender['status'];
+  createdBy?: string;
   companyId?: string;
 }): Promise<InternalTender> {
   const tenderId = createId();
+  const normalizedDeadline = payload.deadline.replace(/\//g, '-');
   const tender: InternalTender = {
     id: tenderId,
     title: payload.title,
     organization: payload.organization,
-    deadline: payload.deadline,
+    deadline: normalizedDeadline,
     value: payload.value,
     category: payload.category,
     location: payload.location,
@@ -454,14 +551,16 @@ async function createTender(payload: {
     required_categories: payload.required_categories || [],
     matchScore: 0,
     gaps: [],
-    status: 'draft',
+    status: payload.status ?? 'draft',
+    createdBy: payload.createdBy,
+    companyId: payload.companyId,
     isSystem: false,
     createdAt: new Date().toISOString(),
   };
 
   if (isFirestoreAvailable()) {
     const db = getFirestore()!;
-    await db.collection(TENDERS_COLLECTION).doc(tenderId).set(tender);
+    await db.collection(TENDERS_COLLECTION).doc(tenderId).set(stripUndefined(tender));
   } else {
     MEMORY_DB.tenders.push(tender);
   }
@@ -469,40 +568,135 @@ async function createTender(payload: {
   return tender;
 }
 
-async function listTenders(): Promise<TenderMatch[]> {
-  if (isFirestoreAvailable()) {
-    await ensureFirestoreSeed();
-    const db = getFirestore()!;
-    const snapshot = await db.collection(TENDERS_COLLECTION).get();
-    return snapshot.docs.map((doc) => mapTenderToMatch(doc.data() as InternalTender));
-  }
-  return MEMORY_DB.tenders.map(mapTenderToMatch);
-}
-
-async function getTenderById(tenderId: string): Promise<TenderDetail | null> {
+async function getInternalTenderById(tenderId: string): Promise<InternalTender | null> {
   if (isFirestoreAvailable()) {
     await ensureFirestoreSeed();
     const db = getFirestore()!;
     const snapshot = await db.collection(TENDERS_COLLECTION).doc(tenderId).get();
-    return snapshot.exists ? mapTenderToDetail(snapshot.data() as InternalTender) : null;
+    return snapshot.exists ? (snapshot.data() as InternalTender) : null;
   }
-  const tender = DEFAULT_TENDERS.find((item) => item.id === tenderId);
+  return MEMORY_DB.tenders.find((item) => item.id === tenderId) ?? null;
+}
+
+async function listTenders(options?: {
+  createdBy?: string;
+  companyId?: string;
+  includeSystem?: boolean;
+}): Promise<TenderMatch[]> {
+  const includeSystem = options?.includeSystem ?? true;
+
+  if (isFirestoreAvailable()) {
+    await ensureFirestoreSeed();
+    const db = getFirestore()!;
+    const snapshot = await db.collection(TENDERS_COLLECTION).get();
+    let tenders = snapshot.docs.map((doc) => doc.data() as InternalTender);
+
+    if (!includeSystem) {
+      tenders = tenders.filter((item) => !item.isSystem);
+    }
+    if (options?.createdBy) {
+      tenders = tenders.filter((item) => item.createdBy === options.createdBy);
+    }
+    if (options?.companyId) {
+      tenders = tenders.filter((item) => item.companyId === options.companyId);
+    }
+
+    return tenders.map(mapTenderToMatch);
+  }
+
+  let tenders = MEMORY_DB.tenders;
+  if (!includeSystem) {
+    tenders = tenders.filter((item) => !item.isSystem);
+  }
+  if (options?.createdBy) {
+    tenders = tenders.filter((item) => item.createdBy === options.createdBy);
+  }
+  if (options?.companyId) {
+    tenders = tenders.filter((item) => item.companyId === options.companyId);
+  }
+
+  return tenders.map(mapTenderToMatch);
+}
+
+async function getTenderById(tenderId: string): Promise<TenderDetail | null> {
+  const tender = await getInternalTenderById(tenderId);
   return tender ? mapTenderToDetail(tender) : null;
 }
 
 async function getTenderReadiness(tenderId: string): Promise<TenderReadiness | null> {
-  const tender = DEFAULT_TENDERS.find((item) => item.id === tenderId);
-  if (!tender) {
-    if (isFirestoreAvailable()) {
-      await ensureFirestoreSeed();
-      const db = getFirestore()!;
-      const snapshot = await db.collection(TENDERS_COLLECTION).doc(tenderId).get();
-      if (!snapshot.exists) return null;
-      return buildReadiness(snapshot.data() as InternalTender);
-    }
-    return null;
-  }
+  const tender = await getInternalTenderById(tenderId);
+  if (!tender) return null;
   return buildReadiness(tender);
+}
+
+async function updateTender(
+  tenderId: string,
+  payload: Partial<Pick<InternalTender,
+    'title' |
+    'organization' |
+    'deadline' |
+    'value' |
+    'category' |
+    'location' |
+    'description' |
+    'requirements' |
+    'eligibilityCriteria' |
+    'required_categories' |
+    'recommendedDocuments' |
+    'status'
+  >>,
+): Promise<InternalTender> {
+  const tender = await getInternalTenderById(tenderId);
+  if (!tender) throw new Error('Tender not found');
+
+  const updates: Partial<InternalTender> = {};
+
+  if (payload.title !== undefined) updates.title = payload.title;
+  if (payload.organization !== undefined) updates.organization = payload.organization;
+  if (payload.deadline !== undefined) updates.deadline = payload.deadline.replace(/\//g, '-');
+  if (payload.value !== undefined) updates.value = payload.value;
+  if (payload.category !== undefined) updates.category = payload.category;
+  if (payload.location !== undefined) updates.location = payload.location;
+  if (payload.description !== undefined) updates.description = payload.description;
+  if (payload.requirements !== undefined) updates.requirements = payload.requirements;
+  if (payload.eligibilityCriteria !== undefined) updates.eligibilityCriteria = payload.eligibilityCriteria;
+
+  if (payload.required_categories !== undefined) {
+    updates.required_categories = payload.required_categories;
+    updates.recommendedDocuments = payload.required_categories;
+  } else if (payload.recommendedDocuments !== undefined) {
+    updates.recommendedDocuments = payload.recommendedDocuments;
+    updates.required_categories = payload.recommendedDocuments;
+  }
+
+  if (payload.status !== undefined) {
+    updates.status = payload.status;
+  } else if (tender.status === 'published') {
+    // Editing a published tender requires re-approval.
+    updates.status = 'pending';
+  }
+
+  Object.assign(tender, updates);
+
+  if (isFirestoreAvailable()) {
+    const db = getFirestore()!;
+    await db.collection(TENDERS_COLLECTION).doc(tenderId).set(stripUndefined(updates), { merge: true });
+  }
+
+  return tender;
+}
+
+async function deleteTender(tenderId: string): Promise<void> {
+  if (isFirestoreAvailable()) {
+    const db = getFirestore()!;
+    await db.collection(TENDERS_COLLECTION).doc(tenderId).delete();
+    return;
+  }
+
+  const index = MEMORY_DB.tenders.findIndex((item) => item.id === tenderId);
+  if (index !== -1) {
+    MEMORY_DB.tenders.splice(index, 1);
+  }
 }
 
 async function listApplicationsForCompany(companyId: string): Promise<InternalApplication[]> {
@@ -580,6 +774,16 @@ async function listDocumentsForCompany(companyId: string): Promise<InternalDocum
   return MEMORY_DB.documents.filter((doc) => doc.companyId === companyId);
 }
 
+async function listAllDocuments(): Promise<InternalDocument[]> {
+  if (isFirestoreAvailable()) {
+    const db = getFirestore()!;
+    const snapshot = await db.collection(DOCUMENTS_COLLECTION).get();
+    return snapshot.docs.map((doc) => doc.data() as InternalDocument);
+  }
+
+  return [...MEMORY_DB.documents];
+}
+
 async function getDocumentById(documentId: string): Promise<InternalDocument | null> {
   if (isFirestoreAvailable()) {
     const db = getFirestore()!;
@@ -592,9 +796,20 @@ async function getDocumentById(documentId: string): Promise<InternalDocument | n
 async function createDocument(payload: {
   companyId: string;
   name: string;
-  category: 'tax' | 'legal' | 'financial' | 'certification' | 'bbbee' | 'registration';
+  category: 'tax' | 'legal' | 'financial' | 'certification' | 'bbbee' | 'registration' | 'policy';
   fileUrl: string;
+  storagePath?: string;
   expiryDate?: string | null;
+  fileSize?: number;
+  mimeType?: string;
+  pageCount?: number;
+  extractedText?: string;
+  extractionStatus?: InternalDocument['extractionStatus'];
+  extractionError?: string | null;
+  aiSummary?: string;
+  aiSummaryModel?: string;
+  aiSummaryUpdatedAt?: string;
+  documentAnalysis?: InternalDocument['documentAnalysis'];
 }): Promise<InternalDocument> {
   const docId = createId();
   const document: InternalDocument = {
@@ -604,20 +819,63 @@ async function createDocument(payload: {
     category: payload.category,
     status: 'uploaded',
     fileUrl: payload.fileUrl,
+    storagePath: payload.storagePath,
     expiryDate: payload.expiryDate || null,
     uploadedAt: new Date().toISOString(),
     verifiedAt: null,
     verifiedBy: null,
+    fileSize: payload.fileSize,
+    mimeType: payload.mimeType,
+    pageCount: payload.pageCount,
+    extractedText: payload.extractedText,
+    extractionStatus: payload.extractionStatus,
+    extractionError: payload.extractionError,
+    aiSummary: payload.aiSummary,
+    aiSummaryModel: payload.aiSummaryModel,
+    aiSummaryUpdatedAt: payload.aiSummaryUpdatedAt,
+    documentAnalysis: payload.documentAnalysis,
   };
 
   if (isFirestoreAvailable()) {
     const db = getFirestore()!;
-    await db.collection(DOCUMENTS_COLLECTION).doc(docId).set(document);
+    await db.collection(DOCUMENTS_COLLECTION).doc(docId).set(stripUndefined(document));
   } else {
     MEMORY_DB.documents.push(document);
   }
 
   return document;
+}
+
+async function updateDocument(
+  documentId: string,
+  updates: Partial<Pick<InternalDocument, 
+    'name' | 'category' | 'status' | 'expiryDate' | 'verified' | 'fileSize' | 
+    'mimeType' | 'pageCount' | 'extractedText' | 'extractionStatus' | 'extractionError' | 'aiSummary' | 'aiSummaryModel' | 'aiSummaryUpdatedAt' | 'documentAnalysis'
+  >>
+): Promise<InternalDocument> {
+  const doc = await getDocumentById(documentId);
+  if (!doc) throw new Error('Document not found');
+
+  Object.assign(doc, updates);
+
+  if (isFirestoreAvailable()) {
+    const db = getFirestore()!;
+    await db.collection(DOCUMENTS_COLLECTION).doc(documentId).update(stripUndefined(updates));
+  }
+
+  return doc;
+}
+
+async function deleteDocument(documentId: string): Promise<void> {
+  if (isFirestoreAvailable()) {
+    const db = getFirestore()!;
+    await db.collection(DOCUMENTS_COLLECTION).doc(documentId).delete();
+  } else {
+    const index = MEMORY_DB.documents.findIndex(d => d.id === documentId);
+    if (index !== -1) {
+      MEMORY_DB.documents.splice(index, 1);
+    }
+  }
 }
 
 async function verifyDocument(documentId: string, verifiedBy: string): Promise<InternalDocument> {
@@ -777,6 +1035,8 @@ export {
   updateUserName,
   ensureFirebaseUser,
   listCompaniesForUser,
+  listAllCompanies,
+  ensureUserCompanyContext,
   getCompanyById,
   setActiveCompany,
   updateCompanyProfile,
@@ -784,13 +1044,18 @@ export {
   listTenders,
   getTenderById,
   getTenderReadiness,
+  updateTender,
+  deleteTender,
   listApplicationsForCompany,
   getApplicationById,
   createApplication,
   submitApplication,
   listDocumentsForCompany,
+  listAllDocuments,
   getDocumentById,
   createDocument,
+  updateDocument,
+  deleteDocument,
   verifyDocument,
   renewDocument,
   listAllUsers,

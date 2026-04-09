@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getUserByToken, getCompanyById, listCompaniesForUser } from '@/lib/server/firestoreService';
+import { getUserByToken, getCompanyById, listCompaniesForUser, ensureUserCompanyContext } from '@/lib/server/firestoreService';
 
 function parseToken(req: Request): string | null {
   const header = req.headers.get('authorization');
@@ -21,11 +21,20 @@ export async function GET(req: Request) {
 
   const companies = await listCompaniesForUser(user.id);
   if (!companies.length) {
-    return NextResponse.json(null);
+    const ensured = await ensureUserCompanyContext(user.id);
+    if (ensured) {
+      return NextResponse.json(ensured);
+    }
+    return NextResponse.json({ detail: 'No companies found' }, { status: 404 });
   }
 
   const activeCompanyId = user.activeCompanyId ?? companies[0].id;
-  const activeCompany = await getCompanyById(activeCompanyId);
+  let activeCompany = await getCompanyById(activeCompanyId);
+
+  // Recover gracefully if the stored active company id is stale.
+  if (!activeCompany) {
+    activeCompany = await getCompanyById(companies[0].id);
+  }
   if (!activeCompany) {
     return NextResponse.json(null);
   }

@@ -22,6 +22,8 @@ export interface InternalCompany extends Company {
 export interface InternalTender extends TenderDetail {
   status: NonNullable<TenderMatch['status']>;
   isSystem: boolean;
+  createdBy?: string;
+  companyId?: string;
 }
 
 export interface InternalApplication {
@@ -42,13 +44,39 @@ export interface InternalDocument {
   id: string;
   companyId: string;
   name: string;
-  category: 'tax' | 'legal' | 'financial' | 'certification' | 'bbbee' | 'registration';
+  category: 'tax' | 'legal' | 'financial' | 'certification' | 'bbbee' | 'registration' | 'policy';
   status: 'uploaded' | 'verified' | 'rejected' | 'expired';
   fileUrl: string | null;
+  storagePath?: string;  // Firebase Storage path for deletion
   expiryDate: string | null;
+  verified?: boolean;
   uploadedAt: string;
   verifiedAt: string | null;
   verifiedBy: string | null;
+  // Enhanced metadata for PDF processing
+  fileSize?: number;
+  mimeType?: string;
+  pageCount?: number;
+  extractedText?: string;
+  extractionStatus?: 'ok' | 'failed' | 'skipped';
+  extractionError?: string | null;
+  aiSummary?: string;
+  aiSummaryModel?: string;
+  aiSummaryUpdatedAt?: string;
+  documentAnalysis?: {
+    wordCount: number;
+    hasSignature: boolean;
+    hasDate: boolean;
+    hasCompanyName: boolean;
+    hasRegistrationNumber: boolean;
+    hasVatNumber: boolean;
+    hasBBBEELevel: boolean;
+    detectedDates: string[];
+    detectedAmounts: string[];
+    documentType: string | null;
+    confidence: number;
+    keywords: string[];
+  };
 }
 
 export const DEFAULT_USER: InternalUser = {

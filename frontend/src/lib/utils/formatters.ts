@@ -73,6 +73,7 @@ export function docCategoryLabel(category: string): string {
         certification: 'Certification',
         bbbee: 'B-BBEE',
         registration: 'Registration',
+        policy: 'Policy',
     };
     return labels[category] ?? category;
 }

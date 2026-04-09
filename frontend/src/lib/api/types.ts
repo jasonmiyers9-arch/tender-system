@@ -10,7 +10,8 @@ export type DocumentCategory =
     | 'financial'
     | 'certification'
     | 'bbbee'
-    | 'registration';
+    | 'registration'
+    | 'policy';
 export type ScoreBand = 'tender-ready' | 'partially-ready' | 'high-risk';
 export type RenewalBucket = 'due-90' | 'due-60' | 'due-30' | 'due-7' | 'expired';
 
@@ -77,6 +78,27 @@ export interface DocumentTimelineEvent {
 export interface VaultDocumentDetail extends VaultDocument {
     timeline: DocumentTimelineEvent[];
     metadata: Record<string, string>;
+    extractionStatus?: 'ok' | 'failed' | 'skipped';
+    extractionError?: string | null;
+    pageCount?: number;
+    extractedText?: string;
+    aiSummary?: string;
+    aiSummaryModel?: string;
+    aiSummaryUpdatedAt?: string;
+    documentAnalysis?: {
+        wordCount: number;
+        hasSignature: boolean;
+        hasDate: boolean;
+        hasCompanyName: boolean;
+        hasRegistrationNumber: boolean;
+        hasVatNumber: boolean;
+        hasBBBEELevel: boolean;
+        detectedDates: string[];
+        detectedAmounts: string[];
+        documentType: string | null;
+        confidence: number;
+        keywords: string[];
+    };
 }
 
 export interface NotificationItem {

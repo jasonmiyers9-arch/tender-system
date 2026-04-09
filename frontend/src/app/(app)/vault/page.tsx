@@ -34,6 +34,7 @@ const categoryOptions = [
     { value: 'bbbee', label: 'B-BBEE' },
     { value: 'certification', label: 'Certification' },
     { value: 'registration', label: 'Registration' },
+    { value: 'policy', label: 'Policy' },
 ];
 
 export default function VaultPage() {
@@ -43,6 +44,7 @@ export default function VaultPage() {
     const [uploadName, setUploadName] = useState('');
     const [uploadCategory, setUploadCategory] = useState<DocumentCategory>('tax');
     const [uploadFile, setUploadFile] = useState<File | null>(null);
+    const [runAiOnUpload, setRunAiOnUpload] = useState(true);
 
     const router = useRouter();
 
@@ -65,10 +67,16 @@ export default function VaultPage() {
 
     const handleUpload = async () => {
         if (!uploadFile) return;
-        await uploadMutation.mutateAsync({ name: uploadName || uploadFile.name, category: uploadCategory, file: uploadFile });
+        await uploadMutation.mutateAsync({
+            name: uploadName || uploadFile.name,
+            category: uploadCategory,
+            file: uploadFile,
+            runAi: runAiOnUpload,
+        });
         setUploadOpen(false);
         setUploadName('');
         setUploadFile(null);
+        setRunAiOnUpload(true);
     };
 
     const columns = [
@@ -288,6 +296,18 @@ export default function VaultPage() {
                         {uploadFile && (
                             <p className="text-xs text-[--color-primary] mt-2">Selected: {uploadFile.name}</p>
                         )}
+                    </label>
+
+                    <label className="flex items-start gap-3 rounded-xl border border-[--color-border] p-3">
+                        <input
+                            type="checkbox"
+                            className="mt-0.5"
+                            checked={runAiOnUpload}
+                            onChange={(e) => setRunAiOnUpload(e.target.checked)}
+                        />
+                        <span className="text-xs text-[--color-text-muted]">
+                            Run AI extraction and summary on upload (recommended for policy PDFs).
+                        </span>
                     </label>
                 </div>
             </Modal>

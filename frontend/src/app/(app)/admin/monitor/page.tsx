@@ -3,7 +3,10 @@
 import { useEffect, useState } from 'react';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
+import { Button } from '@/components/ui/Button';
+import { Input } from '@/components/ui/Input';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { admin } from '@/lib/api/admin';
 import { useAppStore } from '@/store/useAppStore';
 import { Activity } from 'lucide-react';
 
@@ -39,6 +42,12 @@ export default function AdminMonitorPage() {
     const [status, setStatus] = useState<StatusResponse | null>(null);
     const [events, setEvents] = useState<EventItem[]>([]);
     const [error, setError] = useState<string | null>(null);
+    const [openRouterKey, setOpenRouterKey] = useState('');
+    const [openRouterModel, setOpenRouterModel] = useState('openai/gpt-4o-mini');
+    const [aiSource, setAiSource] = useState<'admin' | 'env' | 'none'>('none');
+    const [maskedKey, setMaskedKey] = useState<string | null>(null);
+    const [savingAi, setSavingAi] = useState(false);
+    const [aiMessage, setAiMessage] = useState<string | null>(null);
 
     useEffect(() => {
         if (role !== 'admin') return;
@@ -55,9 +64,13 @@ export default function AdminMonitorPage() {
 
                 const sJson = (await sRes.json()) as StatusResponse;
                 const eJson = (await eRes.json()) as { items: EventItem[] };
+                const ai = await admin.getAiSettings();
 
                 setStatus(sJson);
                 setEvents(eJson.items ?? []);
+                setOpenRouterModel(ai.openRouterModel || 'openai/gpt-4o-mini');
+                setAiSource(ai.source);
+                setMaskedKey(ai.openRouterKeyMasked);
                 setError(null);
             } catch (e) {
                 setError(e instanceof Error ? e.message : 'Failed to load monitor');
@@ -89,6 +102,26 @@ export default function AdminMonitorPage() {
         );
     }
 
+    const handleSaveAi = async () => {
+        setSavingAi(true);
+        setAiMessage(null);
+        try {
+            const updated = await admin.updateAiSettings({
+                openRouterApiKey: openRouterKey.trim() || undefined,
+                openRouterModel,
+            });
+            setAiSource(updated.source);
+            setMaskedKey(updated.openRouterKeyMasked);
+            setOpenRouterModel(updated.openRouterModel || openRouterModel);
+            setOpenRouterKey('');
+            setAiMessage('AI settings saved. New uploads will use this configuration.');
+        } catch (e) {
+            setAiMessage(e instanceof Error ? e.message : 'Failed to save AI settings');
+        } finally {
+            setSavingAi(false);
+        }
+    };
+
     return (
         <div className="space-y-6 max-w-5xl mx-auto">
             <PageHeader
@@ -103,6 +136,47 @@ export default function AdminMonitorPage() {
                     <p className="text-sm text-[--color-danger]">{error}</p>
                 </Card>
             )}
+
+            <Card>
+                <div className="flex items-start justify-between gap-3">
+                    <div>
+                        <h2 className="text-sm font-semibold text-[--color-text-primary]">OpenRouter Configuration</h2>
+                        <p className="text-xs text-[--color-text-muted] mt-1">
+                            Configure the API key used for document knowledge-base summaries across the app.
+                        </p>
+                    </div>
+                    <Badge variant={aiSource === 'admin' ? 'success' : aiSource === 'env' ? 'warning' : 'default'} size="sm">
+                        Source: {aiSource}
+                    </Badge>
+                </div>
+
+                <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <Input
+                        label="OpenRouter API Key"
+                        type="password"
+                        placeholder={maskedKey ? `Current: ${maskedKey}` : 'sk-or-v1-...'}
+                        value={openRouterKey}
+                        onChange={(e) => setOpenRouterKey(e.target.value)}
+                        hint="Leave empty to keep current key."
+                    />
+                    <Input
+                        label="OpenRouter Model"
+                        placeholder="openai/gpt-4o-mini"
+                        value={openRouterModel}
+                        onChange={(e) => setOpenRouterModel(e.target.value)}
+                    />
+                </div>
+
+                {aiMessage && (
+                    <p className={`text-xs mt-3 ${aiMessage.startsWith('Failed') || aiMessage.includes('Request failed') ? 'text-[--color-danger]' : 'text-[--color-text-muted]'}`}>
+                        {aiMessage}
+                    </p>
+                )}
+
+                <div className="mt-4 flex justify-end">
+                    <Button onClick={handleSaveAi} loading={savingAi}>Save AI Settings</Button>
+                </div>
+            </Card>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <Card>

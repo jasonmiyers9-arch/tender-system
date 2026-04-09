@@ -1,10 +1,12 @@
 import { NextResponse } from 'next/server';
-import { listAllCompanies, listAllDocuments } from '@/lib/server/firestoreService';
+import { getCompanyById, listDocumentsForCompany } from '@/lib/server/firestoreService';
 import { requireAdmin } from '@/lib/server/apiAuth';
 
-function extFromName(name: string) {
-  const last = name.split('.').pop();
-  return last ? last.toUpperCase() : 'FILE';
+function formatFileSize(bytes?: number): string {
+  if (!bytes || Number.isNaN(bytes)) return 'Unknown';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 export async function GET(
@@ -15,23 +17,26 @@ export async function GET(
   if (error) return error;
 
   const { companyId } = await params;
-  const companies = await listAllCompanies();
-  const company = companies.find((c) => c.id === companyId);
+  const company = await getCompanyById(companyId);
+  if (!company) {
+    return NextResponse.json({ detail: 'Company not found' }, { status: 404 });
+  }
 
-  const items = (await listAllDocuments())
-    .filter((doc) => doc.companyId === companyId)
+  const documents = await listDocumentsForCompany(companyId);
+  const items = documents
+    .sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime())
     .map((doc) => ({
       id: doc.id,
       name: doc.name,
       category: doc.category,
       status: doc.status,
       expiryDate: doc.expiryDate,
-      lastUpdated: doc.uploadedAt,
-      uploadedBy: 'Company User',
-      fileSize: 'N/A',
-      fileType: extFromName(doc.name),
-      companyName: company?.name ?? 'Unknown Company',
-      companyId,
+      lastUpdated: doc.verifiedAt ?? doc.uploadedAt,
+      uploadedBy: doc.verifiedBy ?? 'Company user',
+      fileSize: formatFileSize(doc.fileSize),
+      fileType: doc.mimeType ?? 'application/octet-stream',
+      companyName: company.name,
+      companyId: company.id,
     }));
 
   return NextResponse.json({ items });
