@@ -25,7 +25,12 @@ export async function GET(req: Request) {
   }
 
   const activeCompanyId = user.activeCompanyId ?? companies[0].id;
-  const activeCompany = await getCompanyById(activeCompanyId);
+  let activeCompany = await getCompanyById(activeCompanyId);
+
+  // Recover gracefully if the stored active company id is stale.
+  if (!activeCompany) {
+    activeCompany = await getCompanyById(companies[0].id);
+  }
   if (!activeCompany) {
     return NextResponse.json({ detail: 'Active company not found' }, { status: 404 });
   }

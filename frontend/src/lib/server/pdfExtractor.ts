@@ -4,10 +4,34 @@
  * Follows government-class standards for document processing.
  */
 
-// Dynamic import to avoid build-time evaluation of pdf-parse which needs DOM APIs
-async function getPdfParse() {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  return require('pdf-parse');
+type PdfJsModule = {
+  getDocument: (src: { data: Uint8Array; useWorkerFetch?: boolean; isEvalSupported?: boolean; useSystemFonts?: boolean }) => {
+    promise: Promise<{
+      numPages: number;
+      getPage: (pageNumber: number) => Promise<{
+        getTextContent: () => Promise<{
+          items: Array<{ str?: string }>;
+        }>;
+      }>;
+      getMetadata: () => Promise<{
+        info?: {
+          Title?: string;
+          Author?: string;
+          Subject?: string;
+          Creator?: string;
+          Producer?: string;
+          CreationDate?: string;
+          ModDate?: string;
+        };
+        metadata?: unknown;
+      }>;
+      destroy?: () => Promise<void> | void;
+    }>;
+  };
+};
+
+async function getPdfJs(): Promise<PdfJsModule> {
+  return (await import('pdfjs-dist/legacy/build/pdf.mjs')) as PdfJsModule;
 }
 
 export interface PDFExtractResult {
@@ -73,25 +97,57 @@ const DOCUMENT_TYPE_KEYWORDS: Record<string, string[]> = {
  */
 export async function extractPDFContent(buffer: Buffer): Promise<PDFExtractResult> {
   try {
-    const pdfParse = await getPdfParse();
-    const data = await pdfParse(buffer, {
-      // Limit pages for very large documents
-      max: 100,
+    const pdfjs = await getPdfJs();
+    const loadingTask = pdfjs.getDocument({
+      data: new Uint8Array(buffer),
+      useWorkerFetch: false,
+      isEvalSupported: false,
+      useSystemFonts: false,
     });
+    const pdfDoc = await loadingTask.promise;
+    const maxPages = Math.min(pdfDoc.numPages, 100);
+
+    const pageTexts: string[] = [];
+    for (let pageNumber = 1; pageNumber <= maxPages; pageNumber += 1) {
+      const page = await pdfDoc.getPage(pageNumber);
+      const textContent = await page.getTextContent();
+      const text = textContent.items
+        .map((item) => item?.str ?? '')
+        .join(' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+      if (text) {
+        pageTexts.push(text);
+      }
+    }
+
+    let metadata: Record<string, unknown> = {};
+    let info: PDFExtractResult['info'] = {};
+    try {
+      const docMetadata = await pdfDoc.getMetadata();
+      metadata = docMetadata.metadata && typeof docMetadata.metadata === 'object'
+        ? (docMetadata.metadata as Record<string, unknown>)
+        : {};
+      info = {
+        title: docMetadata.info?.Title,
+        author: docMetadata.info?.Author,
+        subject: docMetadata.info?.Subject,
+        creator: docMetadata.info?.Creator,
+        producer: docMetadata.info?.Producer,
+        creationDate: docMetadata.info?.CreationDate,
+        modificationDate: docMetadata.info?.ModDate,
+      };
+    } catch {
+      // Metadata extraction can fail on malformed PDFs; keep text extraction result.
+    }
+
+    await pdfDoc.destroy?.();
 
     return {
-      text: data.text,
-      pageCount: data.numpages,
-      info: {
-        title: data.info?.Title,
-        author: data.info?.Author,
-        subject: data.info?.Subject,
-        creator: data.info?.Creator,
-        producer: data.info?.Producer,
-        creationDate: data.info?.CreationDate,
-        modificationDate: data.info?.ModDate,
-      },
-      metadata: data.metadata ?? {},
+      text: pageTexts.join('\n').trim(),
+      pageCount: maxPages,
+      info,
+      metadata,
     };
   } catch (error) {
     console.error('PDF extraction error:', error);

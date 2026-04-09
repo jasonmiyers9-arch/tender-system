@@ -35,7 +35,15 @@ export const vault = {
         if (filters?.category) params.set('category', filters.category);
         const suffix = params.toString() ? `?${params.toString()}` : '';
         const res = await authFetch(`/documents${suffix}`);
-        return res.json();
+        const json: unknown = await res.json();
+
+        // Some API paths return { items: [] } on soft failures; normalize to an array for callers.
+        if (Array.isArray(json)) return json as VaultDocument[];
+        if (json && typeof json === 'object' && 'items' in json) {
+            const items = (json as { items?: unknown }).items;
+            return Array.isArray(items) ? (items as VaultDocument[]) : [];
+        }
+        return [];
     },
 
     async getDocument(id: string): Promise<VaultDocumentDetail> {
@@ -61,7 +69,16 @@ export const vault = {
             headers,
             body: form,
         });
-        if (!res.ok) throw new Error(`Upload failed (${res.status})`);
+        if (!res.ok) {
+            let detail = '';
+            try {
+                const json = await res.json() as { detail?: string };
+                detail = json.detail ? `: ${json.detail}` : '';
+            } catch {
+                // ignore json parse errors and keep generic message
+            }
+            throw new Error(`Upload failed (${res.status})${detail}`);
+        }
         return res.json();
     },
 

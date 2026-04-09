@@ -3,6 +3,7 @@ import * as path from 'node:path';
 import { getUserByToken, listCompaniesForUser, createDocument } from '../../../../lib/server/firestoreService';
 import { uploadDocumentToFirebase, isFirebaseStorageConfigured, writeLocalFallback } from '../../../../lib/server/firebaseStorage';
 import { enqueueDocumentAiProcessing } from '../../../../lib/server/documentAi';
+import { summarizeDocumentForKnowledgeBase } from '../../../../lib/server/documentSummary';
 
 const ALLOWED_EXTENSIONS = new Set([
   '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.png', '.jpg', '.jpeg', '.txt', '.csv', '.zip',
@@ -72,11 +73,15 @@ export async function POST(req: Request) {
     let extractedText: string | undefined;
     let pageCount: number | undefined;
     let documentAnalysis: NonNullable<Parameters<typeof createDocument>[0]['documentAnalysis']> | undefined;
+    let extractionStatus: 'ok' | 'failed' | 'skipped' = 'skipped';
+    let extractionError: string | null = null;
+    let aiSummary: string | undefined;
+    let aiSummaryModel: string | undefined;
     let detectedExpiryDate: string | null = null;
 
     if (ext === '.pdf') {
       try {
-        // Lazy-load PDF extraction to prevent Netlify/Next build-time evaluation of pdf-parse.
+        // Lazy-load PDF extraction to keep parsing dependencies out of build-time module evaluation.
         const { extractPDFContent, analyzeDocumentContent, extractExpiryDate } = await import('../../../../lib/server/pdfExtractor');
         const pdfResult = await extractPDFContent(buffer);
         extractedText = pdfResult.text;
@@ -101,10 +106,20 @@ export async function POST(req: Request) {
           
           // Try to detect expiry date from document
           detectedExpiryDate = extractExpiryDate(extractedText);
+
+          const summaryResult = await summarizeDocumentForKnowledgeBase(extractedText);
+          aiSummary = summaryResult.summary ?? undefined;
+          aiSummaryModel = summaryResult.model ?? undefined;
+          extractionStatus = 'ok';
+        } else {
+          extractionStatus = 'failed';
+          extractionError = 'No extractable text found in PDF.';
         }
         console.log(`PDF extracted: ${pageCount} pages, ${extractedText?.length ?? 0} chars`);
       } catch (pdfError) {
         console.warn('PDF extraction warning:', pdfError);
+        extractionStatus = 'failed';
+        extractionError = pdfError instanceof Error ? pdfError.message : 'PDF extraction failed';
         // Continue without extraction - document will still be stored
       }
     }
@@ -113,14 +128,21 @@ export async function POST(req: Request) {
     let fileUrl: string;
     try {
       if (isFirebaseStorageConfigured()) {
-        fileUrl = await uploadDocumentToFirebase(storageKey, buffer, mimeType);
-        console.log(`Document uploaded to Firebase Storage: ${fileUrl}`);
+        try {
+          fileUrl = await uploadDocumentToFirebase(storageKey, buffer, mimeType);
+          console.log(`Document uploaded to Firebase Storage: ${fileUrl}`);
+        } catch (firebaseStorageError) {
+          console.warn('Firebase storage upload failed, falling back to local storage.', firebaseStorageError);
+          fileUrl = writeLocalFallback(storageKey, buffer);
+          console.log(`Document saved locally after Firebase fallback: ${fileUrl}`);
+        }
       } else {
         fileUrl = writeLocalFallback(storageKey, buffer);
         console.log(`Document saved locally: ${fileUrl}`);
       }
-    } catch {
-      return NextResponse.json({ detail: 'Failed to save document to storage.' }, { status: 500 });
+    } catch (storageError) {
+      console.error('Storage save failed:', storageError);
+      return NextResponse.json({ detail: 'Failed to save document to storage. Check Firebase Storage configuration.' }, { status: 500 });
     }
 
     // Create document record with full metadata
@@ -135,6 +157,11 @@ export async function POST(req: Request) {
       mimeType,
       pageCount,
       extractedText: extractedText?.slice(0, 50000), // Limit stored text to 50KB
+      extractionStatus,
+      extractionError,
+      aiSummary: aiSummary?.slice(0, 4000),
+      aiSummaryModel,
+      aiSummaryUpdatedAt: aiSummary ? new Date().toISOString() : undefined,
       documentAnalysis,
     });
 
@@ -143,6 +170,11 @@ export async function POST(req: Request) {
 
     return NextResponse.json({
       ...document,
+      extraction: {
+        status: extractionStatus,
+        error: extractionError,
+        extracted: Boolean(extractedText?.trim()),
+      },
       message: extractedText 
         ? `Document uploaded and analyzed (${pageCount} pages, ${documentAnalysis?.wordCount ?? 0} words)`
         : 'Document uploaded successfully',

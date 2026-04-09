@@ -19,6 +19,8 @@ export interface InternalCompany extends Company {
 export interface InternalTender extends TenderDetail {
   status: NonNullable<TenderMatch['status']>;
   isSystem: boolean;
+  createdBy?: string;
+  companyId?: string;
 }
 
 export interface InternalApplication {
@@ -53,6 +55,11 @@ export interface InternalDocument {
   mimeType?: string;
   pageCount?: number;
   extractedText?: string;
+  extractionStatus?: 'ok' | 'failed' | 'skipped';
+  extractionError?: string | null;
+  aiSummary?: string;
+  aiSummaryModel?: string;
+  aiSummaryUpdatedAt?: string;
   documentAnalysis?: {
     wordCount: number;
     hasSignature: boolean;

@@ -29,10 +29,29 @@ export async function GET(
     return NextResponse.json({ detail: 'Unauthorized' }, { status: 401 });
   }
 
+  const user = await getUserByToken(token);
+  if (!user) {
+    return NextResponse.json({ detail: 'Unauthorized' }, { status: 401 });
+  }
+
+  let activeCompanyId = user.activeCompanyId;
+  if (!activeCompanyId) {
+    const companies = await listCompaniesForUser(user.id);
+    activeCompanyId = companies[0]?.id;
+  }
+
+  if (!activeCompanyId) {
+    return NextResponse.json({ detail: 'Company context required' }, { status: 400 });
+  }
+
   const { documentId } = await params;
   const document = await getDocumentById(documentId);
   if (!document) {
     return NextResponse.json({ detail: 'Document not found' }, { status: 404 });
+  }
+
+  if (document.companyId !== activeCompanyId) {
+    return NextResponse.json({ detail: 'Access denied' }, { status: 403 });
   }
 
   return NextResponse.json(document);
