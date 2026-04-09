@@ -35,7 +35,12 @@ export const vault = {
         if (filters?.category) params.set('category', filters.category);
         const suffix = params.toString() ? `?${params.toString()}` : '';
         const res = await authFetch(`/documents${suffix}`);
-        return res.json();
+        const json = await res.json();
+        if (Array.isArray(json)) return json as VaultDocument[];
+        if (Array.isArray((json as { items?: unknown[] })?.items)) {
+            return (json as { items: VaultDocument[] }).items;
+        }
+        return [];
     },
 
     async getDocument(id: string): Promise<VaultDocumentDetail> {

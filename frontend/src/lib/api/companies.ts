@@ -32,14 +32,14 @@ export const companies = {
         return json.items ?? [];
     },
 
-    async getActive(): Promise<Company> {
+    async getActive(): Promise<Company | null> {
         return authFetch('/companies/active');
     },
 
     async switchActive(id: string): Promise<{ activeCompanyId: string }> {
         const json = await authFetch('/companies/switch', {
             method: 'POST',
-            body: JSON.stringify({ company_id: Number(id) }),
+            body: JSON.stringify({ company_id: id }),
         });
         return { activeCompanyId: json.activeCompanyId };
     },

@@ -1,19 +1,38 @@
 import { NextResponse } from 'next/server';
-import { authenticateUser, mapUserToAuthUser } from '@/lib/server/firestoreService';
+import { ensureFirebaseUser, getUserByToken, mapUserToAuthUser } from '@/lib/server/firestoreService';
+import { verifyIdToken } from '@/lib/server/firebaseAdmin';
 
 export async function POST(req: Request) {
   const body = await req.json();
-  const email = String(body.email ?? '').trim().toLowerCase();
-  const password = String(body.password ?? '');
+  const idToken = String(body.idToken ?? '').trim();
 
-  if (!email || !password) {
-    return NextResponse.json({ detail: 'Email and password are required' }, { status: 400 });
+  if (!idToken) {
+    return NextResponse.json({ detail: 'Firebase ID token is required' }, { status: 400 });
   }
 
-  const user = await authenticateUser(email, password);
-  if (!user) {
-    return NextResponse.json({ detail: 'Invalid credentials' }, { status: 401 });
-  }
+  try {
+    const decoded = await verifyIdToken(idToken);
+    if (!decoded.email) {
+      return NextResponse.json({ detail: 'Authenticated email is required' }, { status: 400 });
+    }
 
-  return NextResponse.json({ token: user.id, user: mapUserToAuthUser(user) });
+    let user = await getUserByToken(idToken);
+    if (!user) {
+      await ensureFirebaseUser({
+        uid: decoded.uid,
+        email: decoded.email,
+        fullName: decoded.name ?? decoded.email.split('@')[0],
+        role: 'company',
+      });
+      user = await getUserByToken(idToken);
+    }
+
+    if (!user) {
+      return NextResponse.json({ detail: 'Unable to load user profile' }, { status: 500 });
+    }
+
+    return NextResponse.json({ token: idToken, user: mapUserToAuthUser(user) });
+  } catch (error) {
+    return NextResponse.json({ detail: error instanceof Error ? error.message : 'Invalid credentials' }, { status: 401 });
+  }
 }

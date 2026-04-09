@@ -1,5 +1,5 @@
 import type { AuthUser, Company, TenderDetail, TenderMatch, TenderReadiness } from '@/lib/api/types';
-import { getFirestore, isFirestoreAvailable } from './firebaseAdmin';
+import { getFirestore, isFirestoreAvailable, verifyIdToken } from './firebaseAdmin';
 import { DEFAULT_COMPANIES, DEFAULT_TENDERS, DEFAULT_USER, DEFAULT_APPLICATIONS, DEFAULT_DOCUMENTS, InternalCompany, InternalTender, InternalUser, InternalApplication, InternalDocument } from './mockData';
 
 const USERS_COLLECTION = 'users';
@@ -7,6 +7,7 @@ const COMPANIES_COLLECTION = 'companies';
 const TENDERS_COLLECTION = 'tenders';
 const APPLICATIONS_COLLECTION = 'applications';
 const DOCUMENTS_COLLECTION = 'documents';
+const SHOULD_SEED_FIRESTORE_DEMO_DATA = process.env.ENABLE_FIRESTORE_DEMO_SEED === 'true';
 
 function createId() {
   return `${Math.random().toString(36).slice(2)}${Date.now().toString(36)}`;
@@ -36,6 +37,28 @@ function mapCompanyToPublic(company: InternalCompany): Company {
     website: company.website,
     industry: company.industry,
     incorporatedDate: company.incorporatedDate,
+  };
+}
+
+function buildCompanyFromUser(user: InternalUser): Company | null {
+  const companyId = user.companyId ?? user.activeCompanyId;
+  const companyName = user.companyName?.trim();
+  if (!companyId || !companyName) {
+    return null;
+  }
+
+  return {
+    id: companyId,
+    name: companyName,
+    registrationNumber: user.registrationNumber ?? '',
+    vatNumber: '',
+    status: 'verified',
+    address: '',
+    phone: user.phone ?? '',
+    email: user.email,
+    website: '',
+    industry: '',
+    incorporatedDate: user.createdAt.slice(0, 10),
   };
 }
 
@@ -93,6 +116,7 @@ function buildReadiness(tender: InternalTender): TenderReadiness {
 
 async function ensureFirestoreSeed() {
   if (!isFirestoreAvailable()) return;
+  if (!SHOULD_SEED_FIRESTORE_DEMO_DATA) return;
   const db = getFirestore()!;
   const userSnapshot = await db.collection(USERS_COLLECTION).limit(1).get();
   if (!userSnapshot.empty) return;
@@ -121,7 +145,12 @@ async function getUserDocumentById(userId: string): Promise<InternalUser | null>
 
 async function getUserByToken(token: string): Promise<InternalUser | null> {
   if (!token) return null;
-  return getUserDocumentById(token);
+  try {
+    const decoded = await verifyIdToken(token);
+    return getUserDocumentById(decoded.uid);
+  } catch {
+    return getUserDocumentById(token);
+  }
 }
 
 async function getUserByEmail(email: string): Promise<InternalUser | null> {
@@ -136,9 +165,10 @@ async function getUserByEmail(email: string): Promise<InternalUser | null> {
 }
 
 async function createUser(payload: {
+  uid?: string;
   name: string;
   email: string;
-  password: string;
+  password?: string;
   role: string;
   companyName?: string;
   registrationNumber?: string;
@@ -146,22 +176,28 @@ async function createUser(payload: {
 }): Promise<AuthUser> {
   const existing = await getUserByEmail(payload.email);
   if (existing) {
+    if (payload.uid && existing.id === payload.uid) {
+      return mapUserToAuthUser(existing);
+    }
     throw new Error('Email already registered');
   }
 
-  const userId = createId();
+  const userId = payload.uid ?? createId();
   const userRole = payload.role === 'admin' ? 'admin' : payload.role === 'tender_provider' ? 'evaluator' : 'user';
   const companyId = payload.companyName ? createId() : null;
 
   const userRecord: InternalUser = {
     id: userId,
     email: payload.email,
-    password: payload.password,
+    password: payload.password ?? '',
     fullName: payload.name,
     role: userRole,
     verificationStatus: 'approved',
     activeCompanyId: companyId,
     companyId,
+    companyName: payload.companyName?.trim() || undefined,
+    registrationNumber: payload.registrationNumber?.trim() || undefined,
+    phone: payload.phone?.trim() || undefined,
     createdAt: new Date().toISOString(),
   };
 
@@ -258,15 +294,69 @@ async function updateUserName(userId: string, name: string): Promise<AuthUser> {
   return mapUserToAuthUser(user);
 }
 
+async function ensureFirebaseUser(payload: {
+  uid: string;
+  email: string;
+  fullName: string;
+  role?: string;
+  companyName?: string;
+  registrationNumber?: string;
+  phone?: string;
+}): Promise<AuthUser> {
+  const existing = await getUserDocumentById(payload.uid);
+  if (existing) {
+    const updates: Partial<InternalUser> = {};
+    if (payload.email && existing.email !== payload.email) updates.email = payload.email;
+    if (payload.fullName && existing.fullName !== payload.fullName) updates.fullName = payload.fullName;
+    if (payload.companyName && existing.companyName !== payload.companyName) updates.companyName = payload.companyName;
+    if (payload.registrationNumber && existing.registrationNumber !== payload.registrationNumber) updates.registrationNumber = payload.registrationNumber;
+    if (payload.phone && existing.phone !== payload.phone) updates.phone = payload.phone;
+    if (Object.keys(updates).length) {
+      if (isFirestoreAvailable()) {
+        const db = getFirestore()!;
+        await db.collection(USERS_COLLECTION).doc(payload.uid).set(updates, { merge: true });
+      } else {
+        Object.assign(existing, updates);
+      }
+      Object.assign(existing, updates);
+    }
+    return mapUserToAuthUser(existing);
+  }
+
+  return createUser({
+    uid: payload.uid,
+    name: payload.fullName || payload.email.split('@')[0],
+    email: payload.email,
+    role: payload.role ?? 'company',
+    companyName: payload.companyName,
+    registrationNumber: payload.registrationNumber,
+    phone: payload.phone,
+  });
+}
+
 async function listCompaniesForUser(userId: string): Promise<Company[]> {
+  const user = await getUserDocumentById(userId);
+
   if (isFirestoreAvailable()) {
     await ensureFirestoreSeed();
     const db = getFirestore()!;
     const snapshot = await db.collection(COMPANIES_COLLECTION).where('memberIds', 'array-contains', userId).get();
-    return snapshot.docs.map((doc) => mapCompanyToPublic(doc.data() as InternalCompany));
+    const companies = snapshot.docs.map((doc) => mapCompanyToPublic(doc.data() as InternalCompany));
+    if (companies.length > 0) {
+      return companies;
+    }
+
+    const fallbackCompany = user ? buildCompanyFromUser(user) : null;
+    return fallbackCompany ? [fallbackCompany] : [];
   }
 
-  return MEMORY_DB.companies.filter((company) => company.memberIds.includes(userId)).map(mapCompanyToPublic);
+  const companies = MEMORY_DB.companies.filter((company) => company.memberIds.includes(userId)).map(mapCompanyToPublic);
+  if (companies.length > 0) {
+    return companies;
+  }
+
+  const fallbackCompany = user ? buildCompanyFromUser(user) : null;
+  return fallbackCompany ? [fallbackCompany] : [];
 }
 
 async function getCompanyById(companyId: string): Promise<Company | null> {
@@ -274,11 +364,24 @@ async function getCompanyById(companyId: string): Promise<Company | null> {
     await ensureFirestoreSeed();
     const db = getFirestore()!;
     const snapshot = await db.collection(COMPANIES_COLLECTION).doc(companyId).get();
-    return snapshot.exists ? mapCompanyToPublic(snapshot.data() as InternalCompany) : null;
+    if (snapshot.exists) {
+      return mapCompanyToPublic(snapshot.data() as InternalCompany);
+    }
+
+    const userSnapshot = await db.collection(USERS_COLLECTION).where('companyId', '==', companyId).limit(1).get();
+    if (!userSnapshot.empty) {
+      return buildCompanyFromUser(userSnapshot.docs[0].data() as InternalUser);
+    }
+    return null;
   }
 
   const company = MEMORY_DB.companies.find((item) => item.id === companyId);
-  return company ? mapCompanyToPublic(company) : null;
+  if (company) {
+    return mapCompanyToPublic(company);
+  }
+
+  const user = MEMORY_DB.users.find((item) => item.companyId === companyId);
+  return user ? buildCompanyFromUser(user) : null;
 }
 
 async function setActiveCompany(userId: string, companyId: string): Promise<Company> {
@@ -557,6 +660,105 @@ async function renewDocument(documentId: string, expiryDate: string | null): Pro
   return doc;
 }
 
+async function listAllUsers(): Promise<InternalUser[]> {
+  if (isFirestoreAvailable()) {
+    await ensureFirestoreSeed();
+    const db = getFirestore()!;
+    const snapshot = await db.collection(USERS_COLLECTION).get();
+    return snapshot.docs.map((doc) => doc.data() as InternalUser);
+  }
+  return MEMORY_DB.users;
+}
+
+async function setUserVerificationStatus(userId: string, status: InternalUser['verificationStatus']): Promise<InternalUser> {
+  const user = await getUserDocumentById(userId);
+  if (!user) throw new Error('User not found');
+  user.verificationStatus = status;
+
+  if (isFirestoreAvailable()) {
+    const db = getFirestore()!;
+    await db.collection(USERS_COLLECTION).doc(userId).update({ verificationStatus: status });
+  }
+
+  return user;
+}
+
+async function listAllCompanies(): Promise<Company[]> {
+  if (isFirestoreAvailable()) {
+    await ensureFirestoreSeed();
+    const db = getFirestore()!;
+    const [companySnapshot, userSnapshot] = await Promise.all([
+      db.collection(COMPANIES_COLLECTION).get(),
+      db.collection(USERS_COLLECTION).get(),
+    ]);
+
+    const companyMap = new Map(
+      companySnapshot.docs.map((doc) => {
+        const company = mapCompanyToPublic(doc.data() as InternalCompany);
+        return [company.id, company] as const;
+      })
+    );
+
+    for (const userDoc of userSnapshot.docs) {
+      const fallbackCompany = buildCompanyFromUser(userDoc.data() as InternalUser);
+      if (fallbackCompany && !companyMap.has(fallbackCompany.id)) {
+        companyMap.set(fallbackCompany.id, fallbackCompany);
+      }
+    }
+
+    return Array.from(companyMap.values());
+  }
+
+  const companyMap = new Map(MEMORY_DB.companies.map((company) => [company.id, mapCompanyToPublic(company)]));
+  for (const user of MEMORY_DB.users) {
+    const fallbackCompany = buildCompanyFromUser(user);
+    if (fallbackCompany && !companyMap.has(fallbackCompany.id)) {
+      companyMap.set(fallbackCompany.id, fallbackCompany);
+    }
+  }
+
+  return Array.from(companyMap.values());
+}
+
+async function listAllDocuments(): Promise<InternalDocument[]> {
+  if (isFirestoreAvailable()) {
+    await ensureFirestoreSeed();
+    const db = getFirestore()!;
+    const snapshot = await db.collection(DOCUMENTS_COLLECTION).get();
+    return snapshot.docs.map((doc) => doc.data() as InternalDocument);
+  }
+  return MEMORY_DB.documents;
+}
+
+async function setDocumentStatus(documentId: string, status: InternalDocument['status'], verifiedBy?: string | null): Promise<InternalDocument> {
+  const doc = await getDocumentById(documentId);
+  if (!doc) throw new Error('Document not found');
+
+  const now = new Date().toISOString();
+  doc.status = status;
+  if (status === 'verified') {
+    doc.verifiedAt = now;
+    doc.verifiedBy = verifiedBy ?? null;
+  } else {
+    doc.verifiedAt = null;
+    doc.verifiedBy = null;
+  }
+
+  if (isFirestoreAvailable()) {
+    const db = getFirestore()!;
+    await db.collection(DOCUMENTS_COLLECTION).doc(documentId).set(
+      {
+        status: doc.status,
+        verifiedAt: doc.verifiedAt,
+        verifiedBy: doc.verifiedBy,
+      },
+      { merge: true }
+    );
+  }
+
+  return doc;
+}
+
 const MEMORY_DB = {
   users: [DEFAULT_USER],
   companies: DEFAULT_COMPANIES,
@@ -573,6 +775,7 @@ export {
   getOrCreateGoogleUser,
   authenticateUser,
   updateUserName,
+  ensureFirebaseUser,
   listCompaniesForUser,
   getCompanyById,
   setActiveCompany,
@@ -590,5 +793,10 @@ export {
   createDocument,
   verifyDocument,
   renewDocument,
+  listAllUsers,
+  setUserVerificationStatus,
+  listAllCompanies,
+  listAllDocuments,
+  setDocumentStatus,
   mapUserToAuthUser,
 };

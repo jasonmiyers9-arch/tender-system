@@ -8,12 +8,13 @@ import { useAppStore } from '@/store/useAppStore';
 import { auth } from '@/lib/api/auth';
 import { companies } from '@/lib/api/companies';
 import { useMarkNotificationRead, useUnreadNotifications } from '@/lib/hooks/useNotifications';
+import { signOutFirebase } from '@/lib/firebaseClient';
 
 /** Inactivity limits */
 const IDLE_TIMEOUT_MS = 30 * 60 * 1000;   // 30 min → force logout
 const IDLE_WARNING_MS = 28 * 60 * 1000;   // 28 min → show warning (2 min before)
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8000';
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? '/api';
 
 export function AppShell({ children }: { children: React.ReactNode }) {
     const { token, _hasHydrated, currentUser, setCurrentUser, setActiveCompany, logout } = useAppStore();
@@ -53,13 +54,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 .then(async (user) => {
                     if (cancelled) return;
                     setCurrentUser(user);
-                    try {
-                        const active = await companies.getActive();
-                        if (!cancelled && active?.id) setActiveCompany(active.id);
-                    } catch { /* non-blocking */ }
+                    if (user.role === 'user') {
+                        try {
+                            const active = await companies.getActive();
+                            if (!cancelled && active?.id) setActiveCompany(active.id);
+                        } catch { /* non-blocking */ }
+                    }
                 })
-                .catch(() => {
+                .catch(async () => {
                     if (!cancelled) {
+                        await signOutFirebase();
                         logout();
                         router.push('/login?reason=session_expired');
                     }
@@ -73,14 +77,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             .then(async (user) => {
                 if (cancelled) return;
                 setCurrentUser(user);
-                try {
-                    const active = await companies.getActive();
-                    if (!cancelled && active?.id) setActiveCompany(active.id);
-                } catch { /* non-blocking */ }
+                if (user.role === 'user') {
+                    try {
+                        const active = await companies.getActive();
+                        if (!cancelled && active?.id) setActiveCompany(active.id);
+                    } catch { /* non-blocking */ }
+                }
                 if (!cancelled) setSessionReady(true);
             })
-            .catch(() => {
+            .catch(async () => {
                 if (!cancelled) {
+                    await signOutFirebase();
                     logout();
                     router.push('/login?reason=session_expired');
                 }
@@ -116,9 +123,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     }, [token, currentUser, pathname, router]);
 
     // ─── 3. Inactivity / idle session timeout ────────────────────────────────
-    const forceLogout = useCallback(() => {
+    const forceLogout = useCallback(async () => {
         setIdleWarning(false);
         if (countdownRef.current) clearInterval(countdownRef.current);
+        await signOutFirebase();
         logout();
         router.push('/login?reason=inactivity');
     }, [logout, router]);

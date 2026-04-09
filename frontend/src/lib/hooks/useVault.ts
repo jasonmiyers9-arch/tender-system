@@ -8,17 +8,20 @@ export function useVaultDocuments(filters?: {
     category?: DocumentCategory;
 }) {
     const activeCompanyId = useAppStore((s) => s.activeCompanyId);
+    const token = useAppStore((s) => s.token);
     return useQuery({
         queryKey: ['vault', activeCompanyId, filters],
         queryFn: () => vault.listDocuments(filters),
+        enabled: !!token,
     });
 }
 
 export function useVaultDocument(docId: string) {
+    const token = useAppStore((s) => s.token);
     return useQuery({
         queryKey: ['vault-doc', docId],
         queryFn: () => vault.getDocument(docId),
-        enabled: !!docId,
+        enabled: !!docId && !!token,
     });
 }
 

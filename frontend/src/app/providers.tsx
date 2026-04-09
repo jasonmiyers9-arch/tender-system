@@ -3,10 +3,14 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import { ThemeProvider } from 'next-themes';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import NextTopLoader from 'nextjs-toploader';
+import { subscribeToIdTokenChanges } from '@/lib/firebaseClient';
+import { useAppStore } from '@/store/useAppStore';
 
 export function Providers({ children }: { children: React.ReactNode }) {
+    const settoken = useAppStore((s) => s.settoken);
+    const setCurrentUser = useAppStore((s) => s.setCurrentUser);
     const [queryClient] = useState(
         () =>
             new QueryClient({
@@ -24,6 +28,15 @@ export function Providers({ children }: { children: React.ReactNode }) {
                 },
             })
     );
+
+    useEffect(() => {
+        return subscribeToIdTokenChanges(({ token, user }) => {
+            settoken(token);
+            if (!user) {
+                setCurrentUser(null);
+            }
+        });
+    }, [setCurrentUser, settoken]);
 
     return (
         <QueryClientProvider client={queryClient}>

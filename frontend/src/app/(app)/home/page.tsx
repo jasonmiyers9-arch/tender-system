@@ -98,11 +98,13 @@ export default function HomePage() {
         : role === 'evaluator' ? PROVIDER_ACTIONS
         : COMPANY_ACTIONS;
 
+    const docs = Array.isArray(docsQuery.data) ? docsQuery.data : [];
+
     const firstName = currentUser?.name?.split(' ')[0] ?? currentUser?.email?.split('@')[0] ?? 'there';
 
     // Quick stats for company users
-    const docsCount = docsQuery.data?.length ?? 0;
-    const expiredCount = docsQuery.data?.filter(d => d.status === 'expired').length ?? 0;
+    const docsCount = docs.length;
+    const expiredCount = docs.filter(d => d.status === 'expired').length;
     const score = scoreQuery.data?.score ?? null;
 
     return (

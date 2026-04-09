@@ -9,6 +9,9 @@ export interface InternalUser {
   verificationStatus: 'approved' | 'pending' | 'rejected';
   activeCompanyId: string | null;
   companyId: string | null;
+  companyName?: string;
+  registrationNumber?: string;
+  phone?: string;
   createdAt: string;
 }
 
@@ -57,6 +60,9 @@ export const DEFAULT_USER: InternalUser = {
   verificationStatus: 'approved',
   activeCompanyId: 'demo-company',
   companyId: 'demo-company',
+  companyName: 'Demo Compliance Holdings',
+  registrationNumber: '2024/123456/07',
+  phone: '+27 21 555 0123',
   createdAt: new Date().toISOString(),
 };
 

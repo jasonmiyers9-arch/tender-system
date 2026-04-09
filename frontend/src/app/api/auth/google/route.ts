@@ -22,7 +22,7 @@ export async function POST(req: Request) {
       fullName: decoded.name ?? decoded.email.split('@')[0],
     });
 
-    return NextResponse.json({ token: user.id, user: mapUserToAuthUser(user) });
+    return NextResponse.json({ token: idToken, user: mapUserToAuthUser(user) });
   } catch (error) {
     return NextResponse.json(
       { detail: error instanceof Error ? error.message : 'Google sign-in failed' },

@@ -1,6 +1,6 @@
 ﻿'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Shield, CheckCircle2, AlertCircle } from 'lucide-react';
@@ -11,23 +11,88 @@ export default function RegisterPage() {
     const [formData, setFormData] = useState({ name: '', email: '', password: '', role: 'company' as 'admin' | 'company' | 'tender_provider', companyName: '', registrationNumber: '', phone: '' });
     const needsOrganisationFields = formData.role !== 'admin';
     const [loading, setLoading] = useState(false);
+    const [progress, setProgress] = useState(0);
+    const [flowMessage, setFlowMessage] = useState('');
     const [notice, setNotice] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
+    const progressTimerRef = useRef<number | null>(null);
     const router = useRouter();
+
+    useEffect(() => {
+        return () => {
+            if (progressTimerRef.current) {
+                window.clearInterval(progressTimerRef.current);
+            }
+        };
+    }, []);
+
+    const stopProgressTicker = () => {
+        if (progressTimerRef.current) {
+            window.clearInterval(progressTimerRef.current);
+            progressTimerRef.current = null;
+        }
+    };
+
+    const startProgressTicker = () => {
+        stopProgressTicker();
+        progressTimerRef.current = window.setInterval(() => {
+            setProgress((current) => {
+                if (current >= 85) return current;
+                const increment = Math.floor(Math.random() * 7) + 2;
+                return Math.min(85, current + increment);
+            });
+        }, 260);
+    };
 
     const handleRegister = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
+        setProgress(10);
+        setFlowMessage('Validating your details...');
         setNotice(null);
         setError(null);
+
+        if (formData.password.trim().length < 8) {
+            setError('Password must be at least 8 characters long.');
+            setLoading(false);
+            setProgress(0);
+            setFlowMessage('');
+            return;
+        }
+
+        if (needsOrganisationFields && (!formData.companyName.trim() || !formData.registrationNumber.trim() || !formData.phone.trim())) {
+            setError('Please complete company name, registration number and phone number.');
+            setLoading(false);
+            setProgress(0);
+            setFlowMessage('');
+            return;
+        }
+
+        startProgressTicker();
+
         try {
+            setFlowMessage('Creating your account...');
             const res = await auth.register(formData);
+            stopProgressTicker();
+            setFlowMessage('Finalizing your workspace...');
+            setProgress(96);
+
             setNotice(res.message || 'Account created successfully. You can now sign in.');
-            setTimeout(() => router.push('/login'), 2500);
+
+            window.setTimeout(() => {
+                setProgress(100);
+                setFlowMessage('Account ready. Redirecting to sign in...');
+                router.push('/login');
+            }, 800);
         } catch (e) {
+            stopProgressTicker();
+            setProgress(0);
+            setFlowMessage('');
             setError(e instanceof Error ? e.message : 'Registration failed');
         } finally {
-            setLoading(false);
+            window.setTimeout(() => {
+                setLoading(false);
+            }, 900);
         }
     };
 
@@ -65,6 +130,26 @@ export default function RegisterPage() {
                         <div className="mb-5 flex items-start gap-2.5 p-3.5 rounded-xl bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/25">
                             <AlertCircle size={14} className="text-red-500 mt-0.5 flex-shrink-0" />
                             <p className="text-xs text-red-700 dark:text-red-400 font-medium">{error}</p>
+                        </div>
+                    )}
+
+                    {/* Registration flow progress */}
+                    {loading && (
+                        <div className="mb-5 rounded-xl border border-[--color-border] bg-[--color-surface-alt] p-3.5">
+                            <div className="mb-2 flex items-center justify-between">
+                                <p className="text-xs font-semibold text-[--color-text-primary]">Creating your account</p>
+                                <p className="text-xs font-semibold text-[--color-text-muted]">{Math.round(progress)}%</p>
+                            </div>
+                            <div className="h-2 w-full rounded-full bg-black/10 dark:bg-white/10 overflow-hidden">
+                                <div
+                                    className="h-full rounded-full transition-all duration-300 ease-out"
+                                    style={{
+                                        width: `${progress}%`,
+                                        background: 'linear-gradient(90deg, #4F46E5, #7C3AED, #3B82F6)',
+                                    }}
+                                />
+                            </div>
+                            {flowMessage && <p className="mt-2 text-xs text-[--color-text-muted]">{flowMessage}</p>}
                         </div>
                     )}
 

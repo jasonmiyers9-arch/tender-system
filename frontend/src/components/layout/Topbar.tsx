@@ -10,6 +10,7 @@ import { ThemeToggle } from '@/components/ui/ThemeToggle';
 import { Badge } from '@/components/ui/Badge';
 import { useAppStore } from '@/store/useAppStore';
 import { useUnreadNotifications } from '@/lib/hooks/useNotifications';
+import { signOutFirebase } from '@/lib/firebaseClient';
 
 const roleLabels: Record<string, string> = {
     admin: 'Administrator',
@@ -23,7 +24,8 @@ export function Topbar() {
     const unreadQuery = useUnreadNotifications(10);
     const router = useRouter();
 
-    const handleLogout = () => {
+    const handleLogout = async () => {
+        await signOutFirebase();
         logout();
         router.push('/login');
     };

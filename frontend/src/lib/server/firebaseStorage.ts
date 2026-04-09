@@ -82,6 +82,26 @@ export async function generateFirebaseSignedDownloadUrl(blobName: string, expira
   return url;
 }
 
+export async function downloadDocumentFromFirebase(blobName: string): Promise<{
+  buffer: Buffer;
+  contentType: string;
+}> {
+  const bucket = getBucket();
+  const file = bucket.file(blobName);
+  const [exists] = await file.exists();
+  if (!exists) {
+    throw new Error('Storage blob not found');
+  }
+
+  const [buffer] = await file.download();
+  const [metadata] = await file.getMetadata();
+
+  return {
+    buffer,
+    contentType: metadata.contentType || 'application/octet-stream',
+  };
+}
+
 export function writeLocalFallback(blobName: string, data: Buffer): string {
   const storageRoot = path.join(process.cwd(), 'storage');
   const targetPath = path.join(storageRoot, blobName);

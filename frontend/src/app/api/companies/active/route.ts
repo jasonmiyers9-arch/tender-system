@@ -21,13 +21,13 @@ export async function GET(req: Request) {
 
   const companies = await listCompaniesForUser(user.id);
   if (!companies.length) {
-    return NextResponse.json({ detail: 'No companies found' }, { status: 404 });
+    return NextResponse.json(null);
   }
 
   const activeCompanyId = user.activeCompanyId ?? companies[0].id;
   const activeCompany = await getCompanyById(activeCompanyId);
   if (!activeCompany) {
-    return NextResponse.json({ detail: 'Active company not found' }, { status: 404 });
+    return NextResponse.json(null);
   }
 
   return NextResponse.json(activeCompany);

@@ -1,25 +1,40 @@
 import { NextResponse } from 'next/server';
 import { createUser } from '@/lib/server/firestoreService';
+import { verifyIdToken } from '@/lib/server/firebaseAdmin';
 
 export async function POST(req: Request) {
   const data = await req.json();
+  const idToken = String(data.idToken ?? '').trim();
   const name = String(data.name ?? '').trim();
   const email = String(data.email ?? '').trim().toLowerCase();
-  const password = String(data.password ?? '');
   const role = String(data.role ?? 'company');
   const companyName = data.company_name ? String(data.company_name).trim() : undefined;
   const registrationNumber = data.registration_number ? String(data.registration_number).trim() : undefined;
   const phone = data.phone ? String(data.phone).trim() : undefined;
 
-  if (!name || !email || !password) {
-    return NextResponse.json({ detail: 'Name, email and password are required' }, { status: 400 });
+  if (!idToken || !name || !email) {
+    return NextResponse.json({ detail: 'Firebase token, name and email are required' }, { status: 400 });
   }
 
   try {
-    const user = await createUser({ name, email, password, role, companyName, registrationNumber, phone });
+    const decoded = await verifyIdToken(idToken);
+    if (decoded.uid && decoded.email?.toLowerCase() !== email) {
+      return NextResponse.json({ detail: 'Authenticated email does not match registration email' }, { status: 400 });
+    }
+
+    const user = await createUser({
+      uid: decoded.uid,
+      name,
+      email,
+      role,
+      companyName,
+      registrationNumber,
+      phone,
+    });
+
     return NextResponse.json({
-      status: 'pending',
-      message: 'Account created. Please verify your email.',
+      status: 'approved',
+      message: 'Account created with Firebase Auth and saved to Firestore.',
       verifyLink: null,
       user,
     });

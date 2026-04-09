@@ -3,7 +3,7 @@
 import { Suspense, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { Shield, AlertCircle, Clock, Lock, Zap } from 'lucide-react';
+import { Shield, AlertCircle, Clock, Lock } from 'lucide-react';
 import { useAppStore } from '@/store/useAppStore';
 import { auth } from '@/lib/api/auth';
 import { Input } from '@/components/ui/Input';
@@ -39,32 +39,6 @@ function LoginForm() {
 
     const reason = searchParams.get('reason') ?? '';
     const sessionBanner = SESSION_MESSAGES[reason] ?? null;
-
-    const DEMO_ACCOUNTS = [
-        { role: 'Admin',     name: 'Mouse', email: 'mouse@tenderguard.dev', password: 'Demo@1234', color: '#6366F1' },
-        { role: 'Evaluator', name: 'Vusu',  email: 'vusu@tenderguard.dev',  password: 'Demo@1234', color: '#0EA5E9' },
-    ];
-
-    const quickLogin = async (demoEmail: string, demoPassword: string) => {
-        setEmail(demoEmail);
-        setPassword(demoPassword);
-        setError(null);
-        setLoading(true);
-        try {
-            const res = await auth.login(demoEmail, demoPassword);
-            settoken(res.token);
-            setCurrentUser(res.user);
-            if (res.user.onboardingCompleted === false) {
-                router.push('/onboarding');
-            } else {
-                router.push('/home');
-            }
-        } catch (e) {
-            setError(e instanceof Error ? e.message : 'Demo login failed');
-        } finally {
-            setLoading(false);
-        }
-    };
 
     const handleGoogleSignIn = async () => {
         setError(null);
@@ -224,49 +198,9 @@ function LoginForm() {
                         </button>
                     </form>
 
-                    {/* Divider */}
-                    <div className="flex items-center gap-3 pt-1">
-                        <div className="flex-1 h-px bg-[--color-border]" />
-                        <span className="text-[11px] font-medium text-[--color-text-muted] uppercase tracking-wider">quick demo login</span>
-                        <div className="flex-1 h-px bg-[--color-border]" />
-                    </div>
-
-                    {/* Demo accounts — one-click login */}
-                    <div className="grid grid-cols-2 gap-2.5">
-                        {DEMO_ACCOUNTS.map((demo) => (
-                            <button
-                                key={demo.role}
-                                type="button"
-                                disabled={loading}
-                                onClick={() => quickLogin(demo.email, demo.password)}
-                                className="group relative rounded-xl border border-[--color-border] px-3 py-3 text-left transition-all duration-150 hover:border-transparent disabled:opacity-50 disabled:cursor-not-allowed overflow-hidden"
-                                style={{ background: 'color-mix(in srgb, var(--color-primary) 5%, var(--color-surface))' }}
-                            >
-                                {/* Hover fill */}
-                                <div
-                                    className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-150"
-                                    style={{ background: `linear-gradient(135deg, ${demo.color}12, ${demo.color}06)` }}
-                                />
-                                <div className="relative flex flex-col gap-1.5">
-                                    <div className="flex items-center justify-between">
-                                        <span
-                                            className="text-[10px] font-bold uppercase tracking-wider"
-                                            style={{ color: demo.color }}
-                                        >
-                                            {demo.role}
-                                        </span>
-                                        <Zap
-                                            size={11}
-                                            className="opacity-0 group-hover:opacity-100 transition-opacity"
-                                            style={{ color: demo.color }}
-                                        />
-                                    </div>
-                                    <p className="text-sm font-bold text-[--color-text-primary]">{demo.name}</p>
-                                    <p className="text-[10px] text-[--color-text-muted] truncate">{demo.email}</p>
-                                </div>
-                            </button>
-                        ))}
-                    </div>
+                    <p className="text-center text-xs text-[--color-text-muted] pt-1">
+                        Sign in with your Firebase email/password account or continue with Google.
+                    </p>
 
                     {/* Register link */}
                     <p className="text-center text-sm text-[--color-text-muted] pt-1">
