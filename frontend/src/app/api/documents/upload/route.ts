@@ -3,7 +3,7 @@ import * as path from 'node:path';
 import { getUserByToken, listCompaniesForUser, createDocument } from '../../../../lib/server/firestoreService';
 import { uploadDocumentToFirebase, isFirebaseStorageConfigured, writeLocalFallback } from '../../../../lib/server/firebaseStorage';
 import { enqueueDocumentAiProcessing } from '../../../../lib/server/documentAi';
-import { extractPDFContent, analyzeDocumentContent, extractExpiryDate } from '../../../../lib/server/pdfExtractor';
+import { extractPDFContent, analyzeDocumentWithAI, extractExpiryDateWithAI } from '../../../../lib/server/pdfExtractor';
 
 const ALLOWED_EXTENSIONS = new Set([
   '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.png', '.jpg', '.jpeg', '.txt', '.csv', '.zip',
@@ -82,7 +82,7 @@ export async function POST(req: Request) {
         pageCount = pdfResult.pageCount;
         
         if (extractedText) {
-          const analysis = analyzeDocumentContent(extractedText, pageCount);
+          const analysis = await analyzeDocumentWithAI(extractedText, pageCount);
           documentAnalysis = {
             wordCount: analysis.wordCount,
             hasSignature: analysis.hasSignature,
@@ -98,8 +98,8 @@ export async function POST(req: Request) {
             keywords: analysis.keywords,
           };
           
-          // Try to detect expiry date from document
-          detectedExpiryDate = extractExpiryDate(extractedText);
+          // Detect expiry date using Gemini (falls back to regex)
+          detectedExpiryDate = await extractExpiryDateWithAI(extractedText);
         }
         console.log(`PDF extracted: ${pageCount} pages, ${extractedText?.length ?? 0} chars`);
       } catch (pdfError) {

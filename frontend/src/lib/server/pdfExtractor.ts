@@ -6,6 +6,7 @@
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const pdfParse = require('pdf-parse');
+import { GoogleGenerativeAI } from '@google/generative-ai';
 
 export interface PDFExtractResult {
   text: string;
@@ -237,4 +238,93 @@ export function isValidComplianceDocument(analysis: DocumentAnalysis): boolean {
   if (!analysis.documentType) return false;
   
   return true;
+}
+
+// ─── Gemini AI-enhanced analysis ─────────────────────────────────────────────
+
+const _GEMINI_DOC_PROMPT = `You are analyzing a South African government compliance document.
+Analyze the following extracted text and return ONLY a valid JSON object with no markdown formatting:
+{
+  "documentType": one of ["tax","bbbee","registration","legal","financial","certification","insurance","cidb"] or null,
+  "confidence": number between 0 and 1,
+  "hasSignature": boolean,
+  "hasDate": boolean,
+  "hasCompanyName": boolean,
+  "hasRegistrationNumber": boolean,
+  "hasVatNumber": boolean,
+  "hasBBBEELevel": boolean,
+  "detectedDates": array of date strings found in the document,
+  "detectedAmounts": array of Rand amount strings (e.g. "R 50 000"),
+  "keywords": array of compliance-related keywords,
+  "expiryDate": "YYYY-MM-DD" string or null,
+  "summary": "one sentence description"
+}
+
+Document text (first 8000 chars):
+`;
+
+/**
+ * Analyse document content using Gemini 1.5 Flash.
+ * Always runs the regex baseline first; AI result enriches it.
+ * If Gemini fails for any reason, returns the regex baseline silently.
+ */
+export async function analyzeDocumentWithAI(
+  text: string,
+  pageCount: number,
+): Promise<DocumentAnalysis> {
+  const baseline = analyzeDocumentContent(text, pageCount);
+
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey || !text.trim()) return baseline;
+
+  try {
+    const genAI = new GoogleGenerativeAI(apiKey);
+    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    const result = await model.generateContent(_GEMINI_DOC_PROMPT + text.slice(0, 8000));
+    const raw = result.response.text().trim()
+      .replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '').trim();
+    const ai = JSON.parse(raw);
+
+    return {
+      ...baseline,
+      documentType:          ai.documentType          ?? baseline.documentType,
+      confidence:            typeof ai.confidence === 'number' ? ai.confidence : baseline.confidence,
+      hasSignature:          ai.hasSignature           ?? baseline.hasSignature,
+      hasDate:               ai.hasDate                ?? baseline.hasDate,
+      hasCompanyName:        ai.hasCompanyName         ?? baseline.hasCompanyName,
+      hasRegistrationNumber: ai.hasRegistrationNumber  ?? baseline.hasRegistrationNumber,
+      hasVatNumber:          ai.hasVatNumber           ?? baseline.hasVatNumber,
+      hasBBBEELevel:         ai.hasBBBEELevel          ?? baseline.hasBBBEELevel,
+      detectedDates:         ai.detectedDates?.length  ? ai.detectedDates   : baseline.detectedDates,
+      detectedAmounts:       ai.detectedAmounts?.length ? ai.detectedAmounts : baseline.detectedAmounts,
+      keywords:              ai.keywords?.length       ? ai.keywords        : baseline.keywords,
+    };
+  } catch (err) {
+    console.warn('Gemini document analysis failed — using regex baseline:', err);
+    return baseline;
+  }
+}
+
+/**
+ * Extract expiry date using Gemini. Falls back to regex if AI unavailable or fails.
+ */
+export async function extractExpiryDateWithAI(text: string): Promise<string | null> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey || !text.trim()) return extractExpiryDate(text);
+
+  try {
+    const genAI = new GoogleGenerativeAI(apiKey);
+    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    const result = await model.generateContent(
+      'Extract only the expiry date or validity end date from this South African compliance document. ' +
+      'Return ONLY an ISO date string in "YYYY-MM-DD" format, or the exact word null if not found. ' +
+      'No other text, no markdown.\n\n' +
+      text.slice(0, 4000)
+    );
+    const raw = result.response.text().trim();
+    if (raw === 'null' || !/^\d{4}-\d{2}-\d{2}$/.test(raw)) return extractExpiryDate(text);
+    return raw;
+  } catch {
+    return extractExpiryDate(text);
+  }
 }

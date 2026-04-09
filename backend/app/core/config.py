@@ -51,6 +51,7 @@ class Settings(BaseSettings):
 
     # AI pipeline hook for document ingestion
     DOCUMENT_AI_ENABLED: bool = False
+    GEMINI_API_KEY: str = ""
 
     class Config:
         case_sensitive = True
