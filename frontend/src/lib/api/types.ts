@@ -10,7 +10,8 @@ export type DocumentCategory =
     | 'financial'
     | 'certification'
     | 'bbbee'
-    | 'registration';
+    | 'registration'
+    | 'policy';
 export type ScoreBand = 'tender-ready' | 'partially-ready' | 'high-risk';
 export type RenewalBucket = 'due-90' | 'due-60' | 'due-30' | 'due-7' | 'expired';
 

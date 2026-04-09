@@ -13,7 +13,7 @@ import { useMarkNotificationRead, useUnreadNotifications } from '@/lib/hooks/use
 const IDLE_TIMEOUT_MS = 30 * 60 * 1000;   // 30 min → force logout
 const IDLE_WARNING_MS = 28 * 60 * 1000;   // 28 min → show warning (2 min before)
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8000';
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? '/api';
 
 export function AppShell({ children }: { children: React.ReactNode }) {
     const { token, _hasHydrated, currentUser, setCurrentUser, setActiveCompany, logout } = useAppStore();
@@ -53,10 +53,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 .then(async (user) => {
                     if (cancelled) return;
                     setCurrentUser(user);
-                    try {
-                        const active = await companies.getActive();
-                        if (!cancelled && active?.id) setActiveCompany(active.id);
-                    } catch { /* non-blocking */ }
+                    if (user.role === 'user') {
+                        try {
+                            const active = await companies.getActive();
+                            if (!cancelled && active?.id) setActiveCompany(active.id);
+                        } catch {
+                            /* non-blocking */
+                        }
+                    }
                 })
                 .catch(() => {
                     if (!cancelled) {
@@ -73,10 +77,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             .then(async (user) => {
                 if (cancelled) return;
                 setCurrentUser(user);
-                try {
-                    const active = await companies.getActive();
-                    if (!cancelled && active?.id) setActiveCompany(active.id);
-                } catch { /* non-blocking */ }
+                if (user.role === 'user') {
+                    try {
+                        const active = await companies.getActive();
+                        if (!cancelled && active?.id) setActiveCompany(active.id);
+                    } catch {
+                        /* non-blocking */
+                    }
+                }
                 if (!cancelled) setSessionReady(true);
             })
             .catch(() => {

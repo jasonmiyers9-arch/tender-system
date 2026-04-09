@@ -8,9 +8,9 @@ import { summarizeDocumentForKnowledgeBase } from '../../../../lib/server/docume
 const ALLOWED_EXTENSIONS = new Set([
   '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.png', '.jpg', '.jpeg', '.txt', '.csv', '.zip',
 ]);
-const ALLOWED_CATEGORIES = new Set(['tax', 'legal', 'financial', 'certification', 'bbbee', 'registration'] as const);
+const ALLOWED_CATEGORIES = new Set(['tax', 'legal', 'financial', 'certification', 'bbbee', 'registration', 'policy'] as const);
 
-type DocumentCategory = 'tax' | 'legal' | 'financial' | 'certification' | 'bbbee' | 'registration';
+type DocumentCategory = 'tax' | 'legal' | 'financial' | 'certification' | 'bbbee' | 'registration' | 'policy';
 
 function parseToken(req: Request): string | null {
   const header = req.headers.get('authorization');
@@ -44,6 +44,7 @@ export async function POST(req: Request) {
     const formData = await req.formData();
     const file = formData.get('file');
     const category = String(formData.get('category') || '').trim();
+    const runAi = String(formData.get('run_ai') ?? 'true').toLowerCase() !== 'false';
 
     if (!file || !(file instanceof Blob)) {
       return NextResponse.json({ detail: 'File upload is required' }, { status: 400 });
@@ -79,7 +80,7 @@ export async function POST(req: Request) {
     let aiSummaryModel: string | undefined;
     let detectedExpiryDate: string | null = null;
 
-    if (ext === '.pdf') {
+    if (ext === '.pdf' && runAi) {
       try {
         // Lazy-load PDF extraction to keep parsing dependencies out of build-time module evaluation.
         const { extractPDFContent, analyzeDocumentContent, extractExpiryDate } = await import('../../../../lib/server/pdfExtractor');
@@ -122,6 +123,9 @@ export async function POST(req: Request) {
         extractionError = pdfError instanceof Error ? pdfError.message : 'PDF extraction failed';
         // Continue without extraction - document will still be stored
       }
+    } else if (ext === '.pdf' && !runAi) {
+      extractionStatus = 'skipped';
+      extractionError = 'AI extraction was skipped by user choice.';
     }
 
     // Upload to storage
@@ -175,6 +179,7 @@ export async function POST(req: Request) {
         error: extractionError,
         extracted: Boolean(extractedText?.trim()),
       },
+      aiTriggered: runAi && ext === '.pdf',
       message: extractedText 
         ? `Document uploaded and analyzed (${pageCount} pages, ${documentAnalysis?.wordCount ?? 0} words)`
         : 'Document uploaded successfully',

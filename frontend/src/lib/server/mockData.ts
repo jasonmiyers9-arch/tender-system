@@ -41,7 +41,7 @@ export interface InternalDocument {
   id: string;
   companyId: string;
   name: string;
-  category: 'tax' | 'legal' | 'financial' | 'certification' | 'bbbee' | 'registration';
+  category: 'tax' | 'legal' | 'financial' | 'certification' | 'bbbee' | 'registration' | 'policy';
   status: 'uploaded' | 'verified' | 'rejected' | 'expired';
   fileUrl: string | null;
   storagePath?: string;  // Firebase Storage path for deletion

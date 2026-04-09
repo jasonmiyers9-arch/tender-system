@@ -55,11 +55,13 @@ export const vault = {
         name: string;
         category: DocumentCategory;
         file: File;
+        runAi?: boolean;
     }): Promise<VaultDocument> {
         const token = getToken();
         const form = new FormData();
         form.set('file', data.file, data.file.name || `${data.name}.pdf`);
         form.set('category', data.category);
+        form.set('run_ai', data.runAi === false ? 'false' : 'true');
 
         const headers: Record<string, string> = {};
         if (token) headers.Authorization = `Bearer ${token}`;
