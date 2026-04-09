@@ -4,8 +4,11 @@
  * Follows government-class standards for document processing.
  */
 
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const pdfParse = require('pdf-parse');
+// Dynamic import to avoid build-time evaluation of pdf-parse which needs DOM APIs
+async function getPdfParse() {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  return require('pdf-parse');
+}
 
 export interface PDFExtractResult {
   text: string;
@@ -70,6 +73,7 @@ const DOCUMENT_TYPE_KEYWORDS: Record<string, string[]> = {
  */
 export async function extractPDFContent(buffer: Buffer): Promise<PDFExtractResult> {
   try {
+    const pdfParse = await getPdfParse();
     const data = await pdfParse(buffer, {
       // Limit pages for very large documents
       max: 100,

@@ -3,7 +3,6 @@ import * as path from 'node:path';
 import { getUserByToken, listCompaniesForUser, createDocument } from '../../../../lib/server/firestoreService';
 import { uploadDocumentToFirebase, isFirebaseStorageConfigured, writeLocalFallback } from '../../../../lib/server/firebaseStorage';
 import { enqueueDocumentAiProcessing } from '../../../../lib/server/documentAi';
-import { extractPDFContent, analyzeDocumentContent, extractExpiryDate } from '../../../../lib/server/pdfExtractor';
 
 const ALLOWED_EXTENSIONS = new Set([
   '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.png', '.jpg', '.jpeg', '.txt', '.csv', '.zip',
@@ -77,6 +76,8 @@ export async function POST(req: Request) {
 
     if (ext === '.pdf') {
       try {
+        // Lazy-load PDF extraction to prevent Netlify/Next build-time evaluation of pdf-parse.
+        const { extractPDFContent, analyzeDocumentContent, extractExpiryDate } = await import('../../../../lib/server/pdfExtractor');
         const pdfResult = await extractPDFContent(buffer);
         extractedText = pdfResult.text;
         pageCount = pdfResult.pageCount;
