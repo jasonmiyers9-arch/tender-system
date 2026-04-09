@@ -98,6 +98,15 @@ export const vault = {
         return res.json();
     },
 
+    async reExtractDocument(id: string): Promise<{ ok: boolean; extractionStatus: 'ok' | 'failed' | 'skipped'; extractionError?: string | null }> {
+        const res = await authFetch(`/documents/${id}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'reextract' }),
+        });
+        return res.json();
+    },
+
     getDownloadUrl(id: string): string {
         return `${API_BASE}/documents/${id}/download`;
     },

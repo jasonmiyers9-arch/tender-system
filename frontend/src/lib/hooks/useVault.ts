@@ -48,3 +48,15 @@ export function useRequestVerification() {
         },
     });
 }
+
+export function useReExtractDocument() {
+    const activeCompanyId = useAppStore((s) => s.activeCompanyId);
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: (docId: string) => vault.reExtractDocument(docId),
+        onSuccess: (_, docId) => {
+            queryClient.invalidateQueries({ queryKey: ['vault', activeCompanyId] });
+            queryClient.invalidateQueries({ queryKey: ['vault-doc', docId] });
+        },
+    });
+}

@@ -378,17 +378,6 @@ async function listCompaniesForUser(userId: string): Promise<Company[]> {
   return fallbackCompany ? [fallbackCompany] : [];
 }
 
-async function listAllCompanies(): Promise<Company[]> {
-  if (isFirestoreAvailable()) {
-    await ensureFirestoreSeed();
-    const db = getFirestore()!;
-    const snapshot = await db.collection(COMPANIES_COLLECTION).get();
-    return snapshot.docs.map((doc) => mapCompanyToPublic(doc.data() as InternalCompany));
-  }
-
-  return MEMORY_DB.companies.map(mapCompanyToPublic);
-}
-
 async function getCompanyById(companyId: string): Promise<Company | null> {
   if (isFirestoreAvailable()) {
     await ensureFirestoreSeed();
@@ -774,16 +763,6 @@ async function listDocumentsForCompany(companyId: string): Promise<InternalDocum
   return MEMORY_DB.documents.filter((doc) => doc.companyId === companyId);
 }
 
-async function listAllDocuments(): Promise<InternalDocument[]> {
-  if (isFirestoreAvailable()) {
-    const db = getFirestore()!;
-    const snapshot = await db.collection(DOCUMENTS_COLLECTION).get();
-    return snapshot.docs.map((doc) => doc.data() as InternalDocument);
-  }
-
-  return [...MEMORY_DB.documents];
-}
-
 async function getDocumentById(documentId: string): Promise<InternalDocument | null> {
   if (isFirestoreAvailable()) {
     const db = getFirestore()!;
@@ -1060,8 +1039,6 @@ export {
   renewDocument,
   listAllUsers,
   setUserVerificationStatus,
-  listAllCompanies,
-  listAllDocuments,
   setDocumentStatus,
   mapUserToAuthUser,
 };

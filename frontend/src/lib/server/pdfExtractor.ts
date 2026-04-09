@@ -4,8 +4,12 @@
  * Follows government-class standards for document processing.
  */
 
+import { existsSync } from 'node:fs';
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
+
 type PdfJsModule = {
-  getDocument: (src: { data: Uint8Array; useWorkerFetch?: boolean; isEvalSupported?: boolean; useSystemFonts?: boolean }) => {
+  getDocument: (src: { data: Uint8Array; disableWorker?: boolean; useWorkerFetch?: boolean; isEvalSupported?: boolean; useSystemFonts?: boolean }) => {
     promise: Promise<{
       numPages: number;
       getPage: (pageNumber: number) => Promise<{
@@ -31,7 +35,17 @@ type PdfJsModule = {
 };
 
 async function getPdfJs(): Promise<PdfJsModule> {
-  return (await import('pdfjs-dist/legacy/build/pdf.mjs')) as PdfJsModule;
+  const pdfjs = (await import('pdfjs-dist/legacy/build/pdf.mjs')) as PdfJsModule & {
+    GlobalWorkerOptions?: { workerSrc?: string };
+  };
+  // Point pdfjs at the installed worker file to avoid Turbopack chunk resolution issues.
+  if (pdfjs.GlobalWorkerOptions) {
+    const workerPath = path.join(process.cwd(), 'node_modules', 'pdfjs-dist', 'legacy', 'build', 'pdf.worker.mjs');
+    if (existsSync(workerPath)) {
+      pdfjs.GlobalWorkerOptions.workerSrc = pathToFileURL(workerPath).href;
+    }
+  }
+  return pdfjs;
 }
 
 export interface PDFExtractResult {
@@ -100,6 +114,7 @@ export async function extractPDFContent(buffer: Buffer): Promise<PDFExtractResul
     const pdfjs = await getPdfJs();
     const loadingTask = pdfjs.getDocument({
       data: new Uint8Array(buffer),
+      disableWorker: true,
       useWorkerFetch: false,
       isEvalSupported: false,
       useSystemFonts: false,

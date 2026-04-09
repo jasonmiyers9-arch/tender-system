@@ -1,7 +1,7 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import { useRequestVerification, useVaultDocument } from '@/lib/hooks/useVault';
+import { useReExtractDocument, useRequestVerification, useVaultDocument } from '@/lib/hooks/useVault';
 import { vault } from '@/lib/api/vault';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -24,6 +24,7 @@ export default function VaultDocumentPage() {
     const docId = params?.docId;
     const { data: doc, isLoading, isError, refetch } = useVaultDocument(docId ?? '');
     const requestVerification = useRequestVerification();
+    const reExtract = useReExtractDocument();
 
     if (isLoading) return <CardSkeleton />;
     if (isError || !doc) return <ErrorState onRetry={refetch} />;
@@ -83,6 +84,11 @@ export default function VaultDocumentPage() {
                         {doc.extractionError && (
                             <p className="mt-4 text-xs text-[--color-danger]">
                                 Extraction warning: {doc.extractionError}
+                            </p>
+                        )}
+                        {reExtract.isError && (
+                            <p className="mt-2 text-xs text-[--color-danger]">
+                                Re-extraction failed. Please try again.
                             </p>
                         )}
                     </Card>
@@ -172,6 +178,15 @@ export default function VaultDocumentPage() {
                                 onClick={() => requestVerification.mutate(doc.id)}
                             >
                                 Request Re-verification
+                            </Button>
+                            <Button
+                                variant="ghost"
+                                className="w-full justify-start"
+                                leftIcon={<RefreshCw size={15} />}
+                                onClick={() => reExtract.mutate(doc.id)}
+                                loading={reExtract.isPending}
+                            >
+                                Re-extract Text
                             </Button>
                         </div>
                     </Card>
