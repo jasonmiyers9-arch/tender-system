@@ -119,9 +119,9 @@ export async function POST(req: Request) {
           extractionStatus = 'ok';
         } else {
           extractionStatus = 'failed';
-          extractionError = 'No extractable text found in PDF.';
+          extractionError = 'No extractable text found. This PDF may be image-based or scanned and requires OCR before AI analysis.';
         }
-        console.log(`PDF extracted: ${pageCount} pages, ${extractedText?.length ?? 0} chars`);
+        console.log(`PDF extracted with ${pdfResult.extractor}: ${pageCount} pages, ${extractedText?.length ?? 0} chars`);
       } catch (pdfError) {
         console.warn('PDF extraction warning:', pdfError);
         extractionStatus = 'failed';
@@ -183,6 +183,7 @@ export async function POST(req: Request) {
         status: extractionStatus,
         error: extractionError,
         extracted: Boolean(extractedText?.trim()),
+        extractor: ext === '.pdf' && runAi ? 'multi-engine' : null,
       },
       aiTriggered: runAi && ext === '.pdf',
       message: extractedText 

@@ -56,9 +56,13 @@ export async function reExtractDocumentAi(documentId: string, requestedBy?: stri
         pageCount: extracted.pageCount,
         extractedText: '',
         extractionStatus: 'failed',
-        extractionError: 'No extractable text found in PDF.',
+        extractionError: 'No extractable text found. This PDF may be image-based or scanned and requires OCR before AI analysis.',
       });
-      return { ok: false, extractionStatus: 'failed', error: 'No extractable text found in PDF.' };
+      return {
+        ok: false,
+        extractionStatus: 'failed',
+        error: 'No extractable text found. This PDF may be image-based or scanned and requires OCR before AI analysis.',
+      };
     }
 
     const analysis = analyzeDocumentContent(text, extracted.pageCount);
