@@ -337,34 +337,42 @@ export async function extractPDFContent(buffer: Buffer): Promise<PDFExtractResul
     return diskHit;
   }
 
+  // Attempt pdfjs extraction; on any failure cascade to pdf-parse.
+  let pdfjsResult: PDFExtractResult | null = null;
   try {
-    const primary = await extractWithPdfJs(buffer);
-    let finalResult = primary;
-
-    // If primary extraction is weak, run a second parser and keep the richer result.
-    if (primary.text.length < 200) {
-      try {
-        const secondary = await extractWithPdfParse(buffer);
-        finalResult = pickBestResult(primary, secondary);
-      } catch (fallbackError) {
-        console.warn('pdf-parse fallback failed:', fallbackError);
-      }
-    }
-
-    writeToMemoryCache(cacheKey, finalResult);
-    await writeToDiskCache(cacheKey, finalResult);
-    return finalResult;
-  } catch (error) {
-    console.error('PDF extraction error:', error);
-    return {
-      text: '',
-      pageCount: 0,
-      extractor: 'pdfjs',
-      extractedAt: new Date().toISOString(),
-      info: {},
-      metadata: {},
-    };
+    pdfjsResult = await extractWithPdfJs(buffer);
+  } catch (pdfjsError) {
+    console.warn('pdfjs extraction failed, will try pdf-parse:', pdfjsError);
   }
+
+  // Use pdf-parse if pdfjs failed entirely or produced weak output.
+  const pdfjsTextLen = pdfjsResult?.text.length ?? 0;
+  if (!pdfjsResult || pdfjsTextLen < 200) {
+    try {
+      const pdfParseResult = await extractWithPdfParse(buffer);
+      const finalResult = pdfjsResult
+        ? pickBestResult(pdfjsResult, pdfParseResult)
+        : pdfParseResult;
+      writeToMemoryCache(cacheKey, finalResult);
+      await writeToDiskCache(cacheKey, finalResult);
+      return finalResult;
+    } catch (fallbackError) {
+      console.warn('pdf-parse fallback also failed:', fallbackError);
+    }
+  }
+
+  // Return whatever pdfjs produced, even if weak (or empty on total failure).
+  const finalResult = pdfjsResult ?? {
+    text: '',
+    pageCount: 0,
+    extractor: 'pdfjs' as PdfExtractEngine,
+    extractedAt: new Date().toISOString(),
+    info: {},
+    metadata: {},
+  };
+  writeToMemoryCache(cacheKey, finalResult);
+  await writeToDiskCache(cacheKey, finalResult);
+  return finalResult;
 }
 
 /**
