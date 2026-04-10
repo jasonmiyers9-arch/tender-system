@@ -1,23 +1,10 @@
 import { NextResponse } from 'next/server';
-import { getUserByToken, setActiveCompany } from '@/lib/server/firestoreService';
-
-function parseToken(req: Request): string | null {
-  const header = req.headers.get('authorization');
-  if (!header) return null;
-  const [type, token] = header.split(' ');
-  return type.toLowerCase() === 'bearer' ? token : null;
-}
+import { listCompaniesForUser, setActiveCompany } from '@/lib/server/firestoreService';
+import { requireAuth } from '@/lib/server/apiAuth';
 
 export async function POST(req: Request) {
-  const token = parseToken(req);
-  if (!token) {
-    return NextResponse.json({ detail: 'Unauthorized' }, { status: 401 });
-  }
-
-  const user = await getUserByToken(token);
-  if (!user) {
-    return NextResponse.json({ detail: 'Unauthorized' }, { status: 401 });
-  }
+  const { user, error } = await requireAuth(req);
+  if (error) return error;
 
   const body = await req.json();
   const companyId = String(body.company_id ?? '').trim();
@@ -25,8 +12,15 @@ export async function POST(req: Request) {
     return NextResponse.json({ detail: 'company_id is required' }, { status: 400 });
   }
 
+  // Ownership check: user can only switch to companies they belong to
+  const userCompanies = await listCompaniesForUser(user!.id);
+  const allowed = userCompanies.some(c => c.id === companyId) || user!.role === 'admin';
+  if (!allowed) {
+    return NextResponse.json({ detail: 'Forbidden: not a member of this company' }, { status: 403 });
+  }
+
   try {
-    const company = await setActiveCompany(user.id, companyId);
+    const company = await setActiveCompany(user!.id, companyId);
     return NextResponse.json({ activeCompanyId: company.id, company });
   } catch (error) {
     return NextResponse.json({ detail: error instanceof Error ? error.message : 'Unable to switch company' }, { status: 400 });

@@ -1,45 +1,33 @@
 import { NextResponse } from 'next/server';
 import * as path from 'node:path';
-import { getUserByToken, listCompaniesForUser, createDocument, ensureUserCompanyContext } from '../../../../lib/server/firestoreService';
+import { createDocument, ensureUserCompanyContext, listCompaniesForUser } from '../../../../lib/server/firestoreService';
 import { uploadDocumentToFirebase, isFirebaseStorageConfigured, writeLocalFallback } from '../../../../lib/server/firebaseStorage';
 import { enqueueDocumentAiProcessing } from '../../../../lib/server/documentAi';
 import { summarizeDocumentForKnowledgeBase } from '../../../../lib/server/documentSummary';
 import { publishRescoreEvent } from '../../../../lib/server/analystEngine';
+import { requireAuth } from '../../../../lib/server/apiAuth';
 
 const ALLOWED_EXTENSIONS = new Set([
   '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.png', '.jpg', '.jpeg', '.txt', '.csv', '.zip',
 ]);
 const ALLOWED_CATEGORIES = new Set(['tax', 'legal', 'financial', 'certification', 'bbbee', 'registration', 'policy'] as const);
+const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50 MB
 
 type DocumentCategory = 'tax' | 'legal' | 'financial' | 'certification' | 'bbbee' | 'registration' | 'policy';
 
-function parseToken(req: Request): string | null {
-  const header = req.headers.get('authorization');
-  if (!header) return null;
-  const [type, token] = header.split(' ');
-  return type.toLowerCase() === 'bearer' ? token : null;
-}
-
 export async function POST(req: Request) {
-  const token = parseToken(req);
-  if (!token) {
-    return NextResponse.json({ detail: 'Unauthorized' }, { status: 401 });
-  }
+  const { user, error } = await requireAuth(req);
+  if (error) return error;
 
   try {
-    const user = await getUserByToken(token);
-    if (!user) {
-      return NextResponse.json({ detail: 'Unauthorized' }, { status: 401 });
-    }
-
-    let activeCompanyId = user.activeCompanyId;
+    let activeCompanyId = user!.activeCompanyId;
     if (!activeCompanyId) {
-      const companies = await listCompaniesForUser(user.id);
+      const companies = await listCompaniesForUser(user!.id);
       activeCompanyId = companies[0]?.id;
     }
 
     if (!activeCompanyId) {
-      const ensured = await ensureUserCompanyContext(user.id);
+      const ensured = await ensureUserCompanyContext(user!.id);
       activeCompanyId = ensured?.id ?? null;
     }
 
@@ -72,6 +60,14 @@ export async function POST(req: Request) {
 
     const buffer = Buffer.from(await uploadedFile.arrayBuffer());
     const fileSize = buffer.length;
+
+    if (fileSize > MAX_FILE_SIZE) {
+      return NextResponse.json(
+        { detail: `File size (${(fileSize / 1024 / 1024).toFixed(1)} MB) exceeds the 50 MB limit.` },
+        { status: 413 },
+      );
+    }
+
     const mimeType = uploadedFile.type || 'application/octet-stream';
     const safeFileName = filename.replace(/[^a-zA-Z0-9._-]/g, '_');
     const storageKey = `company_${activeCompanyId}/${Date.now()}_${safeFileName}`;

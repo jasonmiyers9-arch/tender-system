@@ -1,39 +1,14 @@
 import { NextResponse } from 'next/server';
 import {
-  getUserByToken,
-  listCompaniesForUser,
   listAnalystRunsForCompany,
-  ensureUserCompanyContext,
 } from '@/lib/server/firestoreService';
-
-function parseToken(req: Request): string | null {
-  const header = req.headers.get('authorization');
-  if (!header) return null;
-  const [type, token] = header.split(' ');
-  return type.toLowerCase() === 'bearer' ? token : null;
-}
+import { requireAuth, resolveCompanyContext } from '@/lib/server/apiAuth';
 
 export async function GET(req: Request) {
-  const token = parseToken(req);
-  if (!token) {
-    return NextResponse.json([]);
-  }
+  const { user, error } = await requireAuth(req);
+  if (error) return error;
 
-  const user = await getUserByToken(token);
-  if (!user) {
-    return NextResponse.json([]);
-  }
-
-  let activeCompanyId = user.activeCompanyId;
-  if (!activeCompanyId) {
-    const companies = await listCompaniesForUser(user.id);
-    activeCompanyId = companies[0]?.id ?? null;
-  }
-
-  if (!activeCompanyId) {
-    const ensured = await ensureUserCompanyContext(user.id);
-    activeCompanyId = ensured?.id ?? null;
-  }
+  const activeCompanyId = await resolveCompanyContext(user!.id, user!.activeCompanyId);
 
   if (!activeCompanyId) {
     return NextResponse.json([]);
