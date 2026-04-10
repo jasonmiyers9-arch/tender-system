@@ -1,5 +1,13 @@
 import { NextResponse } from 'next/server';
 import { getUserByToken, getCompanyById, listDocumentsForCompany } from '@/lib/server/firestoreService';
+import { 
+  calculateTenderReadinessScore, 
+  type CompanyProfileFields 
+} from '@/lib/server/complianceScoring';
+import { 
+  getExpiredInPast12Months, 
+  isNewAccount 
+} from '@/lib/server/expiryCheckService';
 
 function parseToken(req: Request): string | null {
   const header = req.headers.get('authorization');
@@ -42,8 +50,35 @@ export async function GET(
   }
 
   const documents = await listDocumentsForCompany(companyId);
+  
+  // Build company profile for CSD completeness scoring
+  const companyProfile: CompanyProfileFields = {
+    name: company.name,
+    registrationNumber: company.registrationNumber,
+    vatNumber: company.vatNumber,
+    industry: company.industry,
+    province: company.province ?? undefined,
+    address: company.address,
+    contactEmail: company.email,
+    contactPhone: company.phone,
+  };
+  
+  // Get compliance consistency data
+  const expiredInPast12Months = await getExpiredInPast12Months(companyId);
+  const isNewAccountFlag = await isNewAccount(companyId);
+  
+  // Calculate new Tender Readiness Score™
+  const readinessScore = calculateTenderReadinessScore(
+    companyId,
+    documents,
+    companyProfile,
+    company.industry,
+    expiredInPast12Months,
+    isNewAccountFlag
+  );
+  
+  // Legacy score calculation for backward compatibility
   const verifiedCount = documents.filter((doc) => doc.status === 'verified').length;
-  const scoreValue = documents.length === 0 ? 0 : Math.round((verifiedCount / documents.length) * 100);
 
   const documentsByCategory = documents.reduce<Record<string, Array<{
     id: string;
@@ -125,15 +160,24 @@ export async function GET(
   return NextResponse.json({
     company,
     score: {
-      score: scoreValue,
-      band: toBand(scoreValue),
+      score: readinessScore.totalScore,
+      band: toBand(readinessScore.totalScore),
       completedDocuments: verifiedCount,
       totalDocuments: documents.length,
-      missingDocuments: [],
+      missingDocuments: readinessScore.missingForBidReady,
       expiringDocuments: documents
         .filter((doc) => doc.expiryDate)
         .map((doc) => `${doc.name} (${doc.expiryDate})`),
-      lastCalculated: new Date().toISOString(),
+      lastCalculated: readinessScore.calculatedAt,
+      isBidReady: readinessScore.isBidReady,
+    },
+    // New Tender Readiness Score™ breakdown
+    readinessScore: {
+      totalScore: readinessScore.totalScore,
+      dimensions: readinessScore.dimensions,
+      breakdown: readinessScore.breakdown,
+      isBidReady: readinessScore.isBidReady,
+      missingForBidReady: readinessScore.missingForBidReady,
     },
     documentsByCategory,
     auditLog,

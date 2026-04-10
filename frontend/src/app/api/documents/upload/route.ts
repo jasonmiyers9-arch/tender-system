@@ -4,6 +4,7 @@ import { getUserByToken, listCompaniesForUser, createDocument, ensureUserCompany
 import { uploadDocumentToFirebase, isFirebaseStorageConfigured, writeLocalFallback } from '../../../../lib/server/firebaseStorage';
 import { enqueueDocumentAiProcessing } from '../../../../lib/server/documentAi';
 import { summarizeDocumentForKnowledgeBase } from '../../../../lib/server/documentSummary';
+import { publishRescoreEvent } from '../../../../lib/server/analystEngine';
 
 const ALLOWED_EXTENSIONS = new Set([
   '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.png', '.jpg', '.jpeg', '.txt', '.csv', '.zip',
@@ -176,6 +177,17 @@ export async function POST(req: Request) {
 
     // Queue AI processing for further analysis
     enqueueDocumentAiProcessing(document.id, storageKey, activeCompanyId);
+
+    await publishRescoreEvent({
+      eventType: 'document.uploaded',
+      companyId: activeCompanyId,
+      actorUserId: user.id,
+      metadata: {
+        documentId: document.id,
+        category: document.category,
+        extractionStatus,
+      },
+    });
 
     return NextResponse.json({
       ...document,

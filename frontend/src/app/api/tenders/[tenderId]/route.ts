@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getTenderById, getUserByToken, updateTender, deleteTender } from '@/lib/server/firestoreService';
+import { publishRescoreEvent } from '@/lib/server/analystEngine';
 
 function parseToken(req: Request): string | null {
   const header = req.headers.get('authorization');
@@ -58,6 +59,17 @@ export async function PATCH(
       required_categories: Array.isArray(body?.required_categories) ? body.required_categories : undefined,
       status: body?.status,
     });
+
+    if (updated.companyId) {
+      await publishRescoreEvent({
+        eventType: 'tender.updated',
+        companyId: updated.companyId,
+        actorUserId: user.id,
+        tenderId: updated.id,
+        metadata: { status: updated.status },
+      });
+    }
+
     return NextResponse.json(updated);
   } catch (error) {
     console.error('PATCH /api/tenders/[tenderId] error:', error);

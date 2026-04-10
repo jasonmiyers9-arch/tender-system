@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { listTenders, createTender, getUserByToken } from '@/lib/server/firestoreService';
+import { publishRescoreEvent } from '@/lib/server/analystEngine';
 
 function parseToken(req: Request): string | null {
   const header = req.headers.get('authorization');
@@ -92,6 +93,16 @@ export async function POST(req: Request) {
       createdBy: user.id,
       companyId: user.activeCompanyId ?? undefined,
     });
+
+    if (tender.companyId) {
+      await publishRescoreEvent({
+        eventType: 'tender.created',
+        companyId: tender.companyId,
+        actorUserId: user.id,
+        tenderId: tender.id,
+        metadata: { status: tender.status },
+      });
+    }
 
     return NextResponse.json(tender, { status: 201 });
   } catch (error) {

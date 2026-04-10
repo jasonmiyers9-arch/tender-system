@@ -9,6 +9,7 @@ import {
 } from '@/lib/server/firestoreService';
 import { deleteDocumentFromStorage } from '@/lib/server/firebaseAdmin';
 import { reExtractDocumentAi } from '@/lib/server/documentAi';
+import { publishRescoreEvent } from '@/lib/server/analystEngine';
 
 function parseToken(req: Request): string | null {
   const header = req.headers.get('authorization');
@@ -87,6 +88,12 @@ export async function POST(
       return NextResponse.json({ detail: 'Admin only' }, { status: 403 });
     }
     const updated = await verifyDocument(documentId, user.id);
+    await publishRescoreEvent({
+      eventType: 'document.verified',
+      companyId: updated.companyId,
+      actorUserId: user.id,
+      metadata: { documentId: updated.id, status: updated.status },
+    });
     return NextResponse.json(updated);
   }
 
@@ -179,7 +186,14 @@ export async function PUT(
     }
 
     const updatedDocument = await updateDocument(documentId, allowedUpdates);
-    
+
+    await publishRescoreEvent({
+      eventType: 'document.verified',
+      companyId: updatedDocument.companyId,
+      actorUserId: user.id,
+      metadata: { documentId: updatedDocument.id, updates: Object.keys(allowedUpdates) },
+    });
+
     return NextResponse.json(updatedDocument);
   } catch (error) {
     console.error('PUT /api/documents/[documentId] error:', error);

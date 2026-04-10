@@ -126,6 +126,16 @@ export interface ComplianceScore {
 export interface ScoreHistoryPoint {
     date: string;
     score: number;
+    deterministicScore?: number;
+    llmDeltaApplied?: number;
+    confidenceScore?: number;
+    tenderId?: string;
+    tenderTitle?: string;
+    trigger?: string;
+    reasonCodes?: string[];
+    source?: 'hybrid' | 'deterministic';
+    model?: string;
+    recommendation?: string;
 }
 
 // ─── Tenders ──────────────────────────────────

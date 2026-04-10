@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getUserByToken, verifyDocument } from '@/lib/server/firestoreService';
+import { publishRescoreEvent } from '@/lib/server/analystEngine';
 
 function parseToken(req: Request): string | null {
   const header = req.headers.get('authorization');
@@ -23,6 +24,12 @@ export async function POST(
   }
 
   const { documentId } = await params;
-  await verifyDocument(documentId, user.id);
+  const document = await verifyDocument(documentId, user.id);
+  await publishRescoreEvent({
+    eventType: 'document.verified',
+    companyId: document.companyId,
+    actorUserId: user.id,
+    metadata: { documentId: document.id, status: document.status },
+  });
   return NextResponse.json({ ok: true });
 }

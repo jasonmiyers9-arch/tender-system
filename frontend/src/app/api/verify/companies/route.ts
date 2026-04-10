@@ -1,5 +1,13 @@
 import { NextResponse } from 'next/server';
 import { getUserByToken, listAllCompanies, listDocumentsForCompany } from '@/lib/server/firestoreService';
+import { 
+  calculateTenderReadinessScore, 
+  type CompanyProfileFields 
+} from '@/lib/server/complianceScoring';
+import { 
+  getExpiredInPast12Months, 
+  isNewAccount 
+} from '@/lib/server/expiryCheckService';
 
 function parseToken(req: Request): string | null {
   const header = req.headers.get('authorization');
@@ -38,14 +46,40 @@ export async function GET(req: Request) {
     : companies.filter((company) => {
         const hayName = normalize(company.name);
         const hayReg = normalize(company.registrationNumber ?? '');
-        return hayName.includes(q) || hayReg.includes(q);
+        const hayCsd = normalize(company.csdNumber ?? '');
+        return hayName.includes(q) || hayReg.includes(q) || hayCsd.includes(q);
       });
 
   const items = await Promise.all(
     filtered.map(async (company) => {
       const docs = await listDocumentsForCompany(company.id);
-      const verifiedCount = docs.filter((doc) => doc.status === 'verified').length;
-      const score = docs.length === 0 ? 0 : Math.round((verifiedCount / docs.length) * 100);
+      
+      // Build company profile for scoring
+      const companyProfile: CompanyProfileFields = {
+        name: company.name,
+        registrationNumber: company.registrationNumber,
+        vatNumber: company.vatNumber,
+        industry: company.industry,
+        province: company.province ?? undefined,
+        address: company.address,
+        contactEmail: company.email,
+        contactPhone: company.phone,
+      };
+      
+      // Get compliance consistency data
+      const expiredCount = await getExpiredInPast12Months(company.id);
+      const isNew = await isNewAccount(company.id);
+      
+      // Calculate new Tender Readiness Score™
+      const readinessScore = calculateTenderReadinessScore(
+        company.id,
+        docs,
+        companyProfile,
+        company.industry,
+        expiredCount,
+        isNew
+      );
+      
       const lastUpdated = docs
         .map((doc) => doc.verifiedAt ?? doc.uploadedAt)
         .sort((a, b) => new Date(b).getTime() - new Date(a).getTime())[0] ?? new Date().toISOString();
@@ -54,8 +88,12 @@ export async function GET(req: Request) {
         id: company.id,
         name: company.name,
         registrationNumber: company.registrationNumber,
-        score,
-        band: toBand(score),
+        csdNumber: company.csdNumber,
+        industry: company.industry,
+        province: company.province,
+        score: readinessScore.totalScore,
+        band: toBand(readinessScore.totalScore),
+        isBidReady: readinessScore.isBidReady,
         lastUpdated,
       };
     })

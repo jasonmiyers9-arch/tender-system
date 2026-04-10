@@ -2,11 +2,16 @@ import type { AuthUser, Company, TenderDetail, TenderMatch, TenderReadiness } fr
 import { getFirestore, isFirestoreAvailable, verifyIdToken } from './firebaseAdmin';
 import { DEFAULT_COMPANIES, DEFAULT_TENDERS, DEFAULT_USER, DEFAULT_APPLICATIONS, DEFAULT_DOCUMENTS, InternalCompany, InternalTender, InternalUser, InternalApplication, InternalDocument } from './mockData';
 
+// Re-export internal types for use by other services
+export type { InternalDocument, InternalCompany, InternalTender, InternalUser };
+
 const USERS_COLLECTION = 'users';
 const COMPANIES_COLLECTION = 'companies';
 const TENDERS_COLLECTION = 'tenders';
 const APPLICATIONS_COLLECTION = 'applications';
 const DOCUMENTS_COLLECTION = 'documents';
+const ANALYST_RUNS_COLLECTION = 'analyst_runs';
+const ANALYST_EVENTS_COLLECTION = 'analyst_events';
 const SHOULD_SEED_FIRESTORE_DEMO_DATA = process.env.ENABLE_FIRESTORE_DEMO_SEED === 'true';
 
 function createId() {
@@ -131,6 +136,53 @@ function buildReadiness(tender: InternalTender): TenderReadiness {
     recommendedDocuments: missingCategories,
     checklist,
   };
+}
+
+export interface AnalystRunRecord {
+  id: string;
+  companyId: string;
+  tenderId: string;
+  tenderTitle: string;
+  trigger: string;
+  actorUserId: string | null;
+  score: number;
+  deterministicScore: number;
+  llmDeltaApplied: number;
+  confidenceScore: number;
+  reasonCodes: string[];
+  recommendation: string;
+  missingDocuments: string[];
+  strengths: string[];
+  priorityActions: string[];
+  breakdown: {
+    documentCompleteness: number;
+    documentValidity: number;
+    requirementMatch: number;
+    verificationStatus: number;
+    bonusPoints: number;
+  };
+  source: 'hybrid' | 'deterministic';
+  model: string;
+  promptVersion: string;
+  companyProfileSnapshot?: {
+    overallScore: number;
+    documentCount: number;
+    missingCategories: string[];
+    expiringDocuments: Array<{ documentId: string; documentName: string; category: string; expiryDate: string; daysUntilExpiry: number }>;
+    categoryScores: Record<string, { score: number; hasDocument: boolean; isVerified: boolean; isExpired: boolean; expiresInDays: number | null; documentCount: number } | undefined>;
+    recommendations: string[];
+  };
+  createdAt: string;
+}
+
+export interface AnalystEventRecord {
+  id: string;
+  eventType: string;
+  companyId: string;
+  tenderId: string | null;
+  actorUserId: string | null;
+  metadata: Record<string, unknown>;
+  createdAt: string;
 }
 
 async function ensureFirestoreSeed() {
@@ -996,12 +1048,72 @@ async function setDocumentStatus(documentId: string, status: InternalDocument['s
   return doc;
 }
 
+async function createAnalystRun(payload: Omit<AnalystRunRecord, 'id' | 'createdAt'>): Promise<AnalystRunRecord> {
+  const run: AnalystRunRecord = {
+    id: createId(),
+    createdAt: new Date().toISOString(),
+    ...payload,
+  };
+
+  if (isFirestoreAvailable()) {
+    const db = getFirestore()!;
+    await db.collection(ANALYST_RUNS_COLLECTION).doc(run.id).set(stripUndefined(run));
+  } else {
+    MEMORY_DB.analystRuns.unshift(run);
+    if (MEMORY_DB.analystRuns.length > 500) {
+      MEMORY_DB.analystRuns = MEMORY_DB.analystRuns.slice(0, 500);
+    }
+  }
+
+  return run;
+}
+
+async function listAnalystRunsForCompany(companyId: string, limit = 60): Promise<AnalystRunRecord[]> {
+  if (isFirestoreAvailable()) {
+    const db = getFirestore()!;
+    const snapshot = await db
+      .collection(ANALYST_RUNS_COLLECTION)
+      .where('companyId', '==', companyId)
+      .orderBy('createdAt', 'desc')
+      .limit(limit)
+      .get();
+    return snapshot.docs.map((doc) => doc.data() as AnalystRunRecord);
+  }
+
+  return MEMORY_DB.analystRuns
+    .filter((item) => item.companyId === companyId)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    .slice(0, limit);
+}
+
+async function createAnalystEvent(payload: Omit<AnalystEventRecord, 'id' | 'createdAt'>): Promise<AnalystEventRecord> {
+  const event: AnalystEventRecord = {
+    id: createId(),
+    createdAt: new Date().toISOString(),
+    ...payload,
+  };
+
+  if (isFirestoreAvailable()) {
+    const db = getFirestore()!;
+    await db.collection(ANALYST_EVENTS_COLLECTION).doc(event.id).set(stripUndefined(event));
+  } else {
+    MEMORY_DB.analystEvents.unshift(event);
+    if (MEMORY_DB.analystEvents.length > 500) {
+      MEMORY_DB.analystEvents = MEMORY_DB.analystEvents.slice(0, 500);
+    }
+  }
+
+  return event;
+}
+
 const MEMORY_DB = {
   users: [DEFAULT_USER],
   companies: DEFAULT_COMPANIES,
   tenders: DEFAULT_TENDERS,
   applications: DEFAULT_APPLICATIONS,
   documents: DEFAULT_DOCUMENTS,
+  analystRuns: [] as AnalystRunRecord[],
+  analystEvents: [] as AnalystEventRecord[],
 };
 
 export {
@@ -1040,5 +1152,8 @@ export {
   listAllUsers,
   setUserVerificationStatus,
   setDocumentStatus,
+  createAnalystRun,
+  listAnalystRunsForCompany,
+  createAnalystEvent,
   mapUserToAuthUser,
 };
