@@ -1,10 +1,14 @@
 import { NextResponse } from 'next/server';
 import { getTenderReadiness } from '@/lib/server/firestoreService';
+import { requireAuth } from '@/lib/server/apiAuth';
 
 export async function GET(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ tenderId: string }> }
 ) {
+  const { error } = await requireAuth(req);
+  if (error) return error;
+
   const { tenderId } = await params;
   const readiness = await getTenderReadiness(tenderId);
   if (!readiness) {

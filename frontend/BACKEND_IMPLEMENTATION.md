@@ -192,90 +192,43 @@ npm start
 - Static site hosted on Netlify CDN
 - Environment variables loaded from Netlify dashboard
 
-## Next Steps: RAG/PDF Ingestion Pipeline
+## Server-Side Modules (13 services)
 
-### Phase 2: Document Intelligence
+| Module | Purpose |
+|--------|---------|
+| `firebaseAdmin.ts` | Firebase Admin SDK initialization, `verifyIdToken()` |
+| `firestoreService.ts` | Core data layer (500+ lines) — Firestore with in-memory fallback |
+| `firebaseStorage.ts` | Document upload/download to Firebase Storage (local fallback) |
+| `apiAuth.ts` | Auth middleware: `requireAuth()`, `requireRole()`, `requireAdmin()`, `resolveCompanyContext()` |
+| `complianceScoring.ts` | Deterministic scoring: 30% doc completeness + 25% validity + 30% requirement match + 15% verification + 10% bonus |
+| `analystEngine.ts` | Hybrid scoring (deterministic + LLM via OpenRouter, ±10 point cap) |
+| `pdfExtractor.ts` | Dual-engine PDF extraction (pdfjs-dist + pdf-parse) with caching |
+| `documentAi.ts` | Fire-and-forget AI document processing queue |
+| `documentSummary.ts` | OpenRouter-powered document summarization for knowledge base |
+| `expiryCheckService.ts` | Document expiry monitoring and notification creation |
+| `aiSettingsService.ts` | AI model and prompt configuration (stored in Firestore) |
+| `aiPrompts.ts` | LLM prompt templates for scoring and summarization |
+| `mockData.ts` | Seeded demo data for local development |
 
-1. **PDF Upload Handler**
-   - Route: `POST /api/documents/upload`
-   - Accept multipart form data (PDF file)
-   - Store in Firebase Storage or cloud bucket
-   - Extract text and metadata with pdfjs or Tesseract
+## Security (Current State)
 
-2. **Vector Embeddings**
-   - Chunk PDF text into 1K-token segments
-   - Call OpenAI Embeddings API (or open-source alternative)
-   - Store vectors in Firestore or Pinecone/Weaviate
+### Implemented
+- ✓ Centralized auth middleware (`requireAuth`, `requireRole`, `requireAdmin`)
+- ✓ Company ownership checks on documents, applications, and company switching
+- ✓ File size limit (50 MB) on uploads
+- ✓ File extension allowlist
+- ✓ Audit log pagination capped at 100 per page
+- ✓ Security headers via `netlify.toml` (CSP, HSTS, X-Frame-Options)
+- ✓ Firebase Admin token verification for Google OAuth
 
-3. **RAG Query Engine**
-   - Route: `POST /api/documents/search`
-   - Convert user query to vector embedding
-   - Similarity search across company document vectors
-   - Return ranked chunks as context for LLM
-
-4. **AI Tender Readiness**
-   - Route: `GET /api/tenders/{id}/ai-readiness`
-   - Fetch tender requirements as query
-   - Use RAG to find matching company documents
-   - Run through LLM to assess gap + risk score
-   - Return enhanced readiness with AI explanations
-
-### Tech Stack Recommendation
-- **PDF Processing**: `pdfjs-dist` + `pdf-parse`
-- **Vector DB**: Pinecone (managed) or Weaviate (self-hosted)
-- **Embeddings**: OpenAI API (`text-embedding-3-small`)
-- **LLM**: OpenAI GPT-4o or Claude Haiku for cost efficiency
-
-### Example RAG Flow
-```
-User uploads: tax_cert_2025.pdf
-    ↓
-Extract text + chunk into 1K-token segments
-    ↓
-Call OpenAI embeddings v3 → store vectors in Pinecone
-    ↓
-User views tender requirements: "Tax compliance + BEE certificate"
-    ↓
-Convert to embedding → search Pinecone for similar doc chunks
-    ↓
-Return top-3 matches to LLM: "Here are the company's tax & compliance docs"
-    ↓
-LLM response: "Tax cert valid until 2027 (✓). BEE certificate missing (✗). Risk: 35%"
-    ↓
-Display in UI with confidence score + explanation
-```
-
-## Security Considerations
-
-### Current Demo State (Not Production-Ready)
-- ✗ Passwords stored plaintext
-- ✗ Tokens are user IDs (predictable)
-- ✗ No rate limiting
-- ✗ No CORS protection
-- ✗ No audit logging
-
-### Production Hardening
-1. **Authentication**
-   - Use bcrypt for password hashing
-   - Replace token with signed JWT (exp: 1 hour, refresh: 7 days)
-   - Implement MFA for admin accounts
-
-2. **Authorization**
-   - Add row-level security in Firestore rules
-   - Validate user.companyId against document owner
-   - Implement role-based access control (RBAC)
-
-3. **Infrastructure**
-   - Enable Firestore backup + versioning
-   - Set up VPC + private network
-   - Use Netlify secrets manager for sensitive env vars
-   - Enable Web Application Firewall (WAF)
-
-4. **Compliance**
-   - Audit logging to Cloud Logging
-   - Data encryption at rest + in transit
-   - DPIA for POPIA compliance (SA data privacy)
-   - Regular penetration testing
+### Remaining Hardening (Planned)
+- Passwords stored plaintext in demo mode — use bcrypt for production
+- Tokens are user IDs (predictable) — replace with signed JWT
+- No rate limiting — add per-IP / per-user limits
+- No CSRF protection — add SameSite cookies
+- MFA for admin accounts via Firebase Auth
+- Row-level security in Firestore rules
+- POPIA compliance audit
 
 ## Development Checklist
 
@@ -392,4 +345,4 @@ Display in UI with confidence score + explanation
 
 ---
 
-**Status**: ✅ Core backend complete. Ready for Phase 2: RAG/PDF intelligence.
+**Status**: ✅ Core backend + PDF intelligence + AI scoring complete. Security hardening in progress (Week 3).

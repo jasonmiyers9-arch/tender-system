@@ -1,25 +1,23 @@
 import { NextResponse } from 'next/server';
 import { getApplicationById, submitApplication } from '@/lib/server/firestoreService';
-
-function parseToken(req: Request): string | null {
-  const header = req.headers.get('authorization');
-  if (!header) return null;
-  const [type, token] = header.split(' ');
-  return type.toLowerCase() === 'bearer' ? token : null;
-}
+import { requireAuth, resolveCompanyContext } from '@/lib/server/apiAuth';
 
 export async function GET(
   req: Request,
   { params }: { params: Promise<{ applicationId: string }> }
 ) {
-  const token = parseToken(req);
-  if (!token) {
-    return NextResponse.json({ detail: 'Unauthorized' }, { status: 401 });
-  }
+  const { user, error } = await requireAuth(req);
+  if (error) return error;
 
   const { applicationId } = await params;
   const application = await getApplicationById(applicationId);
   if (!application) {
+    return NextResponse.json({ detail: 'Application not found' }, { status: 404 });
+  }
+
+  // Ownership check: user must belong to the company that owns the application
+  const companyId = await resolveCompanyContext(user!.id, user!.activeCompanyId);
+  if (application.companyId && application.companyId !== companyId && user!.role !== 'admin') {
     return NextResponse.json({ detail: 'Application not found' }, { status: 404 });
   }
 
@@ -30,10 +28,8 @@ export async function POST(
   req: Request,
   { params }: { params: Promise<{ applicationId: string }> }
 ) {
-  const token = parseToken(req);
-  if (!token) {
-    return NextResponse.json({ detail: 'Unauthorized' }, { status: 401 });
-  }
+  const { error } = await requireAuth(req);
+  if (error) return error;
 
   const { applicationId } = await params;
   const body = await req.json();

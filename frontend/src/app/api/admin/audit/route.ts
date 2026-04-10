@@ -18,7 +18,7 @@ export async function GET(req: Request) {
 
   const url = new URL(req.url);
   const page = parsePositiveInt(url.searchParams.get('page'), 1);
-  const pageSize = parsePositiveInt(url.searchParams.get('page_size'), 20);
+  const pageSize = Math.min(parsePositiveInt(url.searchParams.get('page_size'), 20), 100);
   const actorFilter = url.searchParams.get('actor')?.trim().toLowerCase() ?? '';
   const actionFilter = url.searchParams.get('action')?.trim().toLowerCase() ?? '';
 
