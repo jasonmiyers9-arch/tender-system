@@ -65,26 +65,36 @@ export default function DashboardPage() {
 
                 {/* Stat cards */}
                 <div className="lg:col-span-2 grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <StatCard
-                        title="Total Documents"
-                        value={docsQuery.data?.length ?? '—'}
-                        subtitle="in compliance vault"
-                        icon={<FileSearch size={18} />}
-                    />
-                    <StatCard
-                        title="Expiring / Expired"
-                        value={expiringDocs.length}
-                        subtitle="need attention"
-                        icon={<Clock size={18} />}
-                        variant={expiringDocs.length > 0 ? 'warning' : 'default'}
-                    />
-                    <StatCard
-                        title="Tender Matches"
-                        value={tendersQuery.data?.length ?? '—'}
-                        subtitle="available opportunities"
-                        icon={<TrendingUp size={18} />}
-                        variant="success"
-                    />
+                    {docsQuery.isLoading ? (
+                        <>
+                            <CardSkeleton />
+                            <CardSkeleton />
+                            <CardSkeleton />
+                        </>
+                    ) : (
+                        <>
+                            <StatCard
+                                title="Total Documents"
+                                value={docsQuery.data?.length ?? 0}
+                                subtitle="in compliance vault"
+                                icon={<FileSearch size={18} />}
+                            />
+                            <StatCard
+                                title="Expiring / Expired"
+                                value={expiringDocs.length}
+                                subtitle="need attention"
+                                icon={<Clock size={18} />}
+                                variant={expiringDocs.length > 0 ? 'warning' : 'default'}
+                            />
+                            <StatCard
+                                title="Tender Matches"
+                                value={tendersQuery.data?.length ?? 0}
+                                subtitle="available opportunities"
+                                icon={<TrendingUp size={18} />}
+                                variant="success"
+                            />
+                        </>
+                    )}
                 </div>
             </div>
 

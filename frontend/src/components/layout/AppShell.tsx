@@ -200,8 +200,26 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     // Returning users: _hasHydrated resolves instantly + sessionReady set immediately.
     if (!_hasHydrated || !sessionReady) {
         return (
-            <div className="flex h-screen items-center justify-center bg-[--color-bg]">
-                <div className="w-8 h-8 border-2 border-[--color-primary] border-t-transparent rounded-full animate-spin" />
+            <div className="flex h-screen flex-col items-center justify-center bg-[--color-bg] gap-6">
+                {/* Branded logo mark */}
+                <div className="relative">
+                    <div className="w-14 h-14 rounded-2xl bg-[--color-primary] flex items-center justify-center shadow-lg">
+                        <span className="text-xl font-bold text-white tracking-tight">TG</span>
+                    </div>
+                    <div className="absolute inset-0 w-14 h-14 rounded-2xl bg-[--color-primary] animate-ping opacity-20" />
+                </div>
+                {/* Animated progress bar */}
+                <div className="w-48 h-1 rounded-full bg-[--color-border] overflow-hidden">
+                    <div className="h-full w-1/2 rounded-full bg-[--color-primary] animate-[shimmer_1.2s_ease-in-out_infinite]"
+                         style={{ animation: 'shimmer 1.2s ease-in-out infinite' }} />
+                </div>
+                <p className="text-sm text-[--color-text-muted]">Preparing your workspace…</p>
+                <style>{`
+                    @keyframes shimmer {
+                        0% { transform: translateX(-100%); }
+                        100% { transform: translateX(200%); }
+                    }
+                `}</style>
             </div>
         );
     }

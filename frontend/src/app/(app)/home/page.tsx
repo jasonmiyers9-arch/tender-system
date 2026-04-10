@@ -140,6 +140,19 @@ export default function HomePage() {
                     </div>
 
                     {/* Quick stats pill — company users only */}
+                    {role === 'user' && (scoreQuery.isLoading || docsQuery.isLoading) && (
+                        <div className="flex items-center gap-3 bg-white/10 backdrop-blur-sm rounded-2xl px-5 py-3 border border-white/20 flex-shrink-0 animate-pulse">
+                            <div className="text-center space-y-1.5">
+                                <div className="h-7 w-10 rounded bg-white/20 mx-auto" />
+                                <div className="h-3 w-20 rounded bg-white/10" />
+                            </div>
+                            <div className="w-px h-10 bg-white/20" />
+                            <div className="text-center space-y-1.5">
+                                <div className="h-7 w-8 rounded bg-white/20 mx-auto" />
+                                <div className="h-3 w-16 rounded bg-white/10" />
+                            </div>
+                        </div>
+                    )}
                     {role === 'user' && !scoreQuery.isLoading && score !== null && (
                         <div className="flex items-center gap-3 bg-white/10 backdrop-blur-sm rounded-2xl px-5 py-3 border border-white/20 flex-shrink-0">
                             <div className="text-center">

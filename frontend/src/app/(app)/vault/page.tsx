@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/Input';
 import { Card } from '@/components/ui/Card';
 import { StatusBadge } from '@/components/badges/Badges';
 import { ErrorState } from '@/components/ui/ErrorState';
-import { TableRowSkeleton } from '@/components/ui/Skeleton';
+import { TableRowSkeleton, Skeleton } from '@/components/ui/Skeleton';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { formatDate, docCategoryLabel } from '@/lib/utils/formatters';
 import type { DocumentStatus, DocumentCategory, VaultDocument } from '@/lib/api/types';
@@ -453,22 +453,36 @@ export default function VaultPage() {
 
             {/* Stats */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                {STAT_CARDS.map((s) => (
-                    <Card key={s.label} padding="sm">
-                        <div className="flex items-center gap-3 py-1">
-                            <div
-                                className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
-                                style={{ background: `${s.color}15`, color: s.color }}
-                            >
-                                {s.icon}
+                {allDocsQuery.isLoading ? (
+                    Array.from({ length: 4 }).map((_, i) => (
+                        <Card key={i} padding="sm">
+                            <div className="flex items-center gap-3 py-1">
+                                <Skeleton className="w-10 h-10 rounded-xl" />
+                                <div className="flex-1 space-y-1.5">
+                                    <Skeleton className="h-6 w-10" />
+                                    <Skeleton className="h-3 w-20" />
+                                </div>
                             </div>
-                            <div>
-                                <p className="text-xl font-bold text-[--color-text-primary]">{s.value}</p>
-                                <p className="text-[10px] text-[--color-text-muted] leading-tight">{s.label}</p>
+                        </Card>
+                    ))
+                ) : (
+                    STAT_CARDS.map((s) => (
+                        <Card key={s.label} padding="sm">
+                            <div className="flex items-center gap-3 py-1">
+                                <div
+                                    className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+                                    style={{ background: `${s.color}15`, color: s.color }}
+                                >
+                                    {s.icon}
+                                </div>
+                                <div>
+                                    <p className="text-xl font-bold text-[--color-text-primary]">{s.value}</p>
+                                    <p className="text-[10px] text-[--color-text-muted] leading-tight">{s.label}</p>
+                                </div>
                             </div>
-                        </div>
-                    </Card>
-                ))}
+                        </Card>
+                    ))
+                )}
             </div>
 
             {/* Expiry warning banner */}
@@ -502,7 +516,20 @@ export default function VaultPage() {
                 {allDocsQuery.isLoading ? (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                         {ALL_CATEGORIES.map((c) => (
-                            <div key={c} className="h-40 rounded-2xl border border-[--color-border] bg-[--color-surface] animate-pulse" />
+                            <div key={c} className="rounded-2xl border border-[--color-border] bg-[--color-surface] overflow-hidden">
+                                <div className="flex items-center gap-3 p-4 pb-3">
+                                    <Skeleton className="w-10 h-10 rounded-xl" />
+                                    <div className="flex-1 space-y-1.5">
+                                        <Skeleton className="h-4 w-28" />
+                                        <Skeleton className="h-3 w-44" />
+                                    </div>
+                                </div>
+                                <div className="border-t border-[--color-border] mx-4" />
+                                <div className="p-4 pt-3 space-y-2.5">
+                                    <Skeleton className="h-3 w-36" />
+                                    <Skeleton className="h-10 w-full rounded-xl" />
+                                </div>
+                            </div>
                         ))}
                     </div>
                 ) : (
