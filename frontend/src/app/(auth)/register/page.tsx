@@ -117,17 +117,20 @@ export default function RegisterPage() {
 
                         <div className="space-y-1.5">
                             <label className="text-sm font-semibold text-[--color-text-primary]">Tender Category</label>
-                            <select
-                                className="w-full rounded-xl border border-[--color-border] bg-[--color-surface] px-3.5 py-2.5 text-sm text-[--color-text-primary] outline-none focus:ring-2 focus:ring-[--color-primary] focus:border-[--color-primary] transition-colors cursor-pointer"
+                            <input
+                                list="tender-category-options"
+                                className="w-full rounded-xl border border-[--color-border] bg-[--color-surface] px-3.5 py-2.5 text-sm text-[--color-text-primary] outline-none focus:ring-2 focus:ring-[--color-primary] focus:border-[--color-primary] transition-colors"
+                                placeholder="Type a keyword (e.g. security, plumbing, software)..."
                                 value={formData.tenderCategory}
                                 onChange={e => setFormData({ ...formData, tenderCategory: e.target.value })}
                                 required
-                            >
-                                <option value="">Select your primary category</option>
+                            />
+                            <datalist id="tender-category-options">
                                 {TENDER_CATEGORIES.map((category) => (
-                                    <option key={category} value={category}>{category}</option>
+                                    <option key={category} value={category} />
                                 ))}
-                            </select>
+                            </datalist>
+                            <p className="text-xs text-[--color-text-muted]">Start typing to see matching categories.</p>
                         </div>
 
                         <Input
