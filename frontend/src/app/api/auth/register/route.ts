@@ -10,13 +10,18 @@ export async function POST(req: Request) {
   const companyName = data.company_name ? String(data.company_name).trim() : undefined;
   const registrationNumber = data.registration_number ? String(data.registration_number).trim() : undefined;
   const phone = data.phone ? String(data.phone).trim() : undefined;
+  const tenderCategory = data.tender_category ? String(data.tender_category).trim() : undefined;
 
   if (!name || !email || !password) {
     return NextResponse.json({ detail: 'Name, email and password are required' }, { status: 400 });
   }
 
+  if (!tenderCategory) {
+    return NextResponse.json({ detail: 'Tender category is required' }, { status: 400 });
+  }
+
   try {
-    const user = await createUser({ name, email, password, role, companyName, registrationNumber, phone });
+    const user = await createUser({ name, email, password, role, companyName, registrationNumber, phone, tenderCategory });
     return NextResponse.json({
       status: 'pending',
       message: 'Account created. Please verify your email.',

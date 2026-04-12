@@ -145,6 +145,7 @@ async function createUser(payload: {
   companyName?: string;
   registrationNumber?: string;
   phone?: string;
+  tenderCategory?: string;
   verificationStatus?: 'approved' | 'pending' | 'rejected';
 }): Promise<AuthUser> {
   const existing = await getUserByEmail(payload.email);
@@ -183,7 +184,7 @@ async function createUser(payload: {
         phone: payload.phone ?? '',
         email: payload.email,
         website: '',
-        industry: '',
+        industry: payload.tenderCategory ?? '',
         incorporatedDate: new Date().toISOString().slice(0, 10),
         memberIds: [userId],
       });
@@ -201,7 +202,7 @@ async function createUser(payload: {
         phone: payload.phone ?? '',
         email: payload.email,
         website: '',
-        industry: '',
+        industry: payload.tenderCategory ?? '',
         incorporatedDate: new Date().toISOString().slice(0, 10),
         memberIds: [userId],
       };

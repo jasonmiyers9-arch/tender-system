@@ -71,6 +71,7 @@ export const auth = {
         companyName: string;
         registrationNumber?: string;
         phone?: string;
+        tenderCategory: string;
     }): Promise<{ status: string; message: string; verifyLink?: string | null; user: AuthUser }> {
         const res = await fetch(`${API_BASE}/auth/register`, {
             method: 'POST',
@@ -83,6 +84,7 @@ export const auth = {
                 company_name: data.companyName,
                 registration_number: data.registrationNumber,
                 phone: data.phone,
+                tender_category: data.tenderCategory,
             }),
         });
 

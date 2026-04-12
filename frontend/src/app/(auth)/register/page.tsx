@@ -7,8 +7,27 @@ import { Shield, CheckCircle2, AlertCircle } from 'lucide-react';
 import { auth } from '@/lib/api/auth';
 import { Input } from '@/components/ui/Input';
 
+const TENDER_CATEGORIES = [
+    'Construction',
+    'IT Services',
+    'Professional Services',
+    'Security Services',
+    'Logistics & Transport',
+    'Facilities Management',
+    'Manufacturing & Supply',
+    'Other',
+] as const;
+
 export default function RegisterPage() {
-    const [formData, setFormData] = useState({ name: '', email: '', password: '', companyName: '', registrationNumber: '', phone: '' });
+    const [formData, setFormData] = useState({
+        name: '',
+        email: '',
+        password: '',
+        companyName: '',
+        registrationNumber: '',
+        phone: '',
+        tenderCategory: '',
+    });
     const [loading, setLoading] = useState(false);
     const [notice, setNotice] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
@@ -105,6 +124,21 @@ export default function RegisterPage() {
                             value={formData.phone}
                             onChange={e => setFormData({ ...formData, phone: e.target.value })}
                         />
+
+                        <div className="space-y-1.5">
+                            <label className="text-sm font-semibold text-[--color-text-primary]">Tender Category</label>
+                            <select
+                                className="w-full rounded-xl border border-[--color-border] bg-[--color-surface] px-3.5 py-2.5 text-sm text-[--color-text-primary] outline-none focus:ring-2 focus:ring-[--color-primary] focus:border-[--color-primary] transition-colors cursor-pointer"
+                                value={formData.tenderCategory}
+                                onChange={e => setFormData({ ...formData, tenderCategory: e.target.value })}
+                                required
+                            >
+                                <option value="">Select your primary category</option>
+                                {TENDER_CATEGORIES.map((category) => (
+                                    <option key={category} value={category}>{category}</option>
+                                ))}
+                            </select>
+                        </div>
 
                         <Input
                             type="password"
