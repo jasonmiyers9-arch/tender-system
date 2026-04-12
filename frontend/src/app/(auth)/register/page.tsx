@@ -6,17 +6,7 @@ import Link from 'next/link';
 import { Shield, CheckCircle2, AlertCircle } from 'lucide-react';
 import { auth } from '@/lib/api/auth';
 import { Input } from '@/components/ui/Input';
-
-const TENDER_CATEGORIES = [
-    'Construction',
-    'IT Services',
-    'Professional Services',
-    'Security Services',
-    'Logistics & Transport',
-    'Facilities Management',
-    'Manufacturing & Supply',
-    'Other',
-] as const;
+import { TENDER_CATEGORIES } from '@/lib/constants/tenderCategories';
 
 export default function RegisterPage() {
     const [formData, setFormData] = useState({
