@@ -21,7 +21,14 @@ export default function RegisterPage() {
     const [loading, setLoading] = useState(false);
     const [notice, setNotice] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
+    const [showCategorySuggestions, setShowCategorySuggestions] = useState(false);
     const router = useRouter();
+
+    const categoryQuery = formData.tenderCategory.trim().toLowerCase();
+    const categorySuggestions = (categoryQuery
+        ? TENDER_CATEGORIES.filter((category) => category.toLowerCase().includes(categoryQuery))
+        : TENDER_CATEGORIES
+    ).slice(0, 14);
 
     const handleRegister = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -117,19 +124,42 @@ export default function RegisterPage() {
 
                         <div className="space-y-1.5">
                             <label className="text-sm font-semibold text-[--color-text-primary]">Tender Category</label>
-                            <input
-                                list="tender-category-options"
-                                className="w-full rounded-xl border border-[--color-border] bg-[--color-surface] px-3.5 py-2.5 text-sm text-[--color-text-primary] outline-none focus:ring-2 focus:ring-[--color-primary] focus:border-[--color-primary] transition-colors"
-                                placeholder="Type a keyword (e.g. security, plumbing, software)..."
-                                value={formData.tenderCategory}
-                                onChange={e => setFormData({ ...formData, tenderCategory: e.target.value })}
-                                required
-                            />
-                            <datalist id="tender-category-options">
-                                {TENDER_CATEGORIES.map((category) => (
-                                    <option key={category} value={category} />
-                                ))}
-                            </datalist>
+                            <div className="relative">
+                                <input
+                                    className="w-full rounded-xl border border-[--color-border] bg-[--color-surface] px-3.5 py-2.5 text-sm text-[--color-text-primary] outline-none focus:ring-2 focus:ring-[--color-primary] focus:border-[--color-primary] transition-colors"
+                                    placeholder="Type a keyword (e.g. security, plumbing, software)..."
+                                    value={formData.tenderCategory}
+                                    onFocus={() => setShowCategorySuggestions(true)}
+                                    onBlur={() => setTimeout(() => setShowCategorySuggestions(false), 120)}
+                                    onChange={e => {
+                                        setFormData({ ...formData, tenderCategory: e.target.value });
+                                        setShowCategorySuggestions(true);
+                                    }}
+                                    required
+                                />
+
+                                {showCategorySuggestions && categorySuggestions.length > 0 && (
+                                    <div
+                                        className="absolute left-0 right-0 top-full mt-1 z-20 max-h-56 overflow-y-auto rounded-xl border shadow-lg"
+                                        style={{ background: '#FFFFFF', borderColor: 'var(--color-border)' }}
+                                    >
+                                        {categorySuggestions.map((category) => (
+                                            <button
+                                                key={category}
+                                                type="button"
+                                                className="w-full text-left px-3.5 py-2 text-sm text-slate-900 transition-colors hover:bg-indigo-50 hover:text-indigo-700"
+                                                onMouseDown={(e) => {
+                                                    e.preventDefault();
+                                                    setFormData({ ...formData, tenderCategory: category });
+                                                    setShowCategorySuggestions(false);
+                                                }}
+                                            >
+                                                {category}
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
                             <p className="text-xs text-[--color-text-muted]">Start typing to see matching categories.</p>
                         </div>
 
