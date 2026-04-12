@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useRef, useState } from 'react';
 import { useVaultDocuments, useUploadDocument } from '@/lib/hooks/useVault';
 import { Table } from '@/components/ui/Table';
 import { Button } from '@/components/ui/Button';
@@ -105,11 +105,13 @@ function CategoryCard({
     docs,
     onUpload,
     onRowClick,
+    nowMs,
 }: {
     category: DocumentCategory;
     docs: VaultDocument[];
     onUpload: (cat: DocumentCategory) => void;
     onRowClick: (doc: VaultDocument) => void;
+    nowMs: number;
 }) {
     const meta = CATEGORY_META[category];
     const color = CATEGORY_COLORS[category];
@@ -117,7 +119,7 @@ function CategoryCard({
     const hasExpired = docs.some((d) => d.status === 'expired');
     const hasExpiringSoon = docs.some((d) => {
         if (!d.expiryDate || d.status === 'expired') return false;
-        const diff = (new Date(d.expiryDate).getTime() - Date.now()) / 86400000;
+        const diff = (new Date(d.expiryDate).getTime() - nowMs) / 86400000;
         return diff >= 0 && diff <= 30;
     });
 
@@ -223,16 +225,6 @@ function UploadModal({
     const [expiryDate, setExpiryDate] = useState('');
     const fileRef = useRef<HTMLInputElement>(null);
 
-    // Sync category when modal opens with a pre-selected category
-    const prevOpen = useRef(false);
-    if (open && !prevOpen.current) {
-        if (initialCategory) setCategory(initialCategory);
-        setName('');
-        setFile(null);
-        setIssueDate('');
-        setExpiryDate('');
-    }
-    prevOpen.current = open;
 
     const meta = CATEGORY_META[category];
     const color = CATEGORY_COLORS[category];
@@ -346,18 +338,20 @@ export default function VaultPage() {
     const [categoryFilter, setCategoryFilter] = useState<DocumentCategory | ''>('');
     const [uploadOpen, setUploadOpen] = useState(false);
     const [uploadCategory, setUploadCategory] = useState<DocumentCategory | null>(null);
+    const [uploadNonce, setUploadNonce] = useState(0);
 
     const router = useRouter();
 
+    const [nowMs] = useState(() => Date.now());
+
     const allDocsQuery = useVaultDocuments();
     const allDocs = allDocsQuery.data ?? [];
-    const today = new Date();
 
     const countVerified = allDocs.filter((d) => d.status === 'verified').length;
     const countExpired = allDocs.filter((d) => d.status === 'expired').length;
     const countExpiringSoon = allDocs.filter((d) => {
         if (!d.expiryDate || d.status === 'expired') return false;
-        const diff = (new Date(d.expiryDate).getTime() - today.getTime()) / 86400000;
+        const diff = (new Date(d.expiryDate).getTime() - nowMs) / 86400000;
         return diff >= 0 && diff <= 30;
     }).length;
 
@@ -369,6 +363,7 @@ export default function VaultPage() {
 
     const openUpload = (cat: DocumentCategory | null = null) => {
         setUploadCategory(cat);
+        setUploadNonce((v) => v + 1);
         setUploadOpen(true);
     };
 
@@ -541,6 +536,7 @@ export default function VaultPage() {
                                 docs={docsByCategory(cat)}
                                 onUpload={openUpload}
                                 onRowClick={(doc) => router.push(`/vault/${doc.id}`)}
+                                nowMs={nowMs}
                             />
                         ))}
                     </div>
@@ -594,6 +590,7 @@ export default function VaultPage() {
             )}
 
             <UploadModal
+                key={`upload-${uploadNonce}-${uploadCategory ?? 'none'}`}
                 open={uploadOpen}
                 onClose={() => setUploadOpen(false)}
                 initialCategory={uploadCategory}

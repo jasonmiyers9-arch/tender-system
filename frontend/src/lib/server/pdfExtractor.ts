@@ -14,8 +14,9 @@ type PdfParseFn = (buffer: Buffer, options?: Record<string, unknown>) => Promise
 }>;
 
 async function loadPdfParse(): Promise<PdfParseFn> {
-  const module: any = await import('pdf-parse');
-  return (module.default ?? module) as PdfParseFn;
+  const pdfParseModule = await import('pdf-parse');
+  const maybeDefault = pdfParseModule as unknown as { default?: unknown };
+  return (maybeDefault.default ?? pdfParseModule) as PdfParseFn;
 }
 
 export interface PDFExtractResult {
@@ -191,7 +192,7 @@ export function extractExpiryDate(text: string): string | null {
   const parts = dateStr.match(/(\d{1,4})[\/-](\d{1,2})[\/-](\d{2,4})/);
   if (!parts) return null;
   
-  let [, a, b, c] = parts;
+  const [, a, b, c] = parts;
   let year: number, month: number, day: number;
   
   // Determine format (YYYY-MM-DD vs DD-MM-YYYY)
