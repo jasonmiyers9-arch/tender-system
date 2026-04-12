@@ -39,7 +39,7 @@ export const companies = {
     async switchActive(id: string): Promise<{ activeCompanyId: string }> {
         const json = await authFetch('/companies/switch', {
             method: 'POST',
-            body: JSON.stringify({ company_id: Number(id) }),
+            body: JSON.stringify({ company_id: id }),
         });
         return { activeCompanyId: json.activeCompanyId };
     },

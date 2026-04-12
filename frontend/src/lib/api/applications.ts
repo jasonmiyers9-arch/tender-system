@@ -8,7 +8,7 @@ export interface TenderApplication {
     tenderDeadline: string;
     tenderValue: string;
     providerEmail: string | null;
-    companyId: number;
+    companyId: string;
     companyName: string;
     appliedBy: string;
     appliedAt: string;
@@ -54,7 +54,7 @@ export interface CompanyDocument {
 }
 
 export interface ApplicationCompanyDocuments {
-    companyId: number;
+    companyId: string;
     companyName: string;
     appliedBy: string;
     documents: CompanyDocument[];

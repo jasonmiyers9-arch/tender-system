@@ -16,7 +16,6 @@ export function useActiveCompany() {
     return useQuery({
         queryKey: ['company', activeCompanyId],
         queryFn: () => companies.getActive(),
-        enabled: !!activeCompanyId,
     });
 }
 
