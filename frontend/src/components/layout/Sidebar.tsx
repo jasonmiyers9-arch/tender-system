@@ -37,22 +37,6 @@ const companyNavGroups: NavGroup[] = [
     },
 ];
 
-const providerNavGroups: NavGroup[] = [
-    {
-        label: 'Tender Provider Portal',
-        items: [
-            { label: 'Home', href: '/home', icon: <Home size={18} /> },
-            { label: 'Provider Dashboard', href: '/provider/dashboard', icon: <LayoutDashboard size={18} /> },
-            { label: 'Provider Profile', href: '/provider/profile', icon: <Building2 size={18} /> },
-            { label: 'My Tenders', href: '/provider/tenders', icon: <FileSearch size={18} /> },
-            { label: 'Upload Tender', href: '/provider/tenders/new', icon: <FileSearch size={18} /> },
-            { label: 'Tender Review', href: '/verify', icon: <ShieldCheck size={18} /> },
-            { label: 'Tender Calendar', href: '/tenders/calendar', icon: <Calendar size={18} /> },
-            { label: 'Applications', href: '/provider/applications', icon: <ClipboardList size={18} /> },
-        ],
-    },
-];
-
 const adminNavGroups: NavGroup[] = [
     {
         label: 'Admin Portal',
@@ -75,13 +59,9 @@ export function Sidebar() {
     const role = currentUser?.role ?? 'user';
 
     const isActive = (href: string) =>
-        href === '/home' ? pathname === '/home' : (pathname === href || (!['/dashboard', '/admin/dashboard', '/provider/dashboard'].includes(href) && pathname.startsWith(href)));
+        href === '/home' ? pathname === '/home' : (pathname === href || (!['/dashboard', '/admin/dashboard'].includes(href) && pathname.startsWith(href)));
 
-    const navGroups = role === 'admin'
-        ? adminNavGroups
-        : role === 'evaluator'
-            ? providerNavGroups
-            : companyNavGroups;
+    const navGroups = role === 'admin' ? adminNavGroups : companyNavGroups;
 
     // Sidebar is ALWAYS dark — enterprise pattern (Linear, Vercel, GitHub all do this)
     const sidebarStyle: React.CSSProperties = {

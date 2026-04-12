@@ -4,9 +4,19 @@
  * Follows government-class standards for document processing.
  */
 
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const pdfParse = require('pdf-parse');
 import { GoogleGenerativeAI } from '@google/generative-ai';
+
+type PdfParseFn = (buffer: Buffer, options?: Record<string, unknown>) => Promise<{
+  text: string;
+  numpages: number;
+  info?: Record<string, string>;
+  metadata?: Record<string, unknown>;
+}>;
+
+async function loadPdfParse(): Promise<PdfParseFn> {
+  const module: any = await import('pdf-parse');
+  return (module.default ?? module) as PdfParseFn;
+}
 
 export interface PDFExtractResult {
   text: string;
@@ -71,6 +81,7 @@ const DOCUMENT_TYPE_KEYWORDS: Record<string, string[]> = {
  */
 export async function extractPDFContent(buffer: Buffer): Promise<PDFExtractResult> {
   try {
+    const pdfParse = await loadPdfParse();
     const data = await pdfParse(buffer, {
       // Limit pages for very large documents
       max: 100,

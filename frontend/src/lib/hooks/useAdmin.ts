@@ -43,10 +43,18 @@ export function useAdminAccounts(status: 'pending' | 'approved' | 'rejected' | '
     });
 }
 
+export function useCreateAdminAccount() {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: (payload: { name: string; email: string; password: string }) => admin.createAdminAccount(payload),
+        onSuccess: () => qc.invalidateQueries({ queryKey: ['admin-accounts'] }),
+    });
+}
+
 export function useApproveAccount() {
     const qc = useQueryClient();
     return useMutation({
-        mutationFn: (userId: number) => admin.approveAccount(userId),
+        mutationFn: (userId: string) => admin.approveAccount(userId),
         onSuccess: () => qc.invalidateQueries({ queryKey: ['admin-accounts'] }),
     });
 }
@@ -54,7 +62,7 @@ export function useApproveAccount() {
 export function useRejectAccount() {
     const qc = useQueryClient();
     return useMutation({
-        mutationFn: ({ userId, reason }: { userId: number; reason?: string }) => admin.rejectAccount(userId, reason),
+        mutationFn: ({ userId, reason }: { userId: string; reason?: string }) => admin.rejectAccount(userId, reason),
         onSuccess: () => qc.invalidateQueries({ queryKey: ['admin-accounts'] }),
     });
 }
@@ -62,7 +70,7 @@ export function useRejectAccount() {
 export function useResetPendingAccount() {
     const qc = useQueryClient();
     return useMutation({
-        mutationFn: (userId: number) => admin.resetPending(userId),
+        mutationFn: (userId: string) => admin.resetPending(userId),
         onSuccess: () => qc.invalidateQueries({ queryKey: ['admin-accounts'] }),
     });
 }

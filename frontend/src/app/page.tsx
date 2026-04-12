@@ -37,7 +37,7 @@ const FEATURES = [
 
 const TRUST_POINTS = [
     'South African B-BBEE & CSD compliance ready',
-    'Role-based access for companies and evaluators',
+    'Role-based access for companies and administrators',
     'Document expiry alerts and audit trails',
 ];
 

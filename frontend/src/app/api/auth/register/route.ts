@@ -6,7 +6,7 @@ export async function POST(req: Request) {
   const name = String(data.name ?? '').trim();
   const email = String(data.email ?? '').trim().toLowerCase();
   const password = String(data.password ?? '');
-  const role = String(data.role ?? 'company');
+  const role = 'company';
   const companyName = data.company_name ? String(data.company_name).trim() : undefined;
   const registrationNumber = data.registration_number ? String(data.registration_number).trim() : undefined;
   const phone = data.phone ? String(data.phone).trim() : undefined;

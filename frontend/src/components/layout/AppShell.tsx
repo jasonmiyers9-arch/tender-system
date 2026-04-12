@@ -13,7 +13,7 @@ import { useMarkNotificationRead, useUnreadNotifications } from '@/lib/hooks/use
 const IDLE_TIMEOUT_MS = 30 * 60 * 1000;   // 30 min → force logout
 const IDLE_WARNING_MS = 28 * 60 * 1000;   // 28 min → show warning (2 min before)
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8000';
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? '/api';
 
 export function AppShell({ children }: { children: React.ReactNode }) {
     const { token, _hasHydrated, currentUser, setCurrentUser, setActiveCompany, logout } = useAppStore();
@@ -99,24 +99,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     useEffect(() => {
         if (!token || !currentUser) return;
 
-        if (pathname.startsWith('/admin') && currentUser.role !== 'admin') {
-            router.push(currentUser.role === 'evaluator' ? '/provider/dashboard' : '/dashboard');
-            return;
-        }
-        if (pathname.startsWith('/provider') && currentUser.role !== 'evaluator') {
+        if (pathname.startsWith('/provider')) {
             router.push(currentUser.role === 'admin' ? '/admin/dashboard' : '/dashboard');
             return;
         }
-        if (currentUser.role === 'user') {
-            if (pathname.startsWith('/admin') || pathname.startsWith('/provider')) {
-                router.push('/dashboard');
-                return;
-            }
-        }
-        if (currentUser.role === 'evaluator' && !pathname.startsWith('/provider') && pathname !== '/verify' && !pathname.startsWith('/tenders/calendar') && pathname !== '/home') {
-            router.push('/provider/dashboard');
+
+        if (pathname.startsWith('/admin') && currentUser.role !== 'admin') {
+            router.push('/dashboard');
             return;
         }
+
         if (currentUser.role === 'admin' && (pathname === '/dashboard' || pathname === '/verify')) {
             router.push('/admin/dashboard');
         }

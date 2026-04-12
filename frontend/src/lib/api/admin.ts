@@ -111,15 +111,23 @@ export const admin = {
     async listAccounts(status?: 'pending' | 'approved' | 'rejected') {
         const suffix = status ? `?status=${status}` : '';
         const res = await authFetch(`/auth/admin/accounts${suffix}`);
-        return res.json() as Promise<{ items: Array<{ id: number; name: string; email: string; role: string; verificationStatus: string; createdAt: string; companyName: string; pendingHours: number; slaBreached: boolean }> }>;
+        return res.json() as Promise<{ items: Array<{ id: string; name: string; email: string; role: string; verificationStatus: string; createdAt: string; companyName: string; pendingHours: number; slaBreached: boolean }> }>;
     },
 
-    async approveAccount(userId: number) {
+    async createAdminAccount(payload: { name: string; email: string; password: string }) {
+        const res = await authFetch('/auth/admin/accounts', {
+            method: 'POST',
+            body: JSON.stringify(payload),
+        });
+        return res.json() as Promise<{ ok: boolean; user: { id: string; name: string; email: string; role: string } }>;
+    },
+
+    async approveAccount(userId: string) {
         const res = await authFetch(`/auth/admin/accounts/${userId}/approve`, { method: 'POST' });
         return res.json();
     },
 
-    async rejectAccount(userId: number, reason?: string) {
+    async rejectAccount(userId: string, reason?: string) {
         const res = await authFetch(`/auth/admin/accounts/${userId}/reject`, {
             method: 'POST',
             body: JSON.stringify({ reason }),
@@ -127,7 +135,7 @@ export const admin = {
         return res.json();
     },
 
-    async resetPending(userId: number) {
+    async resetPending(userId: string) {
         const res = await authFetch(`/auth/admin/accounts/${userId}/reset-pending`, {
             method: 'POST',
         });

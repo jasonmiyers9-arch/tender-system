@@ -141,10 +141,11 @@ async function createUser(payload: {
   name: string;
   email: string;
   password: string;
-  role: string;
+  role: 'company' | 'admin';
   companyName?: string;
   registrationNumber?: string;
   phone?: string;
+  verificationStatus?: 'approved' | 'pending' | 'rejected';
 }): Promise<AuthUser> {
   const existing = await getUserByEmail(payload.email);
   if (existing) {
@@ -152,8 +153,9 @@ async function createUser(payload: {
   }
 
   const userId = createId();
-  const userRole = payload.role === 'admin' ? 'admin' : payload.role === 'tender_provider' ? 'evaluator' : 'user';
-  const companyId = payload.companyName ? createId() : null;
+  const userRole: InternalUser['role'] = payload.role === 'admin' ? 'admin' : 'user';
+  const shouldCreateCompany = payload.role !== 'admin';
+  const companyId = shouldCreateCompany ? createId() : null;
 
   const userRecord: InternalUser = {
     id: userId,
@@ -161,7 +163,7 @@ async function createUser(payload: {
     password: payload.password,
     fullName: payload.name,
     role: userRole,
-    verificationStatus: 'approved',
+    verificationStatus: payload.verificationStatus ?? (payload.role === 'admin' ? 'approved' : 'pending'),
     activeCompanyId: companyId,
     companyId,
     createdAt: new Date().toISOString(),
@@ -176,7 +178,7 @@ async function createUser(payload: {
         name: payload.companyName ?? 'Untitled Company',
         registrationNumber: payload.registrationNumber ?? '',
         vatNumber: '',
-        status: 'verified',
+        status: 'pending',
         address: '',
         phone: payload.phone ?? '',
         email: payload.email,
@@ -194,7 +196,7 @@ async function createUser(payload: {
         name: payload.companyName ?? 'Untitled Company',
         registrationNumber: payload.registrationNumber ?? '',
         vatNumber: '',
-        status: 'verified',
+        status: 'pending',
         address: '',
         phone: payload.phone ?? '',
         email: payload.email,
@@ -258,6 +260,42 @@ async function updateUserName(userId: string, name: string): Promise<AuthUser> {
     await db.collection(USERS_COLLECTION).doc(userId).update({ fullName: name });
   }
   return mapUserToAuthUser(user);
+}
+
+async function listUsers(filters?: { status?: InternalUser['verificationStatus'] }): Promise<InternalUser[]> {
+  const status = filters?.status;
+
+  if (isFirestoreAvailable()) {
+    await ensureFirestoreSeed();
+    const db = getFirestore()!;
+    const snapshot = status
+      ? await db.collection(USERS_COLLECTION).where('verificationStatus', '==', status).get()
+      : await db.collection(USERS_COLLECTION).get();
+    return snapshot.docs.map((doc) => doc.data() as InternalUser);
+  }
+
+  let users = [...MEMORY_DB.users];
+  if (status) {
+    users = users.filter((user) => user.verificationStatus === status);
+  }
+  return users;
+}
+
+async function updateUserVerificationStatus(
+  userId: string,
+  verificationStatus: InternalUser['verificationStatus'],
+): Promise<InternalUser> {
+  const user = await getUserDocumentById(userId);
+  if (!user) throw new Error('User not found');
+
+  user.verificationStatus = verificationStatus;
+
+  if (isFirestoreAvailable()) {
+    const db = getFirestore()!;
+    await db.collection(USERS_COLLECTION).doc(userId).update({ verificationStatus });
+  }
+
+  return user;
 }
 
 async function listCompaniesForUser(userId: string): Promise<Company[]> {
@@ -640,6 +678,8 @@ export {
   getOrCreateGoogleUser,
   authenticateUser,
   updateUserName,
+  listUsers,
+  updateUserVerificationStatus,
   listCompaniesForUser,
   getCompanyById,
   setActiveCompany,

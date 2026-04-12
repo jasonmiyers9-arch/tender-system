@@ -13,8 +13,8 @@ import { useUnreadNotifications } from '@/lib/hooks/useNotifications';
 
 const roleLabels: Record<string, string> = {
     admin: 'Administrator',
-    evaluator: 'Tender Provider',
     user: 'Company User',
+    evaluator: 'Company User',
 };
 
 export function Topbar() {
@@ -82,7 +82,7 @@ export function Topbar() {
                                 <div className="px-4 py-3 border-b border-[--color-border]">
                                     <p className="text-sm font-semibold text-[--color-text-primary]">{currentUser?.name}</p>
                                     <p className="text-xs text-[--color-text-muted] truncate">{currentUser?.email}</p>
-                                    <Badge variant={currentUser?.role === 'admin' ? 'danger' : currentUser?.role === 'evaluator' ? 'accent' : 'default'} size="sm" className="mt-1.5">
+                                    <Badge variant={currentUser?.role === 'admin' ? 'danger' : 'default'} size="sm" className="mt-1.5">
                                         {roleLabels[currentUser?.role ?? 'user']}
                                     </Badge>
                                 </div>

@@ -65,15 +65,6 @@ const ADMIN_ACTIONS = [
     { icon: <Bell size={22} />, title: 'Frontend Monitor', description: 'Monitor frontend health signals.', href: '/admin/monitor', color: '#DC2626' },
 ];
 
-const PROVIDER_ACTIONS = [
-    { icon: <BarChart2 size={22} />, title: 'Provider Dashboard', description: 'Overview of your tender activity.', href: '/provider/dashboard', color: '#4F46E5' },
-    { icon: <FileSearch size={22} />, title: 'My Tenders', description: 'Manage all your published tenders.', href: '/provider/tenders', color: '#059669' },
-    { icon: <ShieldCheck size={22} />, title: 'Tender Review', description: 'Evaluate and score applications.', href: '/verify', color: '#D97706' },
-    { icon: <Calendar size={22} />, title: 'Tender Calendar', description: 'Track tender deadlines.', href: '/tenders/calendar', color: '#7C3AED' },
-    { icon: <ClipboardList size={22} />, title: 'Applications', description: 'Review submitted applications.', href: '/provider/applications', color: '#0891B2' },
-    { icon: <Building2 size={22} />, title: 'Provider Profile', description: 'Update your provider information.', href: '/provider/profile', color: '#DC2626' },
-];
-
 function getGreeting() {
     const h = new Date().getHours();
     if (h < 12) return 'Good morning';
@@ -83,7 +74,6 @@ function getGreeting() {
 
 function getRoleLabel(role: string) {
     if (role === 'admin') return 'Administrator';
-    if (role === 'evaluator') return 'Tender Provider';
     return 'Company User';
 }
 
@@ -93,10 +83,7 @@ export default function HomePage() {
     const scoreQuery = useScore();
     const docsQuery = useVaultDocuments();
 
-    const actions =
-        role === 'admin' ? ADMIN_ACTIONS
-        : role === 'evaluator' ? PROVIDER_ACTIONS
-        : COMPANY_ACTIONS;
+    const actions = role === 'admin' ? ADMIN_ACTIONS : COMPANY_ACTIONS;
 
     const firstName = currentUser?.name?.split(' ')[0] ?? currentUser?.email?.split('@')[0] ?? 'there';
 
@@ -133,9 +120,7 @@ export default function HomePage() {
                         <p className="mt-2 text-sm" style={{ color: '#C7D2FE' }}>
                             {role === 'admin'
                                 ? 'Manage the TenderGuard Pro platform from here.'
-                                : role === 'evaluator'
-                                ? 'Review applications and manage your published tenders.'
-                                : 'Your compliance hub — manage documents, track scores, and discover tenders.'}
+                                : 'Your compliance hub, manage documents, track scores, and discover tenders.'}
                         </p>
                     </div>
 
@@ -244,7 +229,7 @@ export default function HomePage() {
                     </p>
                 </div>
                 <Link
-                    href={role === 'admin' ? '/admin/dashboard' : role === 'evaluator' ? '/provider/dashboard' : '/dashboard'}
+                    href={role === 'admin' ? '/admin/dashboard' : '/dashboard'}
                     className="flex items-center gap-1.5 text-xs font-semibold flex-shrink-0"
                     style={{ color: '#6366F1' }}
                 >
