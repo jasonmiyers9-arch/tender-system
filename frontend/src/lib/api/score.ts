@@ -1,6 +1,6 @@
 ﻿import type { ComplianceScore, ScoreHistoryPoint } from './types';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? '/api';
+const API_BASE = '/api';
 
 function getToken(): string | null {
     if (typeof window === 'undefined') return null;

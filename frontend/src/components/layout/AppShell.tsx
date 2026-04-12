@@ -13,7 +13,7 @@ import { useMarkNotificationRead, useUnreadNotifications } from '@/lib/hooks/use
 const IDLE_TIMEOUT_MS = 30 * 60 * 1000;   // 30 min → force logout
 const IDLE_WARNING_MS = 28 * 60 * 1000;   // 28 min → show warning (2 min before)
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? '/api';
+const API_BASE = '/api';
 
 export function AppShell({ children }: { children: React.ReactNode }) {
     const { token, _hasHydrated, currentUser, setCurrentUser, setActiveCompany, logout } = useAppStore();
