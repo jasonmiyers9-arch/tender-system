@@ -11,6 +11,9 @@ export async function POST(req: Request) {
   const companyName = data.company_name ? String(data.company_name).trim() : undefined;
   const registrationNumber = data.registration_number ? String(data.registration_number).trim() : undefined;
   const phone = data.phone ? String(data.phone).trim() : undefined;
+  const tenderCategories = Array.isArray(data.tender_categories)
+    ? data.tender_categories.map((c: unknown) => String(c).trim()).filter(Boolean)
+    : undefined;
 
   if (!idToken || !name || !email) {
     return NextResponse.json({ detail: 'Firebase token, name and email are required' }, { status: 400 });
@@ -30,6 +33,7 @@ export async function POST(req: Request) {
       companyName,
       registrationNumber,
       phone,
+      tenderCategories,
     });
 
     return NextResponse.json({

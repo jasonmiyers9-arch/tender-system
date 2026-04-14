@@ -51,6 +51,7 @@ export interface Company {
     bbbeeLevel?: string | null;
     cidbGrade?: string | null;
     province?: string | null;
+    tenderCategories?: string[];
 }
 
 // ─── Vault / Documents ────────────────────────
