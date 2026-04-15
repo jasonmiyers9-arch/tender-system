@@ -1,14 +1,39 @@
 // ─────────────────────────────────────────────
-// Tender Scraper Service
-// Scrapes SA government tender websites and stores results
+// Tender Scraper Service v2
+// Scrapes SA government tender websites with full detail pages + PDF extraction
 // ─────────────────────────────────────────────
 
 import * as cheerio from 'cheerio';
 import { normalizeTenderCategory } from './tenderCategories';
+import { extractPDFContent } from './pdfExtractor';
 
 // ─── Types ────────────────────────────────────
 
+export interface TenderContact {
+  contactPerson: string;
+  email: string;
+  telephone: string;
+  fax: string;
+}
+
+export interface TenderBriefing {
+  hasBriefingSession: boolean;
+  isCompulsory: boolean;
+  date: string;
+  venue: string;
+}
+
+export interface TenderDocument {
+  filename: string;
+  url: string;
+  dateUploaded: string;
+  extractedText: string;
+  extractionStatus: 'pending' | 'success' | 'failed' | 'skipped';
+  pageCount: number;
+}
+
 export interface ScrapedTender {
+  // Core fields
   title: string;
   organization: string;
   category: string;
@@ -24,6 +49,32 @@ export interface ScrapedTender {
   requirements: string[];
   eligibilityCriteria: string[];
   scrapedAt: string;
+
+  // Detail fields from expanded view
+  tenderNumber: string;
+  organOfState: string;
+  tenderType: string;
+  province: string;
+  datePublished: string;
+  closingDate: string;
+  closingTime: string;
+  deliveryLocation: string;
+  specialConditions: string;
+
+  // Contact info
+  contact: TenderContact;
+
+  // Briefing session
+  briefing: TenderBriefing;
+
+  // Attached documents with extracted PDF text
+  documents: TenderDocument[];
+
+  // Combined full text for AI matching (scraped text + all PDF extracts)
+  fullText: string;
+
+  // Whether detail page was successfully scraped
+  detailScraped: boolean;
 }
 
 export interface ScrapeResult {
@@ -31,15 +82,25 @@ export interface ScrapeResult {
   totalScraped: number;
   newTenders: number;
   duplicatesSkipped: number;
+  pdfExtracted: number;
+  pdfFailed: number;
   errors: string[];
   scrapedAt: string;
+  categoriesScraped: string[];
 }
 
 export interface ScraperConfig {
   name: string;
   enabled: boolean;
   baseUrl: string;
-  scrapeFunction: (config: ScraperConfig) => Promise<ScrapedTender[]>;
+  scrapeFunction: (config: ScraperConfig, options?: ScrapeOptions) => Promise<ScrapedTender[]>;
+}
+
+export interface ScrapeOptions {
+  categories?: string[];       // Filter scrape by these categories
+  maxPages?: number;           // Limit pages to scrape
+  extractPdfs?: boolean;       // Whether to download and extract PDFs (default true)
+  scrapeDetails?: boolean;     // Whether to scrape detail pages (default true)
 }
 
 // ─── Scrape History (in-memory for now) ───────
@@ -55,6 +116,16 @@ export function getScrapedTenders(): ScrapedTender[] {
   return Array.from(scrapedTenderCache.values());
 }
 
+export function getScrapedTendersByCategory(category: string): ScrapedTender[] {
+  return Array.from(scrapedTenderCache.values()).filter(t => t.category === category);
+}
+
+export function getScrapedTendersForCompanyCategories(categories: string[]): ScrapedTender[] {
+  if (!categories.length) return getScrapedTenders();
+  const set = new Set(categories);
+  return Array.from(scrapedTenderCache.values()).filter(t => set.has(t.category));
+}
+
 export function getScrapedTenderCount(): number {
   return scrapedTenderCache.size;
 }
@@ -62,15 +133,29 @@ export function getScrapedTenderCount(): number {
 // ─── Utility Helpers ──────────────────────────
 
 function generateTenderKey(tender: ScrapedTender): string {
-  const normalized = `${tender.title.toLowerCase().trim()}|${tender.organization.toLowerCase().trim()}|${tender.deadline}`;
-  return normalized;
+  return `${tender.tenderNumber || tender.title.toLowerCase().trim()}|${tender.organization.toLowerCase().trim()}|${tender.deadline}`;
 }
 
 function parseDate(dateStr: string): string {
   if (!dateStr) return '';
   const cleaned = dateStr.trim();
 
-  // Handle dd/MM/yyyy format common in SA
+  // Handle "Monday, 20 April 2026 - 12:00" format
+  const longDateMatch = cleaned.match(/(\d{1,2})\s+(\w+)\s+(\d{4})/);
+  if (longDateMatch) {
+    const day = longDateMatch[1];
+    const monthName = longDateMatch[2];
+    const year = longDateMatch[3];
+    const months: Record<string, string> = {
+      january: '01', february: '02', march: '03', april: '04',
+      may: '05', june: '06', july: '07', august: '08',
+      september: '09', october: '10', november: '11', december: '12',
+    };
+    const month = months[monthName.toLowerCase()];
+    if (month) return `${year}-${month}-${day.padStart(2, '0')}`;
+  }
+
+  // Handle dd/MM/yyyy
   const slashMatch = cleaned.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
   if (slashMatch) {
     const [, day, month, year] = slashMatch;
@@ -85,10 +170,9 @@ function parseDate(dateStr: string): string {
   }
 
   // Handle yyyy-MM-dd (already ISO)
-  const isoMatch = cleaned.match(/(\d{4})-(\d{1,2})-(\d{1,2})/);
-  if (isoMatch) return cleaned;
+  if (/^\d{4}-\d{1,2}-\d{1,2}/.test(cleaned)) return cleaned;
 
-  // Handle "14/04/2026" or "in X days" pattern from eTenders
+  // Handle "in X days"
   const inDaysMatch = cleaned.match(/in\s+(\d+)\s+days?/i);
   if (inDaysMatch) {
     const days = parseInt(inDaysMatch[1], 10);
@@ -98,6 +182,11 @@ function parseDate(dateStr: string): string {
   }
 
   return cleaned;
+}
+
+function extractClosingTime(dateStr: string): string {
+  const timeMatch = dateStr.match(/(\d{1,2}:\d{2})/);
+  return timeMatch ? timeMatch[1] : '';
 }
 
 async function fetchPage(url: string, retries = 2): Promise<string> {
@@ -117,28 +206,217 @@ async function fetchPage(url: string, retries = 2): Promise<string> {
       });
 
       clearTimeout(timeout);
-
-      if (!res.ok) {
-        throw new Error(`HTTP ${res.status}: ${res.statusText}`);
-      }
-
+      if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
       return await res.text();
     } catch (err) {
       if (attempt === retries) {
         throw new Error(`Failed to fetch ${url} after ${retries + 1} attempts: ${err instanceof Error ? err.message : String(err)}`);
       }
-      // Wait before retry (exponential backoff)
       await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, attempt)));
     }
   }
   throw new Error(`Failed to fetch ${url}`);
 }
 
-// ─── eTenders.gov.za Scraper ──────────────────
+async function fetchPdfBuffer(url: string): Promise<Buffer | null> {
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 60000);
 
-async function scrapeETenders(config: ScraperConfig): Promise<ScrapedTender[]> {
+    const res = await fetch(url, {
+      signal: controller.signal,
+      headers: {
+        'User-Agent': 'TenderGuard-Bot/1.0 (+https://tenderguard.co.za)',
+        'Accept': 'application/pdf,*/*',
+      },
+    });
+
+    clearTimeout(timeout);
+    if (!res.ok) return null;
+
+    const contentType = res.headers.get('content-type') || '';
+    if (!contentType.includes('pdf') && !contentType.includes('octet-stream') && !url.toLowerCase().endsWith('.pdf')) {
+      return null;
+    }
+
+    const arrayBuffer = await res.arrayBuffer();
+    if (arrayBuffer.byteLength > 50 * 1024 * 1024) return null; // 50MB limit
+
+    return Buffer.from(arrayBuffer);
+  } catch (err) {
+    console.error(`PDF download failed for ${url}:`, err);
+    return null;
+  }
+}
+
+function buildFullText(tender: ScrapedTender): string {
+  const parts: string[] = [
+    `TENDER: ${tender.title}`,
+    `TENDER NUMBER: ${tender.tenderNumber}`,
+    `ORGAN OF STATE: ${tender.organOfState || tender.organization}`,
+    `CATEGORY: ${tender.category} (${tender.rawCategory})`,
+    `TENDER TYPE: ${tender.tenderType}`,
+    `PROVINCE: ${tender.province}`,
+    `LOCATION: ${tender.location}`,
+    `DELIVERY LOCATION: ${tender.deliveryLocation}`,
+    `DATE PUBLISHED: ${tender.datePublished}`,
+    `CLOSING DATE: ${tender.closingDate} ${tender.closingTime}`,
+    `SPECIAL CONDITIONS: ${tender.specialConditions}`,
+    `DESCRIPTION: ${tender.description}`,
+    '',
+    `CONTACT: ${tender.contact.contactPerson}`,
+    `EMAIL: ${tender.contact.email}`,
+    `TELEPHONE: ${tender.contact.telephone}`,
+    '',
+  ];
+
+  if (tender.briefing.hasBriefingSession) {
+    parts.push(`BRIEFING SESSION: ${tender.briefing.date} at ${tender.briefing.venue}`);
+    parts.push(`COMPULSORY: ${tender.briefing.isCompulsory ? 'Yes' : 'No'}`);
+    parts.push('');
+  }
+
+  if (tender.requirements.length > 0) {
+    parts.push('REQUIREMENTS:');
+    tender.requirements.forEach(r => parts.push(`- ${r}`));
+    parts.push('');
+  }
+
+  if (tender.eligibilityCriteria.length > 0) {
+    parts.push('ELIGIBILITY CRITERIA:');
+    tender.eligibilityCriteria.forEach(c => parts.push(`- ${c}`));
+    parts.push('');
+  }
+
+  for (const doc of tender.documents) {
+    if (doc.extractedText) {
+      parts.push(`─── ATTACHED DOCUMENT: ${doc.filename} (${doc.pageCount} pages) ───`);
+      parts.push(doc.extractedText);
+      parts.push('');
+    }
+  }
+
+  return parts.filter(p => p !== undefined).join('\n');
+}
+
+function createEmptyScrapedTender(): ScrapedTender {
+  return {
+    title: '',
+    organization: '',
+    category: '',
+    description: '',
+    deadline: '',
+    advertised: '',
+    value: 'Contact for details',
+    location: 'South Africa',
+    referenceNumber: '',
+    sourceUrl: '',
+    sourceSite: '',
+    rawCategory: '',
+    requirements: [],
+    eligibilityCriteria: [],
+    scrapedAt: new Date().toISOString(),
+    tenderNumber: '',
+    organOfState: '',
+    tenderType: '',
+    province: '',
+    datePublished: '',
+    closingDate: '',
+    closingTime: '',
+    deliveryLocation: '',
+    specialConditions: '',
+    contact: { contactPerson: '', email: '', telephone: '', fax: '' },
+    briefing: { hasBriefingSession: false, isCompulsory: false, date: '', venue: '' },
+    documents: [],
+    fullText: '',
+    detailScraped: false,
+  };
+}
+
+// ─── eTenders.gov.za Scraper (Enhanced) ───────
+
+/**
+ * Parse the expanded detail row from an eTenders listing.
+ * The [+] button on eTenders reveals a hidden row with:
+ * Tender Number, Organ Of State, Province, Closing Date, Contact Person,
+ * Briefing Session, Special Conditions, and attached PDF documents.
+ */
+function parseETenderDetailRow(
+  $: cheerio.CheerioAPI,
+  detailRow: Parameters<cheerio.CheerioAPI>[0],
+  tender: ScrapedTender,
+  baseUrl: string,
+): void {
+  const text = $(detailRow).text();
+
+  const extractField = (label: string): string => {
+    const regex = new RegExp(`${label}[:\\s]*([^\\n]+)`, 'i');
+    const match = text.match(regex);
+    return match ? match[1].trim().replace(/\s+/g, ' ') : '';
+  };
+
+  tender.tenderNumber = extractField('Tender Number') || extractField('Bid Number') || extractField('RFQ Number');
+  tender.organOfState = extractField('Organ Of State') || extractField('Department') || extractField('Institution');
+  tender.tenderType = extractField('Tender Type') || extractField('Bid Type');
+  tender.province = extractField('Province');
+  tender.datePublished = extractField('Date Published');
+  tender.deliveryLocation = extractField('Place where goods');
+  tender.specialConditions = extractField('Special Conditions');
+
+  const closingField = extractField('Closing Date');
+  if (closingField) {
+    tender.closingDate = closingField;
+    tender.closingTime = extractClosingTime(closingField);
+    tender.deadline = parseDate(closingField);
+  }
+
+  tender.contact.contactPerson = extractField('Contact Person');
+  tender.contact.email = extractField('Email');
+  tender.contact.telephone = extractField('Telephone number') || extractField('Telephone');
+  tender.contact.fax = extractField('FAX Number') || extractField('Fax');
+
+  const briefingField = extractField('Is there a briefing session');
+  tender.briefing.hasBriefingSession = /yes/i.test(briefingField);
+  const compulsoryField = extractField('Is it compulsory');
+  tender.briefing.isCompulsory = /yes/i.test(compulsoryField);
+  tender.briefing.date = extractField('Briefing Date and Time') || extractField('Briefing Date');
+  tender.briefing.venue = extractField('Briefing Venue');
+
+  if (tender.organOfState) tender.organization = tender.organOfState;
+  if (tender.tenderNumber) tender.referenceNumber = tender.tenderNumber;
+
+  // Extract PDF links from the detail row
+  $(detailRow).find('a[href]').each((_i, link) => {
+    const href = $(link).attr('href') || '';
+    const linkText = $(link).text().trim();
+    if (
+      href.toLowerCase().endsWith('.pdf') ||
+      linkText.toLowerCase().endsWith('.pdf') ||
+      href.toLowerCase().includes('download') ||
+      href.toLowerCase().includes('document')
+    ) {
+      const fullUrl = href.startsWith('http') ? href : `${baseUrl}${href.startsWith('/') ? '' : '/'}${href}`;
+      if (tender.documents.find(d => d.url === fullUrl)) return;
+      const dateUploadedMatch = text.match(/Date Uploaded[:\s]*([\d-]+)/i);
+      tender.documents.push({
+        filename: linkText || href.split('/').pop() || 'document.pdf',
+        url: fullUrl,
+        dateUploaded: dateUploadedMatch ? dateUploadedMatch[1] : '',
+        extractedText: '',
+        extractionStatus: 'pending',
+        pageCount: 0,
+      });
+    }
+  });
+
+  tender.detailScraped = true;
+}
+
+async function scrapeETenders(config: ScraperConfig, options?: ScrapeOptions): Promise<ScrapedTender[]> {
   const tenders: ScrapedTender[] = [];
-  const maxPages = 10; // Scrape first 10 pages (100 tenders)
+  const maxPages = options?.maxPages ?? 10;
+  const shouldExtractPdfs = options?.extractPdfs !== false;
+  const targetCategories = options?.categories ? new Set(options.categories) : null;
 
   for (let page = 1; page <= maxPages; page++) {
     try {
@@ -146,11 +424,11 @@ async function scrapeETenders(config: ScraperConfig): Promise<ScrapedTender[]> {
       const html = await fetchPage(url);
       const $ = cheerio.load(html);
 
-      // eTenders uses a table layout for tender listings
-      const rows = $('tr').toArray();
+      const allRows = $('tr').toArray();
 
-      for (const row of rows) {
+      for (let i = 0; i < allRows.length; i++) {
         try {
+          const row = allRows[i];
           const cells = $(row).find('td');
           if (cells.length < 4) continue;
 
@@ -161,39 +439,50 @@ async function scrapeETenders(config: ScraperConfig): Promise<ScrapedTender[]> {
 
           if (!description || !rawCategory) continue;
 
-          // Extract reference number if present (usually in the expanded detail)
-          const refMatch = description.match(/([A-Z]{2,}[\/-]\d{4}[\/-]\d+[A-Z]?)/i);
-          const referenceNumber = refMatch ? refMatch[1] : '';
+          const normalizedCategory = normalizeTenderCategory(rawCategory);
 
-          const tender: ScrapedTender = {
-            title: description.substring(0, 200),
-            organization: 'South African Government',
-            category: normalizeTenderCategory(rawCategory),
-            rawCategory,
-            description,
-            deadline: parseDate(closingRaw),
-            advertised: parseDate(advertised),
-            value: 'Contact for details',
-            location: 'South Africa',
-            referenceNumber,
-            sourceUrl: url,
-            sourceSite: 'etenders.gov.za',
-            requirements: [],
-            eligibilityCriteria: [],
-            scrapedAt: new Date().toISOString(),
-          };
+          // Skip tenders not in the company's categories
+          if (targetCategories && !targetCategories.has(normalizedCategory)) {
+            continue;
+          }
 
+          const tender = createEmptyScrapedTender();
+          tender.title = description.substring(0, 300);
+          tender.description = description;
+          tender.rawCategory = rawCategory;
+          tender.category = normalizedCategory;
+          tender.advertised = parseDate(advertised);
+          tender.deadline = parseDate(closingRaw);
+          tender.sourceUrl = url;
+          tender.sourceSite = 'etenders.gov.za';
+
+          // Look for the detail/expanded row that follows
+          const nextRow = allRows[i + 1];
+          if (nextRow) {
+            const nextText = $(nextRow).text();
+            const nextCells = $(nextRow).find('td');
+            if (
+              nextCells.length <= 2 ||
+              nextText.includes('Tender Number') ||
+              nextText.includes('Organ Of State') ||
+              nextText.includes('Contact Person') ||
+              nextText.includes('Closing Date')
+            ) {
+              parseETenderDetailRow($, nextRow, tender, config.baseUrl);
+              i++; // Skip the detail row
+            }
+          }
+
+          tender.fullText = buildFullText(tender);
           tenders.push(tender);
         } catch {
           // Skip malformed rows
         }
       }
 
-      // Check if there's a next page
       const hasNext = $('a:contains("Next")').length > 0;
       if (!hasNext) break;
 
-      // Be respectful - wait between pages
       await new Promise(resolve => setTimeout(resolve, 1500));
     } catch (err) {
       console.error(`eTenders page ${page} scrape error:`, err);
@@ -201,14 +490,64 @@ async function scrapeETenders(config: ScraperConfig): Promise<ScrapedTender[]> {
     }
   }
 
+  // Extract PDFs for all collected tenders
+  if (shouldExtractPdfs && tenders.length > 0) {
+    await extractPdfsForTenders(tenders);
+  }
+
   return tenders;
+}
+
+// ─── PDF Extraction for Scraped Tenders ───────
+
+async function extractPdfsForTenders(tenders: ScrapedTender[]): Promise<{ extracted: number; failed: number }> {
+  let extracted = 0;
+  let failed = 0;
+
+  for (const tender of tenders) {
+    for (const doc of tender.documents) {
+      if (doc.extractionStatus !== 'pending') continue;
+
+      try {
+        console.log(`[Scraper] Downloading PDF: ${doc.filename} from ${doc.url}`);
+        const pdfBuffer = await fetchPdfBuffer(doc.url);
+
+        if (!pdfBuffer) {
+          doc.extractionStatus = 'skipped';
+          continue;
+        }
+
+        const result = await extractPDFContent(pdfBuffer);
+        doc.extractedText = result.text;
+        doc.pageCount = result.pageCount;
+        doc.extractionStatus = 'success';
+        extracted++;
+
+        console.log(`[Scraper] Extracted ${result.pageCount} pages from ${doc.filename} (${result.text.length} chars)`);
+      } catch (err) {
+        console.error(`[Scraper] PDF extraction failed for ${doc.filename}:`, err);
+        doc.extractionStatus = 'failed';
+        failed++;
+      }
+
+      // Rate limit PDF downloads
+      await new Promise(resolve => setTimeout(resolve, 500));
+    }
+
+    // Rebuild full text with PDF content included
+    tender.fullText = buildFullText(tender);
+  }
+
+  return { extracted, failed };
 }
 
 // ─── TenderBulletins.co.za Scraper ────────────
 
-async function scrapeTenderBulletins(config: ScraperConfig): Promise<ScrapedTender[]> {
+async function scrapeTenderBulletins(config: ScraperConfig, options?: ScrapeOptions): Promise<ScrapedTender[]> {
   const tenders: ScrapedTender[] = [];
-  const maxPages = 5;
+  const maxPages = options?.maxPages ?? 5;
+  const shouldExtractPdfs = options?.extractPdfs !== false;
+  const targetCategories = options?.categories ? new Set(options.categories) : null;
 
   for (let page = 1; page <= maxPages; page++) {
     try {
@@ -219,7 +558,6 @@ async function scrapeTenderBulletins(config: ScraperConfig): Promise<ScrapedTend
       const html = await fetchPage(url);
       const $ = cheerio.load(html);
 
-      // TenderBulletins typically uses article/post format
       const articles = $('article, .tender-item, .post, .entry').toArray();
 
       for (const article of articles) {
@@ -233,41 +571,87 @@ async function scrapeTenderBulletins(config: ScraperConfig): Promise<ScrapedTend
           const excerptEl = $(article).find('.entry-content, .excerpt, .tender-description, p').first();
           const excerpt = excerptEl.text().trim();
 
-          // Try to extract category from breadcrumbs or tags
           const categoryEl = $(article).find('.category, .cat-links a, .tender-category, .tag').first();
           const rawCategory = categoryEl.text().trim() || 'General';
+          const normalizedCategory = normalizeTenderCategory(rawCategory);
 
-          // Extract dates from text
+          if (targetCategories && !targetCategories.has(normalizedCategory)) {
+            continue;
+          }
+
           const fullText = $(article).text();
           const closingDateMatch = fullText.match(/clos(?:ing|e)\s*(?:date)?[:\s]*(\d{1,2}[\/-]\d{1,2}[\/-]\d{4})/i);
-          const deadline = closingDateMatch ? parseDate(closingDateMatch[1]) : '';
-
-          // Extract organization/department
-          const orgMatch = fullText.match(/(?:department|dept|municipality|entity|province)\s*(?:of|:)?\s*([^\n,]+)/i);
-          const organization = orgMatch ? orgMatch[1].trim().substring(0, 100) : 'South African Government';
-
-          // Extract reference number
+          const orgMatch = fullText.match(/(?:department|dept|municipality|entity|province|organ)\s*(?:of\s*state)?[:\s]*([^\n,]+)/i);
           const refMatch = fullText.match(/(?:ref|reference|bid|tender)\s*(?:no|number)?[:\s]*([A-Z0-9\/-]+)/i);
-          const referenceNumber = refMatch ? refMatch[1].trim() : '';
 
-          const tender: ScrapedTender = {
-            title: title.substring(0, 200),
-            organization,
-            category: normalizeTenderCategory(rawCategory),
-            rawCategory,
-            description: excerpt || title,
-            deadline,
-            advertised: new Date().toISOString().split('T')[0],
-            value: 'Contact for details',
-            location: 'South Africa',
-            referenceNumber,
-            sourceUrl: detailUrl || url,
-            sourceSite: 'tenderbulletins.co.za',
-            requirements: [],
-            eligibilityCriteria: [],
-            scrapedAt: new Date().toISOString(),
-          };
+          const tender = createEmptyScrapedTender();
+          tender.title = title.substring(0, 300);
+          tender.description = excerpt || title;
+          tender.rawCategory = rawCategory;
+          tender.category = normalizedCategory;
+          tender.deadline = closingDateMatch ? parseDate(closingDateMatch[1]) : '';
+          tender.advertised = new Date().toISOString().split('T')[0];
+          tender.organization = orgMatch ? orgMatch[1].trim().substring(0, 100) : 'South African Government';
+          tender.referenceNumber = refMatch ? refMatch[1].trim() : '';
+          tender.sourceUrl = detailUrl || url;
+          tender.sourceSite = 'tenderbulletins.co.za';
 
+          // Scrape the detail page for full info + PDF links
+          if (detailUrl && options?.scrapeDetails !== false) {
+            try {
+              const detailHtml = await fetchPage(detailUrl);
+              const $d = cheerio.load(detailHtml);
+              const detailText = $d('.entry-content, .tender-detail, article, .post-content').first().text();
+
+              const extract = (label: string) => {
+                const re = new RegExp(`${label}[:\\s]*([^\\n]+)`, 'i');
+                const m = detailText.match(re);
+                return m ? m[1].trim() : '';
+              };
+
+              tender.tenderNumber = extract('Tender Number') || extract('Bid Number') || tender.referenceNumber;
+              tender.organOfState = extract('Organ of State') || extract('Department');
+              tender.tenderType = extract('Tender Type') || extract('Bid Type');
+              tender.province = extract('Province');
+              tender.datePublished = extract('Date Published');
+              tender.deliveryLocation = extract('Place where goods');
+              tender.specialConditions = extract('Special Conditions');
+              tender.contact.contactPerson = extract('Contact Person');
+              tender.contact.email = extract('Email');
+              tender.contact.telephone = extract('Telephone');
+
+              const briefingField = extract('briefing session');
+              tender.briefing.hasBriefingSession = /yes/i.test(briefingField);
+
+              if (tender.organOfState) tender.organization = tender.organOfState;
+
+              // Find PDF links on detail page
+              $d('a[href$=".pdf"], a[href*="download"]').each((_i, link) => {
+                const href = $d(link).attr('href') || '';
+                const linkText = $d(link).text().trim();
+                if (href) {
+                  const fullUrl = href.startsWith('http') ? href : new URL(href, detailUrl).toString();
+                  if (!tender.documents.find(d => d.url === fullUrl)) {
+                    tender.documents.push({
+                      filename: linkText || href.split('/').pop() || 'document.pdf',
+                      url: fullUrl,
+                      dateUploaded: '',
+                      extractedText: '',
+                      extractionStatus: 'pending',
+                      pageCount: 0,
+                    });
+                  }
+                }
+              });
+
+              tender.detailScraped = true;
+              await new Promise(resolve => setTimeout(resolve, 1000));
+            } catch {
+              // Detail page failed, continue with listing data
+            }
+          }
+
+          tender.fullText = buildFullText(tender);
           tenders.push(tender);
         } catch {
           // Skip malformed entries
@@ -284,15 +668,15 @@ async function scrapeTenderBulletins(config: ScraperConfig): Promise<ScrapedTend
     }
   }
 
+  if (shouldExtractPdfs && tenders.length > 0) {
+    await extractPdfsForTenders(tenders);
+  }
+
   return tenders;
 }
 
 // ─── General Purpose Link Scraper ─────────────
 
-/**
- * Scrape tenders from any URL with configurable selectors.
- * This is the flexible option for manually added sources.
- */
 export async function scrapeGenericUrl(url: string): Promise<ScrapedTender[]> {
   const tenders: ScrapedTender[] = [];
 
@@ -300,17 +684,7 @@ export async function scrapeGenericUrl(url: string): Promise<ScrapedTender[]> {
     const html = await fetchPage(url);
     const $ = cheerio.load(html);
 
-    // Try common patterns for listing pages
-    const selectors = [
-      'table tr',
-      'article',
-      '.tender-item',
-      '.listing-item',
-      '.post',
-      '.entry',
-      'li.tender',
-      '.card',
-    ];
+    const selectors = ['table tr', 'article', '.tender-item', '.listing-item', '.post', '.entry', 'li.tender', '.card'];
 
     for (const selector of selectors) {
       const elements = $(selector).toArray();
@@ -324,35 +698,24 @@ export async function scrapeGenericUrl(url: string): Promise<ScrapedTender[]> {
         const title = linkEl.text().trim() || text.substring(0, 150);
         const href = linkEl.attr('href') || '';
 
-        // Try to find dates
         const dateMatch = text.match(/(\d{1,2}[\/-]\d{1,2}[\/-]\d{4})/);
-        const deadline = dateMatch ? parseDate(dateMatch[1]) : '';
-
-        // Try to find reference numbers
         const refMatch = text.match(/([A-Z]{2,}[\/-]\d{3,}[\/-]?\d*)/i);
 
         if (title && title.length > 10) {
-          tenders.push({
-            title: title.substring(0, 200),
-            organization: new URL(url).hostname,
-            category: 'Other',
-            rawCategory: '',
-            description: text.substring(0, 500),
-            deadline,
-            advertised: new Date().toISOString().split('T')[0],
-            value: 'Contact for details',
-            location: 'South Africa',
-            referenceNumber: refMatch ? refMatch[1] : '',
-            sourceUrl: href.startsWith('http') ? href : new URL(href, url).toString(),
-            sourceSite: new URL(url).hostname,
-            requirements: [],
-            eligibilityCriteria: [],
-            scrapedAt: new Date().toISOString(),
-          });
+          const tender = createEmptyScrapedTender();
+          tender.title = title.substring(0, 300);
+          tender.description = text.substring(0, 500);
+          tender.deadline = dateMatch ? parseDate(dateMatch[1]) : '';
+          tender.referenceNumber = refMatch ? refMatch[1] : '';
+          tender.organization = new URL(url).hostname;
+          tender.sourceUrl = href.startsWith('http') ? href : new URL(href, url).toString();
+          tender.sourceSite = new URL(url).hostname;
+          tender.fullText = buildFullText(tender);
+          tenders.push(tender);
         }
       }
 
-      if (tenders.length > 0) break; // Found results with this selector
+      if (tenders.length > 0) break;
     }
   } catch (err) {
     console.error(`Generic scrape error for ${url}:`, err);
@@ -378,7 +741,6 @@ const scraperConfigs: ScraperConfig[] = [
   },
 ];
 
-// Custom URLs added by admin
 const customSources: { url: string; name: string; enabled: boolean }[] = [];
 
 export function getScraperConfigs() {
@@ -390,15 +752,8 @@ export function getCustomSources() {
 }
 
 export function addCustomSource(url: string, name: string) {
-  // Validate URL
-  try {
-    new URL(url);
-  } catch {
-    throw new Error('Invalid URL format');
-  }
-  if (customSources.find(s => s.url === url)) {
-    throw new Error('Source already exists');
-  }
+  try { new URL(url); } catch { throw new Error('Invalid URL format'); }
+  if (customSources.find(s => s.url === url)) throw new Error('Source already exists');
   customSources.push({ url, name, enabled: true });
 }
 
@@ -410,24 +765,20 @@ export function removeCustomSource(url: string) {
 
 export function toggleScraperSource(name: string, enabled: boolean) {
   const config = scraperConfigs.find(s => s.name === name);
-  if (config) {
-    config.enabled = enabled;
-    return;
-  }
+  if (config) { config.enabled = enabled; return; }
   const custom = customSources.find(s => s.name === name);
-  if (custom) {
-    custom.enabled = enabled;
-    return;
-  }
+  if (custom) { custom.enabled = enabled; return; }
   throw new Error(`Source "${name}" not found`);
 }
 
 // ─── Main Scrape Orchestrator ─────────────────
 
-export async function runScrapeAll(): Promise<ScrapeResult[]> {
+/**
+ * Scrape all enabled sources. Optionally filter by company tender categories.
+ */
+export async function runScrapeAll(options?: ScrapeOptions): Promise<ScrapeResult[]> {
   const results: ScrapeResult[] = [];
 
-  // Run built-in scrapers
   for (const config of scraperConfigs) {
     if (!config.enabled) continue;
 
@@ -436,12 +787,15 @@ export async function runScrapeAll(): Promise<ScrapeResult[]> {
       totalScraped: 0,
       newTenders: 0,
       duplicatesSkipped: 0,
+      pdfExtracted: 0,
+      pdfFailed: 0,
       errors: [],
       scrapedAt: new Date().toISOString(),
+      categoriesScraped: options?.categories ?? [],
     };
 
     try {
-      const tenders = await config.scrapeFunction(config);
+      const tenders = await config.scrapeFunction(config, options);
       result.totalScraped = tenders.length;
 
       for (const tender of tenders) {
@@ -452,6 +806,10 @@ export async function runScrapeAll(): Promise<ScrapeResult[]> {
           scrapedTenderCache.set(key, tender);
           result.newTenders++;
         }
+        for (const doc of tender.documents) {
+          if (doc.extractionStatus === 'success') result.pdfExtracted++;
+          if (doc.extractionStatus === 'failed') result.pdfFailed++;
+        }
       }
     } catch (err) {
       result.errors.push(err instanceof Error ? err.message : String(err));
@@ -460,7 +818,6 @@ export async function runScrapeAll(): Promise<ScrapeResult[]> {
     results.push(result);
   }
 
-  // Run custom URL scrapers
   for (const source of customSources) {
     if (!source.enabled) continue;
 
@@ -469,8 +826,11 @@ export async function runScrapeAll(): Promise<ScrapeResult[]> {
       totalScraped: 0,
       newTenders: 0,
       duplicatesSkipped: 0,
+      pdfExtracted: 0,
+      pdfFailed: 0,
       errors: [],
       scrapedAt: new Date().toISOString(),
+      categoriesScraped: [],
     };
 
     try {
@@ -498,9 +858,9 @@ export async function runScrapeAll(): Promise<ScrapeResult[]> {
 }
 
 /**
- * Scrape a single source by name
+ * Scrape a single source by name, optionally filtered by categories.
  */
-export async function runScrapeSingle(sourceName: string): Promise<ScrapeResult> {
+export async function runScrapeSingle(sourceName: string, options?: ScrapeOptions): Promise<ScrapeResult> {
   const config = scraperConfigs.find(s => s.name === sourceName);
 
   const result: ScrapeResult = {
@@ -508,15 +868,18 @@ export async function runScrapeSingle(sourceName: string): Promise<ScrapeResult>
     totalScraped: 0,
     newTenders: 0,
     duplicatesSkipped: 0,
+    pdfExtracted: 0,
+    pdfFailed: 0,
     errors: [],
     scrapedAt: new Date().toISOString(),
+    categoriesScraped: options?.categories ?? [],
   };
 
   try {
     let tenders: ScrapedTender[];
 
     if (config) {
-      tenders = await config.scrapeFunction(config);
+      tenders = await config.scrapeFunction(config, options);
     } else {
       const custom = customSources.find(s => s.name === sourceName);
       if (!custom) throw new Error(`Source "${sourceName}" not found`);
@@ -533,6 +896,10 @@ export async function runScrapeSingle(sourceName: string): Promise<ScrapeResult>
         scrapedTenderCache.set(key, tender);
         result.newTenders++;
       }
+      for (const doc of tender.documents) {
+        if (doc.extractionStatus === 'success') result.pdfExtracted++;
+        if (doc.extractionStatus === 'failed') result.pdfFailed++;
+      }
     }
   } catch (err) {
     result.errors.push(err instanceof Error ? err.message : String(err));
@@ -540,4 +907,17 @@ export async function runScrapeSingle(sourceName: string): Promise<ScrapeResult>
 
   scrapeHistory.push(result);
   return result;
+}
+
+/**
+ * Scrape tenders filtered by a company's selected categories.
+ * This is the main entry point for category-based scraping —
+ * uses the categories the company selected at sign-up to only
+ * fetch relevant tenders from all sources.
+ */
+export async function scrapeForCompanyCategories(companyCategories: string[]): Promise<ScrapeResult[]> {
+  if (!companyCategories.length) {
+    return runScrapeAll();
+  }
+  return runScrapeAll({ categories: companyCategories, extractPdfs: true, scrapeDetails: true });
 }

@@ -21,6 +21,12 @@ import {
     ToggleRight,
     ChevronDown,
     Loader2,
+    FileText,
+    MapPin,
+    Phone,
+    Mail,
+    User,
+    Calendar,
 } from 'lucide-react';
 import { useAppStore } from '@/store/useAppStore';
 
@@ -41,8 +47,11 @@ interface ScrapeResult {
     totalScraped: number;
     newTenders: number;
     duplicatesSkipped: number;
+    pdfExtracted: number;
+    pdfFailed: number;
     errors: string[];
     scrapedAt: string;
+    categoriesScraped: string[];
 }
 
 interface ScrapedTender {
@@ -59,6 +68,20 @@ interface ScrapedTender {
     sourceSite: string;
     rawCategory: string;
     scrapedAt: string;
+    tenderNumber: string;
+    organOfState: string;
+    tenderType: string;
+    province: string;
+    datePublished: string;
+    closingDate: string;
+    closingTime: string;
+    deliveryLocation: string;
+    specialConditions: string;
+    contact: { contactPerson: string; email: string; telephone: string; fax: string };
+    briefing: { hasBriefingSession: boolean; isCompulsory: boolean; date: string; venue: string };
+    documents: { filename: string; url: string; dateUploaded: string; extractedText: string; extractionStatus: string; pageCount: number }[];
+    fullText: string;
+    detailScraped: boolean;
 }
 
 interface ScraperStatus {
@@ -468,6 +491,16 @@ export default function ScraperPage() {
                                     <span className="text-emerald-600 dark:text-emerald-400 font-semibold">+{run.newTenders} new</span>
                                     <span className="text-[--color-text-muted]">{run.duplicatesSkipped} dupes</span>
                                     <span className="text-[--color-text-muted]">{run.totalScraped} total</span>
+                                    {(run.pdfExtracted > 0 || run.pdfFailed > 0) && (
+                                        <span className="text-blue-600 dark:text-blue-400">
+                                            <FileText size={10} className="inline mr-0.5" />
+                                            {run.pdfExtracted} PDFs
+                                            {run.pdfFailed > 0 && <span className="text-amber-600 ml-1">({run.pdfFailed} failed)</span>}
+                                        </span>
+                                    )}
+                                    {run.categoriesScraped?.length > 0 && (
+                                        <span className="text-violet-600 dark:text-violet-400">{run.categoriesScraped.length} categories</span>
+                                    )}
                                     {run.errors.length > 0 && (
                                         <span className="text-amber-600 font-medium">{run.errors.length} errors</span>
                                     )}
@@ -536,12 +569,149 @@ export default function ScraperPage() {
                                 </button>
 
                                 {expandedTender === idx && (
-                                    <div className="px-3.5 pb-3.5 border-t border-[--color-border] pt-3 space-y-2">
+                                    <div className="px-3.5 pb-3.5 border-t border-[--color-border] pt-3 space-y-3">
                                         <p className="text-sm text-[--color-text-secondary] whitespace-pre-line">{tender.description}</p>
+
+                                        {/* Tender Details Grid */}
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                                            {tender.tenderNumber && (
+                                                <div className="flex items-center gap-1.5 text-[--color-text-muted]">
+                                                    <FileText size={12} className="text-blue-500 flex-shrink-0" />
+                                                    <span className="font-medium">Tender #:</span> {tender.tenderNumber}
+                                                </div>
+                                            )}
+                                            {tender.organOfState && (
+                                                <div className="flex items-center gap-1.5 text-[--color-text-muted]">
+                                                    <Globe size={12} className="text-violet-500 flex-shrink-0" />
+                                                    <span className="font-medium">Organ of State:</span> {tender.organOfState}
+                                                </div>
+                                            )}
+                                            {tender.tenderType && (
+                                                <div className="flex items-center gap-1.5 text-[--color-text-muted]">
+                                                    <FileText size={12} className="text-emerald-500 flex-shrink-0" />
+                                                    <span className="font-medium">Type:</span> {tender.tenderType}
+                                                </div>
+                                            )}
+                                            {tender.province && (
+                                                <div className="flex items-center gap-1.5 text-[--color-text-muted]">
+                                                    <MapPin size={12} className="text-red-500 flex-shrink-0" />
+                                                    <span className="font-medium">Province:</span> {tender.province}
+                                                </div>
+                                            )}
+                                            {tender.datePublished && (
+                                                <div className="flex items-center gap-1.5 text-[--color-text-muted]">
+                                                    <Calendar size={12} className="text-blue-500 flex-shrink-0" />
+                                                    <span className="font-medium">Published:</span> {tender.datePublished}
+                                                </div>
+                                            )}
+                                            {tender.closingDate && (
+                                                <div className="flex items-center gap-1.5 text-[--color-text-muted]">
+                                                    <Clock size={12} className="text-amber-500 flex-shrink-0" />
+                                                    <span className="font-medium">Closes:</span> {tender.closingDate} {tender.closingTime}
+                                                </div>
+                                            )}
+                                            {tender.deliveryLocation && (
+                                                <div className="flex items-center gap-1.5 text-[--color-text-muted] col-span-2">
+                                                    <MapPin size={12} className="text-emerald-500 flex-shrink-0" />
+                                                    <span className="font-medium">Delivery:</span> {tender.deliveryLocation}
+                                                </div>
+                                            )}
+                                            {tender.specialConditions && (
+                                                <div className="flex items-start gap-1.5 text-[--color-text-muted] col-span-2">
+                                                    <AlertCircle size={12} className="text-amber-500 flex-shrink-0 mt-0.5" />
+                                                    <span><span className="font-medium">Special Conditions:</span> {tender.specialConditions}</span>
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {/* Contact Info */}
+                                        {(tender.contact?.contactPerson || tender.contact?.email || tender.contact?.telephone) && (
+                                            <div className="p-2.5 rounded-lg bg-blue-50/50 dark:bg-blue-500/5 border border-blue-100 dark:border-blue-500/15 space-y-1">
+                                                <p className="text-xs font-semibold text-blue-700 dark:text-blue-400 mb-1">Contact Information</p>
+                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 text-xs text-[--color-text-muted]">
+                                                    {tender.contact.contactPerson && (
+                                                        <div className="flex items-center gap-1.5">
+                                                            <User size={11} className="text-blue-500" />
+                                                            {tender.contact.contactPerson}
+                                                        </div>
+                                                    )}
+                                                    {tender.contact.email && (
+                                                        <div className="flex items-center gap-1.5">
+                                                            <Mail size={11} className="text-blue-500" />
+                                                            <a href={`mailto:${tender.contact.email}`} className="text-blue-600 dark:text-blue-400 hover:underline">
+                                                                {tender.contact.email}
+                                                            </a>
+                                                        </div>
+                                                    )}
+                                                    {tender.contact.telephone && (
+                                                        <div className="flex items-center gap-1.5">
+                                                            <Phone size={11} className="text-blue-500" />
+                                                            {tender.contact.telephone}
+                                                        </div>
+                                                    )}
+                                                    {tender.contact.fax && (
+                                                        <div className="flex items-center gap-1.5">
+                                                            <Phone size={11} className="text-[--color-text-muted]" />
+                                                            Fax: {tender.contact.fax}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* Briefing Session */}
+                                        {tender.briefing?.hasBriefingSession && (
+                                            <div className="p-2.5 rounded-lg bg-violet-50/50 dark:bg-violet-500/5 border border-violet-100 dark:border-violet-500/15">
+                                                <p className="text-xs font-semibold text-violet-700 dark:text-violet-400 mb-1">
+                                                    Briefing Session {tender.briefing.isCompulsory && <Badge variant="warning" className="ml-1">Compulsory</Badge>}
+                                                </p>
+                                                <div className="text-xs text-[--color-text-muted] space-y-0.5">
+                                                    {tender.briefing.date && <p><Calendar size={11} className="inline mr-1 text-violet-500" />{tender.briefing.date}</p>}
+                                                    {tender.briefing.venue && <p><MapPin size={11} className="inline mr-1 text-violet-500" />{tender.briefing.venue}</p>}
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* Attached Documents */}
+                                        {tender.documents?.length > 0 && (
+                                            <div className="space-y-1.5">
+                                                <p className="text-xs font-semibold text-[--color-text-primary]">Attached Documents ({tender.documents.length})</p>
+                                                {tender.documents.map((doc, di) => (
+                                                    <div key={di} className="flex items-center justify-between p-2 rounded-lg border border-[--color-border] bg-[--color-surface]">
+                                                        <div className="flex items-center gap-2 min-w-0">
+                                                            <FileText size={14} className={`flex-shrink-0 ${
+                                                                doc.extractionStatus === 'success' ? 'text-emerald-500' :
+                                                                doc.extractionStatus === 'failed' ? 'text-red-500' :
+                                                                'text-[--color-text-muted]'
+                                                            }`} />
+                                                            <div className="min-w-0">
+                                                                <p className="text-xs font-medium text-[--color-text-primary] truncate">{doc.filename}</p>
+                                                                <div className="flex items-center gap-2 text-[10px] text-[--color-text-muted]">
+                                                                    {doc.dateUploaded && <span>Uploaded: {doc.dateUploaded}</span>}
+                                                                    {doc.extractionStatus === 'success' && <span className="text-emerald-600">{doc.pageCount} pages extracted</span>}
+                                                                    {doc.extractionStatus === 'failed' && <span className="text-red-500">Extraction failed</span>}
+                                                                    {doc.extractionStatus === 'pending' && <span className="text-amber-500">Pending</span>}
+                                                                    {doc.extractionStatus === 'skipped' && <span>Skipped</span>}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                        <a href={doc.url} target="_blank" rel="noopener noreferrer" className="p-1 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-500/10 rounded">
+                                                            <Download size={12} />
+                                                        </a>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+
+                                        {/* Meta row */}
                                         <div className="flex flex-wrap gap-2 text-xs text-[--color-text-muted]">
                                             {tender.referenceNumber && <span>Ref: {tender.referenceNumber}</span>}
                                             <span>Advertised: {tender.advertised}</span>
                                             <span>Raw Category: {tender.rawCategory}</span>
+                                            {tender.detailScraped && <Badge variant="success" className="text-[10px]">Detail scraped</Badge>}
+                                            {tender.documents?.some(d => d.extractionStatus === 'success') && (
+                                                <Badge variant="accent" className="text-[10px]">PDF extracted</Badge>
+                                            )}
                                         </div>
                                         {tender.sourceUrl && (
                                             <a

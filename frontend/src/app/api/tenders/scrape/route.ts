@@ -12,6 +12,8 @@ import {
   removeCustomSource,
   toggleScraperSource,
   scrapeGenericUrl,
+  scrapeForCompanyCategories,
+  getScrapedTendersForCompanyCategories,
 } from '@/lib/server/tenderScraper';
 import { TENDER_CATEGORIES } from '@/lib/server/tenderCategories';
 
@@ -81,7 +83,10 @@ export async function POST(req: Request) {
 
     switch (action) {
       case 'scrape-all': {
-        const results = await runScrapeAll();
+        const categories = body.categories as string[] | undefined;
+        const results = categories?.length
+          ? await scrapeForCompanyCategories(categories)
+          : await runScrapeAll();
         return NextResponse.json({
           message: 'Scraping completed',
           results,
@@ -94,7 +99,8 @@ export async function POST(req: Request) {
         if (!sourceName) {
           return NextResponse.json({ detail: 'sourceName is required' }, { status: 400 });
         }
-        const result = await runScrapeSingle(sourceName);
+        const categories = body.categories as string[] | undefined;
+        const result = await runScrapeSingle(sourceName, categories?.length ? { categories } : undefined);
         return NextResponse.json({
           message: `Scraped ${sourceName}`,
           result,
@@ -172,7 +178,7 @@ export async function POST(req: Request) {
         // We return the formatted data - the admin UI will call POST /api/tenders for each
         const formatted = toImport.map(t => ({
           title: t.title,
-          organization: t.organization,
+          organization: t.organization || t.organOfState,
           deadline: t.deadline,
           value: t.value,
           category: t.category,
@@ -182,9 +188,16 @@ export async function POST(req: Request) {
           eligibilityCriteria: t.eligibilityCriteria,
           required_categories: [],
           status: 'published' as const,
-          referenceNumber: t.referenceNumber,
+          referenceNumber: t.referenceNumber || t.tenderNumber,
           sourceUrl: t.sourceUrl,
           sourceSite: t.sourceSite,
+          province: t.province,
+          tenderNumber: t.tenderNumber,
+          tenderType: t.tenderType,
+          contact: t.contact,
+          briefing: t.briefing,
+          documents: t.documents,
+          fullText: t.fullText,
         }));
 
         return NextResponse.json({
