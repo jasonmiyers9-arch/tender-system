@@ -25,6 +25,38 @@ async function authFetch(path: string, init?: RequestInit): Promise<Response> {
     return res;
 }
 
+// ─── Renewal Types ────────────────────────────────────────────────────────────
+
+export interface RenewalItem {
+    documentId: string;
+    documentName: string;
+    category: string;
+    companyId: string;
+    expiryDate: string;
+    daysOverdue: number;
+    urgency: 'expired' | 'critical' | 'warning' | 'upcoming';
+    daysRemaining: number;
+    affectedTenders: Array<{
+        tenderId: string;
+        title: string;
+        deadline: string;
+        requiredCategory: string;
+    }>;
+}
+
+export interface RenewalsResponse {
+    companyId: string;
+    summary: {
+        expired: number;
+        critical: number;
+        warning: number;
+        upcoming: number;
+        totalAffectedTenders: number;
+    };
+    renewals: RenewalItem[];
+    lastChecked: string;
+}
+
 export const vault = {
     async listDocuments(filters?: {
         status?: DocumentStatus;
@@ -104,6 +136,11 @@ export const vault = {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ action: 'reextract' }),
         });
+        return res.json();
+    },
+
+    async getRenewals(): Promise<RenewalsResponse> {
+        const res = await authFetch('/documents/renewals');
         return res.json();
     },
 

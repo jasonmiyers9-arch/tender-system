@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation';
 import {
     LayoutDashboard, FolderLock, FileSearch, Building2, Calendar,
     ShieldCheck, BarChart2, Users, ClipboardList, Activity, UserCheck,
-    ChevronLeft, ChevronRight, Shield, Home, Brain, Globe,
+    ChevronLeft, ChevronRight, Shield, Home, Brain, Globe, RefreshCw,
 } from 'lucide-react';
 import { classNames } from '@/lib/utils/formatters';
 import { useAppStore } from '@/store/useAppStore';
@@ -28,6 +28,7 @@ const companyNavGroups: NavGroup[] = [
             { label: 'Home', href: '/home', icon: <Home size={18} /> },
             { label: 'Dashboard', href: '/dashboard', icon: <LayoutDashboard size={18} /> },
             { label: 'Compliance Vault', href: '/vault', icon: <FolderLock size={18} /> },
+            { label: 'Renewals', href: '/renewals', icon: <RefreshCw size={18} /> },
             { label: 'AI Knowledge', href: '/knowledge', icon: <Brain size={18} /> },
             { label: 'Compliance Score', href: '/score', icon: <BarChart2 size={18} /> },
             { label: 'Tender Matches', href: '/tenders', icon: <FileSearch size={18} /> },

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
-import { listTenders, createTender, getUserByToken } from '@/lib/server/firestoreService';
+import { listTenders, createTender, getUserByToken, getTenderReadiness } from '@/lib/server/firestoreService';
 import { publishRescoreEvent } from '@/lib/server/analystEngine';
+import type { TenderMatch } from '@/lib/api/types';
 
 function parseToken(req: Request): string | null {
   const header = req.headers.get('authorization');
@@ -12,25 +13,61 @@ function parseToken(req: Request): string | null {
 export async function GET(req: Request) {
   const url = new URL(req.url);
   const mineOnly = url.searchParams.get('mine') === 'true';
-
-  let items;
-  if (mineOnly) {
-    const token = parseToken(req);
-    if (!token) {
-      return NextResponse.json({ detail: 'Unauthorized' }, { status: 401 });
-    }
-
+  const token = parseToken(req);
+  
+  // Get user for company context
+  let companyId: string | undefined;
+  if (token) {
     const user = await getUserByToken(token);
-    if (!user) {
-      return NextResponse.json({ detail: 'Unauthorized' }, { status: 401 });
+    if (user?.activeCompanyId) {
+      companyId = user.activeCompanyId;
     }
-    if (user.role !== 'evaluator' && user.role !== 'admin') {
-      return NextResponse.json({ detail: 'Forbidden' }, { status: 403 });
+    
+    // Handle mine-only filter for evaluators
+    if (mineOnly) {
+      if (!user) {
+        return NextResponse.json({ detail: 'Unauthorized' }, { status: 401 });
+      }
+      if (user.role !== 'evaluator' && user.role !== 'admin') {
+        return NextResponse.json({ detail: 'Forbidden' }, { status: 403 });
+      }
+      const items = await listTenders({ createdBy: user.id, includeSystem: false });
+      return NextResponse.json(items, {
+        status: 200,
+        headers: {
+          'Cache-Control': 'public, max-age=60, stale-while-revalidate=120',
+        },
+      });
     }
+  }
 
-    items = await listTenders({ createdBy: user.id, includeSystem: false });
-  } else {
-    items = await listTenders();
+  const items = await listTenders();
+  
+  // If company context available, enrich with readiness scores
+  if (companyId) {
+    const enrichedItems: TenderMatch[] = await Promise.all(
+      items.map(async (tender) => {
+        const readiness = await getTenderReadiness(tender.id, companyId);
+        if (readiness) {
+          return {
+            ...tender,
+            matchScore: readiness.readinessScore, // Use new readiness score
+            readinessScore: readiness.readinessScore,
+            scoreBreakdown: readiness.scoreBreakdown,
+            isBidReady: readiness.isBidReady,
+            gaps: readiness.gaps,
+          };
+        }
+        return tender;
+      })
+    );
+    
+    return NextResponse.json(enrichedItems, {
+      status: 200,
+      headers: {
+        'Cache-Control': 'private, max-age=30, stale-while-revalidate=60',
+      },
+    });
   }
 
   return NextResponse.json(items, {

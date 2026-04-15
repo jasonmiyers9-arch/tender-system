@@ -1,6 +1,8 @@
-import type { AuthUser, Company, TenderDetail, TenderMatch, TenderReadiness } from '@/lib/api/types';
+import type { AuthUser, Company, TenderDetail, TenderMatch, TenderReadiness, TenderReadinessScoreBreakdown } from '@/lib/api/types';
 import { getFirestore, isFirestoreAvailable, verifyIdToken } from './firebaseAdmin';
 import { DEFAULT_COMPANIES, DEFAULT_TENDERS, DEFAULT_USER, DEFAULT_APPLICATIONS, DEFAULT_DOCUMENTS, InternalCompany, InternalTender, InternalUser, InternalApplication, InternalDocument } from './mockData';
+import { calculateTenderReadinessScore, type CompanyProfileFields, type DocumentWithAnalysis } from './complianceScoring';
+import { getExpiredInPast12Months, isNewAccount } from './expiryCheckService';
 
 // Re-export internal types for use by other services
 export type { InternalDocument, InternalCompany, InternalTender, InternalUser };
@@ -119,6 +121,7 @@ function mapTenderToDetail(tender: InternalTender): TenderDetail {
 }
 
 function buildReadiness(tender: InternalTender): TenderReadiness {
+  // Fallback when no company context available - simple placeholder
   const requiredCategories = tender.recommendedDocuments.length > 0 ? tender.recommendedDocuments : tender.requirements.slice(0, 3);
   const missingCategories = requiredCategories.map((category) => category.toLowerCase().split(' ')[0]);
   const checklist = missingCategories.map((category) => ({
@@ -133,6 +136,99 @@ function buildReadiness(tender: InternalTender): TenderReadiness {
     blockers: missingCategories.map((category) => `Missing required ${category} document`),
     missingCategories,
     gaps: missingCategories.map((category) => `Missing ${category} document`),
+    recommendedDocuments: missingCategories,
+    checklist,
+  };
+}
+
+/**
+ * Build tender readiness with full company context and weighted scoring
+ * Uses Section 4.4 Tender Readiness Score™ calculation
+ */
+async function buildReadinessWithCompany(
+  tender: InternalTender,
+  companyId: string,
+  company?: Company
+): Promise<TenderReadiness> {
+  // Get company documents
+  const documents = await listDocumentsForCompany(companyId);
+  
+  // Get company profile for CSD completeness check
+  const profile: CompanyProfileFields = {
+    name: company?.name,
+    registrationNumber: company?.registrationNumber ?? '',
+    vatNumber: company?.vatNumber ?? '',
+    industry: company?.industry ?? '',
+    province: company?.province ?? undefined,
+    bbbeeLevel: company?.bbbeeLevel ? parseInt(company.bbbeeLevel, 10) : undefined,
+    cidbGrade: company?.cidbGrade ?? undefined,
+  };
+  
+  // Get expiry history for compliance consistency
+  const expiredCount = await getExpiredInPast12Months(companyId);
+  const isNew = await isNewAccount(companyId);
+  
+  // Build tender requirements from tender data
+  const tenderRequirements = {
+    requiredCategories: tender.required_categories ?? tender.recommendedDocuments ?? [],
+    preferredCategories: [] as string[],
+  };
+  
+  // Calculate Tender Readiness Score™
+  const docsWithAnalysis: DocumentWithAnalysis[] = documents.map(doc => ({
+    ...doc,
+    analysis: undefined, // Analysis would be populated if available
+  }));
+  
+  const readinessScore = calculateTenderReadinessScore(
+    companyId,
+    docsWithAnalysis,
+    profile,
+    company?.industry,
+    expiredCount,
+    isNew,
+    tenderRequirements
+  );
+  
+  // Derive missing categories from gaps
+  const requiredCats = tender.required_categories ?? tender.recommendedDocuments ?? [];
+  const docCategories: Set<string> = new Set(documents.map(d => d.category));
+  const missingCategories = requiredCats.filter(cat => !docCategories.has(cat));
+  
+  // Build checklist based on gaps
+  const checklist: Array<{ item: string; status: 'passed' | 'failed' | 'missing' }> = readinessScore.missingForBidReady.map(gap => ({
+    item: gap,
+    status: 'failed' as const,
+  }));
+  
+  // Add passed items for valid categories
+  for (const cat of requiredCats) {
+    const doc = documents.find(d => d.category === cat);
+    if (doc && doc.status === 'verified') {
+      checklist.unshift({
+        item: `${cat.toUpperCase()} document verified`,
+        status: 'passed' as const,
+      });
+    }
+  }
+  
+  const scoreBreakdown: TenderReadinessScoreBreakdown = {
+    documentCompleteness: readinessScore.dimensions.documentCompleteness,
+    verificationCoverage: readinessScore.dimensions.verificationCoverage,
+    csdProfileCompleteness: readinessScore.dimensions.csdProfileCompleteness,
+    complianceConsistency: readinessScore.dimensions.complianceConsistency,
+    tenderFitBonus: readinessScore.dimensions.tenderFitBonus,
+  };
+  
+  return {
+    tenderId: tender.id,
+    readyToSubmit: readinessScore.isBidReady,
+    readinessScore: readinessScore.totalScore,
+    scoreBreakdown,
+    isBidReady: readinessScore.isBidReady,
+    blockers: readinessScore.missingForBidReady,
+    missingCategories,
+    gaps: readinessScore.missingForBidReady,
     recommendedDocuments: missingCategories,
     checklist,
   };
@@ -667,9 +763,18 @@ async function getTenderById(tenderId: string): Promise<TenderDetail | null> {
   return tender ? mapTenderToDetail(tender) : null;
 }
 
-async function getTenderReadiness(tenderId: string): Promise<TenderReadiness | null> {
+async function getTenderReadiness(tenderId: string, companyId?: string): Promise<TenderReadiness | null> {
   const tender = await getInternalTenderById(tenderId);
   if (!tender) return null;
+  
+  // If company context available, use full scoring
+  if (companyId) {
+    const companies = MEMORY_DB.companies;
+    const company = companies.find(c => c.id === companyId);
+    return buildReadinessWithCompany(tender, companyId, company ? mapCompanyToPublic(company) : undefined);
+  }
+  
+  // Fallback to simple readiness without company context
   return buildReadiness(tender);
 }
 

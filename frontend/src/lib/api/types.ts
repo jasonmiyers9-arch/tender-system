@@ -160,6 +160,10 @@ export interface TenderMatch {
     createdBy?: string;
     status?: 'draft' | 'pending' | 'published' | 'rejected';
     createdAt?: string;
+    // B-3 Tender Match Intelligence fields
+    readinessScore?: number;
+    scoreBreakdown?: TenderReadinessScoreBreakdown;
+    isBidReady?: boolean;
 }
 
 export interface TenderDetail extends TenderMatch {
@@ -169,10 +173,20 @@ export interface TenderDetail extends TenderMatch {
     eligibilityCriteria: string[];
 }
 
+export interface TenderReadinessScoreBreakdown {
+    documentCompleteness: number;      // Max 30pts
+    verificationCoverage: number;      // Max 25pts
+    csdProfileCompleteness: number;    // Max 20pts
+    complianceConsistency: number;     // Max 15pts
+    tenderFitBonus: number;            // Max 10pts
+}
+
 export interface TenderReadiness {
     tenderId: string;
     readyToSubmit: boolean;
     readinessScore: number;
+    scoreBreakdown?: TenderReadinessScoreBreakdown;
+    isBidReady?: boolean;
     blockers: string[];
     missingCategories: string[];
     gaps: string[];
