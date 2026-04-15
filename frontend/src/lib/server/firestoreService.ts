@@ -244,6 +244,7 @@ async function createUser(payload: {
   companyName?: string;
   registrationNumber?: string;
   phone?: string;
+  tenderCategories?: string[];
 }): Promise<AuthUser> {
   const existing = await getUserByEmail(payload.email);
   if (existing) {
@@ -289,6 +290,7 @@ async function createUser(payload: {
         industry: '',
         incorporatedDate: new Date().toISOString().slice(0, 10),
         memberIds: [userId],
+        tenderCategories: payload.tenderCategories ?? [],
       });
     }
   } else {
@@ -307,6 +309,7 @@ async function createUser(payload: {
         industry: '',
         incorporatedDate: new Date().toISOString().slice(0, 10),
         memberIds: [userId],
+        tenderCategories: payload.tenderCategories ?? [],
       };
       MEMORY_DB.companies.push(companyRecord);
     }

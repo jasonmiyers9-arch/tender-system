@@ -81,6 +81,7 @@ export const auth = {
         companyName: string;
         registrationNumber?: string;
         phone?: string;
+        tenderCategories?: string[];
     }): Promise<{ status: string; message: string; verifyLink?: string | null; user: AuthUser }> {
         const { idToken } = await registerWithEmailPassword({
             email: data.email,
@@ -99,6 +100,7 @@ export const auth = {
                 company_name: data.companyName,
                 registration_number: data.registrationNumber,
                 phone: data.phone,
+                tender_categories: data.tenderCategories,
             }),
         });
 

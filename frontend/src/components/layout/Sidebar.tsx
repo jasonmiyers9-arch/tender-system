@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation';
 import {
     LayoutDashboard, FolderLock, FileSearch, Building2, Calendar,
     ShieldCheck, BarChart2, Users, ClipboardList, Activity, UserCheck,
-    ChevronLeft, ChevronRight, Shield, Home, Brain,
+    ChevronLeft, ChevronRight, Shield, Home, Brain, Globe,
 } from 'lucide-react';
 import { classNames } from '@/lib/utils/formatters';
 import { useAppStore } from '@/store/useAppStore';
@@ -61,6 +61,7 @@ const adminNavGroups: NavGroup[] = [
             { label: 'Home', href: '/home', icon: <Home size={18} /> },
             { label: 'Admin Dashboard', href: '/admin/dashboard', icon: <BarChart2 size={18} /> },
             { label: 'Tender Oversight', href: '/admin/tenders', icon: <FileSearch size={18} /> },
+            { label: 'Tender Scraper', href: '/admin/scraper', icon: <Globe size={18} /> },
             { label: 'Document Review', href: '/admin/documents', icon: <ShieldCheck size={18} /> },
             { label: 'Accounts', href: '/admin/accounts', icon: <UserCheck size={18} /> },
             { label: 'Companies', href: '/admin/companies', icon: <Users size={18} /> },
