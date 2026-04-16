@@ -11,13 +11,16 @@
 
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import crypto from 'crypto';
 
 /**
- * Generate a cryptographically secure nonce
+ * Generate a cryptographically secure nonce using Web Crypto API
+ * (compatible with Edge Runtime)
  */
 function generateNonce(): string {
-  return crypto.randomBytes(16).toString('base64');
+  const array = new Uint8Array(16);
+  crypto.getRandomValues(array);
+  // Convert to base64
+  return btoa(String.fromCharCode(...array));
 }
 
 /**
