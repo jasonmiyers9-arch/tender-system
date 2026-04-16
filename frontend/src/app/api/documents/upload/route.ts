@@ -6,6 +6,9 @@ import { enqueueDocumentAiProcessing } from '../../../../lib/server/documentAi';
 import { summarizeDocumentForKnowledgeBase } from '../../../../lib/server/documentSummary';
 import { publishRescoreEvent } from '../../../../lib/server/analystEngine';
 import { requireAuth } from '../../../../lib/server/apiAuth';
+import { rateLimit, RateLimits } from '../../../../lib/server/rateLimiter';
+import { validateFileType, sanitizeFilename } from '../../../../lib/server/mimeValidation';
+import { logFileUpload, logSuspiciousActivity } from '../../../../lib/server/securityAudit';
 
 const ALLOWED_EXTENSIONS = new Set([
   '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.png', '.jpg', '.jpeg', '.txt', '.csv', '.zip',
@@ -16,6 +19,10 @@ const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50 MB
 type DocumentCategory = 'tax' | 'legal' | 'financial' | 'certification' | 'bbbee' | 'registration' | 'policy';
 
 export async function POST(req: Request) {
+  // Rate limiting for file uploads
+  const rateLimitError = await rateLimit(req, RateLimits.upload);
+  if (rateLimitError) return rateLimitError;
+
   const { user, error } = await requireAuth(req);
   if (error) return error;
 
@@ -48,6 +55,7 @@ export async function POST(req: Request) {
     const filename = String(uploadedFile.name || 'document.bin');
     const ext = path.extname(filename).toLowerCase();
     if (!ALLOWED_EXTENSIONS.has(ext)) {
+      await logFileUpload(req, user!.id, activeCompanyId, filename, false, `Disallowed extension: ${ext}`);
       return NextResponse.json(
         { detail: `File type '${ext}' is not allowed.` },
         { status: 400 },
@@ -62,14 +70,33 @@ export async function POST(req: Request) {
     const fileSize = buffer.length;
 
     if (fileSize > MAX_FILE_SIZE) {
+      await logFileUpload(req, user!.id, activeCompanyId, filename, false, `File size exceeded: ${fileSize} bytes`);
       return NextResponse.json(
         { detail: `File size (${(fileSize / 1024 / 1024).toFixed(1)} MB) exceeds the 50 MB limit.` },
         { status: 413 },
       );
     }
 
+    // Validate file type using magic bytes (not just extension)
     const mimeType = uploadedFile.type || 'application/octet-stream';
-    const safeFileName = filename.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const mimeValidation = validateFileType(buffer, ext, mimeType);
+    
+    if (!mimeValidation.valid) {
+      await logSuspiciousActivity(req, user!.id, 'File type spoofing attempt', {
+        filename,
+        declaredExtension: ext,
+        declaredMimeType: mimeType,
+        detectedType: mimeValidation.detectedType,
+        reason: mimeValidation.reason,
+      });
+      await logFileUpload(req, user!.id, activeCompanyId, filename, false, mimeValidation.reason);
+      return NextResponse.json(
+        { detail: mimeValidation.reason || 'Invalid file type' },
+        { status: 400 },
+      );
+    }
+
+    const safeFileName = sanitizeFilename(filename);
     const storageKey = `company_${activeCompanyId}/${Date.now()}_${safeFileName}`;
 
     // Extract PDF content if applicable
@@ -184,6 +211,9 @@ export async function POST(req: Request) {
         extractionStatus,
       },
     });
+
+    // Log successful upload for security audit
+    await logFileUpload(req, user.id, activeCompanyId, safeFileName, true);
 
     return NextResponse.json({
       ...document,

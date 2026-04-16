@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getUserByToken, listCompaniesForUser, ensureUserCompanyContext } from './firestoreService';
+import { logAccessDenied } from './securityAudit';
 
 export function parseBearerToken(req: Request): string | null {
   const header = req.headers.get('authorization');
@@ -14,11 +15,13 @@ export function parseBearerToken(req: Request): string | null {
 export async function requireAuth(req: Request) {
   const token = parseBearerToken(req);
   if (!token) {
+    await logAccessDenied(req, null, 'Missing authentication token');
     return { user: null, error: NextResponse.json({ detail: 'Unauthorized' }, { status: 401 }) };
   }
 
   const user = await getUserByToken(token);
   if (!user) {
+    await logAccessDenied(req, null, 'Invalid or expired token');
     return { user: null, error: NextResponse.json({ detail: 'Unauthorized' }, { status: 401 }) };
   }
 
@@ -33,6 +36,7 @@ export async function requireRole(req: Request, roles: string[]) {
   if (error) return { user: null, error };
 
   if (!roles.includes(user!.role)) {
+    await logAccessDenied(req, user!.id, `Insufficient role: required ${roles.join('|')}, has ${user!.role}`);
     return { user: null, error: NextResponse.json({ detail: 'Forbidden' }, { status: 403 }) };
   }
 
