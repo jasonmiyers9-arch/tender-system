@@ -69,17 +69,44 @@ export interface InternalDocument {
   };
 }
 
-export const DEFAULT_USER: InternalUser = {
-  id: 'demo-user',
-  email: 'demo@tenderguard.local',
-  password: 'password',
-  fullName: 'Tender Demo User',
-  role: 'user',
-  verificationStatus: 'approved',
-  activeCompanyId: 'demo-company',
-  companyId: 'demo-company',
-  createdAt: new Date().toISOString(),
-};
+export const DEFAULT_USERS: InternalUser[] = [
+  {
+    id: 'demo-user',
+    email: 'demo@tenderguard.local',
+    password: 'password',
+    fullName: 'Tender Demo User',
+    role: 'user',
+    verificationStatus: 'approved',
+    activeCompanyId: 'demo-company',
+    companyId: 'demo-company',
+    createdAt: new Date().toISOString(),
+  },
+  {
+    id: 'demo-admin',
+    email: 'mouse@tenderguard.dev',
+    password: 'Demo@1234',
+    fullName: 'Mouse',
+    role: 'admin',
+    verificationStatus: 'approved',
+    activeCompanyId: 'demo-company',
+    companyId: 'demo-company',
+    createdAt: new Date().toISOString(),
+  },
+  {
+    id: 'demo-evaluator',
+    email: 'vusu@tenderguard.dev',
+    password: 'Demo@1234',
+    fullName: 'Vusu',
+    role: 'evaluator',
+    verificationStatus: 'approved',
+    activeCompanyId: 'demo-company',
+    companyId: 'demo-company',
+    createdAt: new Date().toISOString(),
+  },
+];
+
+/** @deprecated Use DEFAULT_USERS[0] instead */
+export const DEFAULT_USER: InternalUser = DEFAULT_USERS[0];
 
 export const DEFAULT_COMPANIES: InternalCompany[] = [
   {
@@ -94,7 +121,7 @@ export const DEFAULT_COMPANIES: InternalCompany[] = [
     website: 'https://democompliance.example',
     industry: 'Consulting',
     incorporatedDate: '2024-01-01',
-    memberIds: ['demo-user'],
+    memberIds: ['demo-user', 'demo-admin', 'demo-evaluator'],
   },
 ];
 

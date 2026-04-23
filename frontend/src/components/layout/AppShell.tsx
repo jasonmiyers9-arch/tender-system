@@ -13,8 +13,6 @@ import { useMarkNotificationRead, useUnreadNotifications } from '@/lib/hooks/use
 const IDLE_TIMEOUT_MS = 30 * 60 * 1000;   // 30 min → force logout
 const IDLE_WARNING_MS = 28 * 60 * 1000;   // 28 min → show warning (2 min before)
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8000';
-
 export function AppShell({ children }: { children: React.ReactNode }) {
     const { token, _hasHydrated, currentUser, setCurrentUser, setActiveCompany, logout } = useAppStore();
     const [sessionReady, setSessionReady] = useState(false);
@@ -179,7 +177,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     useEffect(() => {
         if (!token) return;
         const sendHeartbeat = () => {
-            fetch(`${API_BASE}/ops/frontend/heartbeat`, {
+            fetch(`/api/ops/frontend/heartbeat`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({

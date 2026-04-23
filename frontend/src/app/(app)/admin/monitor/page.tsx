@@ -7,8 +7,6 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { useAppStore } from '@/store/useAppStore';
 import { Activity } from 'lucide-react';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8000';
-
 type StatusResponse = {
     frontend_url: string;
     reachable: boolean;
@@ -46,8 +44,8 @@ export default function AdminMonitorPage() {
         const load = async () => {
             try {
                 const [sRes, eRes] = await Promise.all([
-                    fetch(`${API_BASE}/ops/frontend/status`, { cache: 'no-store' }),
-                    fetch(`${API_BASE}/ops/frontend/events?limit=20`, { cache: 'no-store' }),
+                    fetch(`/api/ops/frontend/status`, { cache: 'no-store' }),
+                    fetch(`/api/ops/frontend/events?limit=20`, { cache: 'no-store' }),
                 ]);
 
                 if (!sRes.ok) throw new Error(`Status failed (${sRes.status})`);
@@ -93,7 +91,7 @@ export default function AdminMonitorPage() {
         <div className="space-y-6 max-w-5xl mx-auto">
             <PageHeader
                 title="Frontend Monitor"
-                subtitle="Live visibility from backend on frontend reachability and heartbeat."
+                subtitle="Live visibility on frontend reachability and heartbeat."
                 icon={<Activity size={22} />}
                 iconColor="#10B981"
             />
