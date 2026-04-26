@@ -859,6 +859,24 @@ async function listApplicationsForCompany(companyId: string): Promise<InternalAp
   return MEMORY_DB.applications.filter((app) => app.companyId === companyId);
 }
 
+async function listApplicationsForTenders(tenderIds: string[]): Promise<InternalApplication[]> {
+  if (tenderIds.length === 0) return [];
+  if (isFirestoreAvailable()) {
+    const db = getFirestore()!;
+    // Firestore 'in' operator caps at 30 values per query — chunk if needed.
+    const chunks: string[][] = [];
+    for (let i = 0; i < tenderIds.length; i += 30) chunks.push(tenderIds.slice(i, i + 30));
+    const results = await Promise.all(
+      chunks.map((chunk) =>
+        db.collection(APPLICATIONS_COLLECTION).where('tenderId', 'in', chunk).get()
+      )
+    );
+    return results.flatMap((snap) => snap.docs.map((doc) => doc.data() as InternalApplication));
+  }
+  const set = new Set(tenderIds);
+  return MEMORY_DB.applications.filter((app) => set.has(app.tenderId));
+}
+
 async function getApplicationById(applicationId: string): Promise<InternalApplication | null> {
   if (isFirestoreAvailable()) {
     const db = getFirestore()!;
@@ -1271,6 +1289,7 @@ export {
   updateTender,
   deleteTender,
   listApplicationsForCompany,
+  listApplicationsForTenders,
   getApplicationById,
   createApplication,
   submitApplication,
