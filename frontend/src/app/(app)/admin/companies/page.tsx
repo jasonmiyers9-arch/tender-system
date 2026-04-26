@@ -19,11 +19,12 @@ export default function AdminCompaniesPage() {
     const { data: companies, isLoading, isError, refetch } = useAdminCompanies();
     const [search, setSearch] = useState('');
     const router = useRouter();
+    const companyList = Array.isArray(companies) ? companies : [];
 
-    const filtered = companies?.filter(c =>
+    const filtered = companyList.filter(c =>
         c.name.toLowerCase().includes(search.toLowerCase()) ||
         c.registrationNumber.includes(search)
-    ) ?? [];
+    );
 
     const columns = [
         {

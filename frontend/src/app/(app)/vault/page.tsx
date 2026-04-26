@@ -72,6 +72,13 @@ const CATEGORY_META: Record<DocumentCategory, {
         required: false,
         examples: 'ISO 9001, CIDB Grade Certificate',
     },
+    policy: {
+        label: 'Policies',
+        description: 'Internal policies, procedures, and governance documents',
+        icon: <FileText size={20} />,
+        required: false,
+        examples: 'HR Policy, Health & Safety Policy',
+    },
 };
 
 const CATEGORY_COLORS: Record<DocumentCategory, { bg: string; text: string; border: string }> = {
@@ -81,9 +88,10 @@ const CATEGORY_COLORS: Record<DocumentCategory, { bg: string; text: string; bord
     legal:         { bg: '#F59E0B15', text: '#F59E0B', border: '#F59E0B30' },
     financial:     { bg: '#EC489915', text: '#EC4899', border: '#EC489930' },
     certification: { bg: '#8B5CF615', text: '#8B5CF6', border: '#8B5CF630' },
+    policy:        { bg: '#64748B15', text: '#64748B', border: '#64748B30' },
 };
 
-const ALL_CATEGORIES: DocumentCategory[] = ['tax', 'registration', 'bbbee', 'financial', 'legal', 'certification'];
+const ALL_CATEGORIES: DocumentCategory[] = ['tax', 'registration', 'bbbee', 'financial', 'legal', 'certification', 'policy'];
 
 const statusOptions = [
     { value: '', label: 'All Statuses' },

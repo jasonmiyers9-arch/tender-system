@@ -13,7 +13,7 @@ export default function VerifyEmailClient() {
     const [message, setMessage] = useState('Verifying your email...');
 
     useEffect(() => {
-        const token = params.get('token');
+        const token = params.get('oobCode') ?? params.get('token');
         if (!token) {
             // Update status based on token presence - intentional pattern
             // eslint-disable-next-line react-hooks/set-state-in-effect

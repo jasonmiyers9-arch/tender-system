@@ -8,6 +8,8 @@ import {
   deleteDocument 
 } from '@/lib/server/firestoreService';
 import { deleteDocumentFromStorage } from '@/lib/server/firebaseAdmin';
+import { reExtractDocumentAi } from '@/lib/server/documentAi';
+import { publishRescoreEvent } from '@/lib/server/analystEngine';
 
 function parseToken(req: Request): string | null {
   const header = req.headers.get('authorization');
@@ -29,10 +31,29 @@ export async function GET(
     return NextResponse.json({ detail: 'Unauthorized' }, { status: 401 });
   }
 
+  const user = await getUserByToken(token);
+  if (!user) {
+    return NextResponse.json({ detail: 'Unauthorized' }, { status: 401 });
+  }
+
+  let activeCompanyId = user.activeCompanyId;
+  if (!activeCompanyId) {
+    const companies = await listCompaniesForUser(user.id);
+    activeCompanyId = companies[0]?.id;
+  }
+
+  if (!activeCompanyId) {
+    return NextResponse.json({ detail: 'Company context required' }, { status: 400 });
+  }
+
   const { documentId } = await params;
   const document = await getDocumentById(documentId);
   if (!document) {
     return NextResponse.json({ detail: 'Document not found' }, { status: 404 });
+  }
+
+  if (document.companyId !== activeCompanyId) {
+    return NextResponse.json({ detail: 'Access denied' }, { status: 403 });
   }
 
   return NextResponse.json(document);
@@ -40,7 +61,9 @@ export async function GET(
 
 /**
  * POST /api/documents/[documentId]
- * Verify a document (admin only)
+ * Supported actions:
+ * - verify (admin only)
+ * - reextract (admin or owning company user)
  */
 export async function POST(
   req: Request,
@@ -52,8 +75,8 @@ export async function POST(
   }
 
   const user = await getUserByToken(token);
-  if (!user || user.role !== 'admin') {
-    return NextResponse.json({ detail: 'Admin only' }, { status: 403 });
+  if (!user) {
+    return NextResponse.json({ detail: 'Unauthorized' }, { status: 401 });
   }
 
   const { documentId } = await params;
@@ -61,8 +84,44 @@ export async function POST(
   const action = String(body.action ?? '').trim();
 
   if (action === 'verify') {
+    if (user.role !== 'admin') {
+      return NextResponse.json({ detail: 'Admin only' }, { status: 403 });
+    }
     const updated = await verifyDocument(documentId, user.id);
+    await publishRescoreEvent({
+      eventType: 'document.verified',
+      companyId: updated.companyId,
+      actorUserId: user.id,
+      metadata: { documentId: updated.id, status: updated.status },
+    });
     return NextResponse.json(updated);
+  }
+
+  if (action === 'reextract') {
+    const document = await getDocumentById(documentId);
+    if (!document) {
+      return NextResponse.json({ detail: 'Document not found' }, { status: 404 });
+    }
+
+    if (user.role !== 'admin') {
+      let activeCompanyId = user.activeCompanyId;
+      if (!activeCompanyId) {
+        const companies = await listCompaniesForUser(user.id);
+        activeCompanyId = companies[0]?.id;
+      }
+      if (!activeCompanyId || document.companyId !== activeCompanyId) {
+        return NextResponse.json({ detail: 'Access denied' }, { status: 403 });
+      }
+    }
+
+    const result = await reExtractDocumentAi(documentId, user.id);
+    const refreshed = await getDocumentById(documentId);
+    return NextResponse.json({
+      ok: result.ok,
+      extractionStatus: result.extractionStatus,
+      extractionError: result.error ?? null,
+      document: refreshed,
+    });
   }
 
   return NextResponse.json({ detail: 'Unknown action' }, { status: 400 });
@@ -127,7 +186,14 @@ export async function PUT(
     }
 
     const updatedDocument = await updateDocument(documentId, allowedUpdates);
-    
+
+    await publishRescoreEvent({
+      eventType: 'document.verified',
+      companyId: updatedDocument.companyId,
+      actorUserId: user.id,
+      metadata: { documentId: updatedDocument.id, updates: Object.keys(allowedUpdates) },
+    });
+
     return NextResponse.json(updatedDocument);
   } catch (error) {
     console.error('PUT /api/documents/[documentId] error:', error);

@@ -5,11 +5,16 @@ import {
   listDocumentsForCompany,
   getTenderById 
 } from '@/lib/server/firestoreService';
-import { 
-  generateComplianceProfile, 
+import {
+  generateComplianceProfile,
   calculateTenderMatchScore,
-  type TenderRequirements 
+  type TenderRequirements
 } from '@/lib/server/complianceScoring';
+import {
+  applyHybridScoreAdjustment,
+  buildTenderRequirementsFromTender,
+  persistAnalystRun,
+} from '@/lib/server/analystEngine';
 
 function parseToken(req: Request): string | null {
   const header = req.headers.get('authorization');
@@ -111,15 +116,11 @@ export async function POST(req: Request) {
     // Generate compliance profile
     const profile = generateComplianceProfile(activeCompanyId, documents);
 
-    // Build tender requirements from tender data
-    const requirements: TenderRequirements = {
-      requiredCategories: tender.required_categories || ['tax', 'registration'],
-      preferredCategories: tender.recommendedDocuments || [],
-      // Additional requirements could be parsed from tender.eligibilityCriteria
-    };
+    // Build normalized tender requirements for deterministic + hybrid scoring.
+    const requirements: TenderRequirements = buildTenderRequirementsFromTender(tender);
 
-    // Calculate tender match score
-    const matchScore = calculateTenderMatchScore(
+    // Calculate deterministic tender match score first.
+    const deterministic = calculateTenderMatchScore(
       activeCompanyId,
       tenderId,
       tender.title,
@@ -127,21 +128,58 @@ export async function POST(req: Request) {
       requirements
     );
 
+    const hybrid = await applyHybridScoreAdjustment({
+      deterministic,
+      profile,
+      requirements,
+      tenderContext: {
+        id: tender.id,
+        title: tender.title,
+        description: tender.description,
+        requirements: tender.requirements,
+        eligibilityCriteria: tender.eligibilityCriteria,
+      },
+    });
+
+    await persistAnalystRun({
+      companyId: activeCompanyId,
+      tenderId,
+      tenderTitle: tender.title,
+      trigger: 'api.compliance.score.requested',
+      actorUserId: user.id,
+      result: deterministic,
+      hybrid,
+      profile,
+    });
+
     return NextResponse.json({
       tenderId,
       tenderTitle: tender.title,
       companyId: activeCompanyId,
-      matchScore: matchScore.matchScore,
-      isEligible: matchScore.isEligible,
-      breakdown: matchScore.breakdown,
-      gaps: matchScore.gaps,
-      recommendations: matchScore.recommendations,
+      matchScore: hybrid.adjustedScore,
+      deterministicScore: deterministic.matchScore,
+      llmDeltaApplied: hybrid.llmDeltaApplied,
+      isEligible: deterministic.isEligible,
+      breakdown: deterministic.breakdown,
+      gaps: deterministic.gaps,
+      recommendations: deterministic.recommendations,
+      missingDocuments: deterministic.missingDocuments,
+      strengths: deterministic.strengths,
+      recommendation: hybrid.analystSummary || deterministic.recommendation,
+      confidenceScore: hybrid.confidenceScore,
+      priorityActions: deterministic.priorityActions,
+      hybrid: {
+        source: hybrid.source,
+        reasonCodes: hybrid.reasonCodes,
+        model: hybrid.model,
+        promptVersion: hybrid.promptVersion,
+      },
       companyProfile: {
         overallScore: profile.overallScore,
         documentCount: documents.length,
         missingCategories: profile.missingCategories,
       },
-      calculatedAt: matchScore.calculatedAt,
+      calculatedAt: deterministic.calculatedAt,
     });
   } catch (error) {
     console.error('POST /api/compliance/score error:', error);

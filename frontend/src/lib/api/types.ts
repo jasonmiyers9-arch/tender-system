@@ -10,7 +10,8 @@ export type DocumentCategory =
     | 'financial'
     | 'certification'
     | 'bbbee'
-    | 'registration';
+    | 'registration'
+    | 'policy';
 export type ScoreBand = 'tender-ready' | 'partially-ready' | 'high-risk';
 export type RenewalBucket = 'due-90' | 'due-60' | 'due-30' | 'due-7' | 'expired';
 
@@ -50,6 +51,7 @@ export interface Company {
     bbbeeLevel?: string | null;
     cidbGrade?: string | null;
     province?: string | null;
+    tenderCategories?: string[];
 }
 
 // ─── Vault / Documents ────────────────────────
@@ -77,6 +79,27 @@ export interface DocumentTimelineEvent {
 export interface VaultDocumentDetail extends VaultDocument {
     timeline: DocumentTimelineEvent[];
     metadata: Record<string, string>;
+    extractionStatus?: 'ok' | 'failed' | 'skipped';
+    extractionError?: string | null;
+    pageCount?: number;
+    extractedText?: string;
+    aiSummary?: string;
+    aiSummaryModel?: string;
+    aiSummaryUpdatedAt?: string;
+    documentAnalysis?: {
+        wordCount: number;
+        hasSignature: boolean;
+        hasDate: boolean;
+        hasCompanyName: boolean;
+        hasRegistrationNumber: boolean;
+        hasVatNumber: boolean;
+        hasBBBEELevel: boolean;
+        detectedDates: string[];
+        detectedAmounts: string[];
+        documentType: string | null;
+        confidence: number;
+        keywords: string[];
+    };
 }
 
 export interface NotificationItem {
@@ -104,6 +127,16 @@ export interface ComplianceScore {
 export interface ScoreHistoryPoint {
     date: string;
     score: number;
+    deterministicScore?: number;
+    llmDeltaApplied?: number;
+    confidenceScore?: number;
+    tenderId?: string;
+    tenderTitle?: string;
+    trigger?: string;
+    reasonCodes?: string[];
+    source?: 'hybrid' | 'deterministic';
+    model?: string;
+    recommendation?: string;
 }
 
 // ─── Tenders ──────────────────────────────────
@@ -127,6 +160,10 @@ export interface TenderMatch {
     createdBy?: string;
     status?: 'draft' | 'pending' | 'published' | 'rejected';
     createdAt?: string;
+    // B-3 Tender Match Intelligence fields
+    readinessScore?: number;
+    scoreBreakdown?: TenderReadinessScoreBreakdown;
+    isBidReady?: boolean;
 }
 
 export interface TenderDetail extends TenderMatch {
@@ -136,10 +173,20 @@ export interface TenderDetail extends TenderMatch {
     eligibilityCriteria: string[];
 }
 
+export interface TenderReadinessScoreBreakdown {
+    documentCompleteness: number;      // Max 30pts
+    verificationCoverage: number;      // Max 25pts
+    csdProfileCompleteness: number;    // Max 20pts
+    complianceConsistency: number;     // Max 15pts
+    tenderFitBonus: number;            // Max 10pts
+}
+
 export interface TenderReadiness {
     tenderId: string;
     readyToSubmit: boolean;
     readinessScore: number;
+    scoreBreakdown?: TenderReadinessScoreBreakdown;
+    isBidReady?: boolean;
     blockers: string[];
     missingCategories: string[];
     gaps: string[];

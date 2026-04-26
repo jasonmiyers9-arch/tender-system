@@ -16,6 +16,10 @@ const categoryOptions = [
     { value: 'registration', label: 'Registration' },
 ];
 
+function normalizeDateInput(value: string): string {
+    return value ? value.replace(/\//g, '-') : value;
+}
+
 export default function EditTenderPage() {
     const router = useRouter();
     const params = useParams();
@@ -47,7 +51,7 @@ export default function EditTenderPage() {
         setForm({
             title: tender.title,
             organization: tender.organization,
-            deadline: tender.deadline,
+            deadline: normalizeDateInput(tender.deadline),
             value: tender.value,
             category: tender.category,
             description: tender.description ?? '',
@@ -73,6 +77,7 @@ export default function EditTenderPage() {
                 id: tenderId,
                 payload: {
                     ...form,
+                    deadline: normalizeDateInput(form.deadline),
                     requirements: form.requirements.split('\n').map((v) => v.trim()).filter(Boolean),
                     eligibilityCriteria: form.eligibilityCriteria.split('\n').map((v) => v.trim()).filter(Boolean),
                     required_categories: requiredCategories,

@@ -98,7 +98,7 @@ export const tenders = {
     },
 
     async listProviderTenders(): Promise<TenderMatch[]> {
-        const res = await authFetch('/tenders');
+        const res = await authFetch('/tenders?mine=true');
         return res.json();
     },
 

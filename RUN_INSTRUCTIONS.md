@@ -1,28 +1,20 @@
-# TenderGuard — Compliance & Tender Management System
+# TenderGuard Pro — Run Instructions
 
-A compliance management and tender readiness platform for South African businesses. Built with **Next.js 15**, **React 19**, **TypeScript**, and **Tailwind CSS v4**.
+A compliance management and tender readiness platform for South African businesses.  
+Built with **Next.js 16**, **React 19**, **TypeScript**, **Firebase** (Auth + Firestore + Storage), and **Tailwind CSS v4**.  
+Deployed to **Netlify**.
 
 ---
 
 ## Overview
 
-TenderGuard helps companies manage compliance documents, track tender readiness scores, and apply for tenders — all from a unified portal. It supports three distinct user roles:
+TenderGuard Pro helps companies manage compliance documents, track tender readiness scores, and apply for tenders from a unified portal. It supports three user roles:
 
 | Role | Portal | Capabilities |
 |------|--------|-------------|
 | **Company User** | Dashboard, Vault, Score, Tenders | Upload compliance docs, track readiness score, browse & apply for tenders |
 | **Tender Provider** | Provider Dashboard | Create tenders, review applications, manage provider profile |
-| **Admin** | Managed Service Dashboard | Verify documents, manage accounts, audit logs, renewals pipeline |
-
-### Key Features
-
-- **Compliance Vault** — Upload, track, and manage B-BBEE certificates, tax clearance, CIPC registration, and other compliance documents
-- **Tender Readiness Score** — Real-time scoring based on document completeness and validity
-- **Tender Marketplace** — Browse available tenders with match scoring, apply directly
-- **Evaluator Portal** — Third-party verification of company compliance records
-- **Admin Dashboard** — Kanban-style renewals pipeline, document verification, audit logs
-- **Notifications** — Document expiry reminders and system alerts
-- **SA Compliance** — CSD supplier numbers, B-BBEE levels, CIDB grades, province tracking
+| **Admin** | Admin Dashboard | Verify documents, manage accounts, audit logs, renewals pipeline |
 
 ---
 
@@ -30,10 +22,13 @@ TenderGuard helps companies manage compliance documents, track tender readiness 
 
 | Layer | Technology |
 |-------|-----------|
-| Frontend | Next.js 15 (App Router), React 19, TypeScript, Tailwind CSS v4 |
-| Data | Firestore (Firebase) with in-memory mock data fallback |
-| Auth | JWT-based with role-based access control |
-| Storage | Firebase Storage |
+| Frontend + BFF | Next.js 16 (App Router), React 19, TypeScript, Tailwind CSS v4 |
+| Auth | Firebase Authentication (Email/Password + Google OAuth), JWT-based RBAC |
+| Database | Cloud Firestore (with in-memory fallback for local dev) |
+| File Storage | Firebase Storage (with local filesystem fallback) |
+| AI/LLM | OpenRouter API + Gemini (document summarization, hybrid scoring, knowledge Q&A, expiry extraction) |
+| Deployment | Netlify (serverless functions via `@netlify/plugin-nextjs`) |
+| State | Zustand (client), TanStack React Query v5 (server) |
 
 ---
 
@@ -41,72 +36,201 @@ TenderGuard helps companies manage compliance documents, track tender readiness 
 
 ```
 tender-system/
-├── frontend/                  # Next.js 15 app
+├── frontend/                     # Next.js 16 monolithic BFF
 │   └── src/
 │       ├── app/
-│       │   ├── (auth)/        # Login, Register, Forgot Password, Verify Email
-│       │   ├── (app)/         # Authenticated app pages
-│       │   │   ├── home/      # Landing dashboard with quick actions
-│       │   │   ├── dashboard/ # Compliance overview
-│       │   │   ├── vault/     # Document management
-│       │   │   ├── score/     # Readiness scoring
-│       │   │   ├── tenders/   # Tender marketplace & calendar
-│       │   │   ├── applications/ # My tender applications
-│       │   │   ├── company/   # Company profile & SA compliance
-│       │   │   ├── verify/    # Evaluator search portal
-│       │   │   ├── provider/  # Tender provider portal
-│       │   │   ├── admin/     # Admin dashboard & management
+│       │   ├── (auth)/           # Login, Register, Forgot Password, Verify Email
+│       │   ├── (app)/            # Authenticated app pages
+│       │   │   ├── home/         # Landing dashboard
+│       │   │   ├── dashboard/    # Compliance overview
+│       │   │   ├── vault/        # Document management
+│       │   │   ├── score/        # Readiness scoring
+│       │   │   ├── tenders/      # Tender marketplace & calendar
+│       │   │   ├── applications/ # Tender applications
+│       │   │   ├── company/      # Company profile
+│       │   │   ├── verify/       # Evaluator portal
+│       │   │   ├── provider/     # Tender provider portal
+│       │   │   ├── admin/        # Admin dashboard
+│       │   │   ├── knowledge/    # AI knowledge base
+│       │   │   ├── renewals/     # Document renewals pipeline
 │       │   │   ├── notifications/
 │       │   │   ├── settings/
 │       │   │   └── onboarding/
-│       │   ├── api/           # Next.js API routes (auth, companies, tenders, etc.)
-│       │   └── page.tsx       # Root redirect
+│       │   └── api/              # Next.js API route handlers (BFF)
 │       ├── components/
-│       │   ├── ui/            # Button, Card, Table, PageHeader, Input, etc.
-│       │   ├── cards/         # ScoreCard, StatCard
-│       │   ├── badges/        # StatusBadge, ScoreBandBadge
-│       │   └── layout/        # AppShell, Sidebar, Topbar, Breadcrumbs
+│       │   ├── ui/               # Button, Card, Table, PageHeader, Input, etc.
+│       │   ├── cards/            # ScoreCard, StatCard
+│       │   ├── badges/           # StatusBadge, ScoreBandBadge
+│       │   └── layout/           # AppShell, Sidebar, Topbar, Breadcrumbs
 │       ├── lib/
-│       │   ├── api/           # API client modules
-│       │   ├── hooks/         # React Query hooks
-│       │   ├── server/        # Firestore service, Firebase admin, mock data
-│       │   └── utils/         # Formatters, helpers
-│       └── store/             # Zustand state management
-└── RUN_INSTRUCTIONS.md        # This file
+│       │   ├── api/              # Client-side API modules + React Query hooks
+│       │   ├── hooks/            # React Query hooks
+│       │   ├── server/           # Server-only modules
+│       │   │   ├── firebaseAdmin.ts       # Firebase Admin SDK init
+│       │   │   ├── firestoreService.ts    # Firestore data layer
+│       │   │   ├── firebaseStorage.ts     # Storage upload/download
+│       │   │   ├── apiAuth.ts             # Auth middleware (requireAuth, requireRole, requireAdmin)
+│       │   │   ├── complianceScoring.ts   # Deterministic scoring engine
+│       │   │   ├── analystEngine.ts       # Hybrid scoring (deterministic + LLM)
+│       │   │   ├── pdfExtractor.ts        # Dual-engine PDF extraction
+│       │   │   ├── documentAi.ts          # AI document processing
+│       │   │   ├── documentSummary.ts     # OpenRouter summarization
+│       │   │   ├── expiryCheckService.ts  # Document expiry monitoring
+│       │   │   ├── aiSettingsService.ts   # AI model configuration
+│       │   │   ├── aiPrompts.ts           # LLM prompt templates
+│       │   │   └── mockData.ts            # In-memory fallback data
+│       │   └── utils/                     # Formatters, helpers
+│       └── store/                # Zustand state management
+├── netlify.toml                  # Netlify deployment config + security headers
+└── RUN_INSTRUCTIONS.md           # This file
 ```
 
 ---
 
-## Run Instructions
+## Prerequisites
 
-### Prerequisites
+- **Node.js 20+** and **npm 10+**
+- A **Firebase project** (optional — app runs with in-memory fallback)
+- Git
 
-- **Node.js 20+** and **npm**
+### Windows install (winget)
 
 ```powershell
 winget install -e --id OpenJS.NodeJS.LTS
 ```
 
-### Start the app
+### Verify
+
+```powershell
+node -v    # v20+
+npm -v     # 10+
+```
+
+---
+
+## 1) Clone the Repo
+
+```bash
+git clone https://github.com/jasonmiyers9-arch/tender-system.git
+cd tender-system
+```
+
+## 2) Install Dependencies
 
 ```bash
 cd frontend
 npm install
+```
+
+## 3) Configure Environment
+
+Copy the example env file:
+
+```bash
+cp .env.example .env.local
+```
+
+Edit `.env.local` with your values:
+
+```env
+# Firebase Admin (server-side — required for production)
+FIREBASE_PROJECT_ID=your-project-id
+FIREBASE_CLIENT_EMAIL=your-service-account@your-project.iam.gserviceaccount.com
+FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----"
+
+# Firebase Client (browser-side — required for Google Auth)
+NEXT_PUBLIC_FIREBASE_API_KEY=your-api-key
+NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=your-project.firebaseapp.com
+NEXT_PUBLIC_FIREBASE_PROJECT_ID=your-project-id
+NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=your-project.firebasestorage.app
+
+# OpenRouter AI (optional — enables AI features)
+OPENROUTER_API_KEY=sk-or-v1-...
+
+# Gemini AI (optional — enhanced document analysis)
+GEMINI_API_KEY=your-gemini-key
+
+# App
+NEXT_PUBLIC_APP_URL=http://localhost:3000
+```
+
+> **No Firebase?** The app runs fully functional with an in-memory fallback database. All features work locally without any Firebase config.
+
+## 4) Start Development Server
+
+```bash
 npm run dev
 ```
 
-App runs at: `http://localhost:3000`
+App runs at: **http://localhost:3000**
 
-The app works out of the box with mock data. To connect to Firebase/Firestore, configure environment variables in `frontend/.env.local`.
+## 5) Demo Accounts
+
+One-click login buttons are available on the login page:
+
+| Name | Email | Password | Role |
+|------|-------|----------|------|
+| Mouse | mouse@tenderguard.co.za | Mouse@123 | Admin |
+| Vusu | vusu@tenderguard.co.za | Vusu@123 | Evaluator |
 
 ---
 
-## Demo Accounts
+## Available Scripts
 
-One-click login buttons are available on the login page for demo access.
+| Command | Description |
+|---------|-------------|
+| `npm run dev` | Start dev server (port 3000) |
+| `npm run build` | Production build |
+| `npm run start` | Run production server |
+| `npm run lint` | ESLint checks |
+| `npm run typecheck` | TypeScript type checking |
+| `npm run test` | Unit tests (Vitest) |
+| `npm run test:coverage` | Tests with coverage report |
+| `npm run test:e2e` | Playwright E2E tests |
 
 ---
+
+## Deployment (Netlify)
+
+The root `netlify.toml` configures:
+- Build base: `frontend/`
+- Build command: `npm install && npm run build`
+- Plugin: `@netlify/plugin-nextjs`
+- Security headers: CSP, HSTS, X-Frame-Options, X-Content-Type-Options
+
+Set environment variables in the Netlify dashboard (same keys as `.env.local`).
+
+---
+
+## Troubleshooting
+
+### Port 3000 in use
+```bash
+npx kill-port 3000
+npm run dev
+```
+
+### Firebase connection errors
+- Verify `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`, and `FIREBASE_PRIVATE_KEY` are set correctly
+- The app will fall back to in-memory storage if Firebase is unavailable
+
+### Build errors
+```bash
+npm run typecheck   # Check for TypeScript errors
+npm run lint        # Check for lint issues
+```
+
+---
+
+## UI Design System
+
+- **Gradient PageHeader** banners on every page
+- **Elevated cards** with rounded corners and shadows
+- **Gradient CTA buttons** (indigo→purple primary, cyan secondary)
+- **Color-coded icon squares** per feature area
+- **Dark mode** support via CSS custom properties
+- One-click demo login buttons on login page
 
 ## License
 
-Private — CodeWithMouse. All rights reserved.
+Private — All rights reserved.

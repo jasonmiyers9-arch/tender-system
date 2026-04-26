@@ -1,71 +1,44 @@
 import { NextResponse } from 'next/server';
-import { getUserByToken, listCompaniesForUser, listDocumentsForCompany } from '@/lib/server/firestoreService';
-import type { RenewalBucket } from '@/lib/api/types';
+import { listAllCompanies, listAllDocuments } from '@/lib/server/firestoreService';
+import { requireAdmin } from '@/lib/server/apiAuth';
 
-function parseToken(req: Request): string | null {
-  const header = req.headers.get('authorization');
-  if (!header) return null;
-  const [type, token] = header.split(' ');
-  return type.toLowerCase() === 'bearer' ? token : null;
-}
-
-function getBucket(daysUntilExpiry: number): RenewalBucket {
-  if (daysUntilExpiry <= 0) return 'expired';
-  if (daysUntilExpiry <= 7) return 'due-7';
-  if (daysUntilExpiry <= 30) return 'due-30';
-  if (daysUntilExpiry <= 60) return 'due-60';
+function bucketFor(days: number): 'due-90' | 'due-60' | 'due-30' | 'due-7' | 'expired' {
+  if (days < 0) return 'expired';
+  if (days <= 7) return 'due-7';
+  if (days <= 30) return 'due-30';
+  if (days <= 60) return 'due-60';
   return 'due-90';
 }
 
 export async function GET(req: Request) {
-  const token = parseToken(req);
-  if (!token) {
-    return NextResponse.json({ detail: 'Unauthorized' }, { status: 401 });
-  }
+  const { error } = await requireAdmin(req);
+  if (error) return error;
 
-  try {
-    const user = await getUserByToken(token);
-    if (!user || user.role !== 'admin') {
-      return NextResponse.json({ detail: 'Forbidden' }, { status: 403 });
-    }
+  const companies = await listAllCompanies();
+  const companyMap = new Map(companies.map((c) => [c.id, c]));
+  const docs = await listAllDocuments();
+  const today = new Date();
 
-    const companies = await listCompaniesForUser(user.id);
-    const renewals: Array<{
-      id: string;
-      companyName: string;
-      companyId: string;
-      documentName: string;
-      daysUntilExpiry: number;
-      expiryDate: string;
-      bucket: RenewalBucket;
-    }> = [];
+  const items = docs
+    .filter((doc) => !!doc.expiryDate)
+    .map((doc) => {
+      const expiry = new Date(String(doc.expiryDate));
+      const diffMs = expiry.getTime() - today.getTime();
+      const daysUntilExpiry = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+      const company = companyMap.get(doc.companyId);
 
-    const now = Date.now();
+      return {
+        id: doc.id,
+        companyName: company?.name ?? 'Unknown Company',
+        companyId: doc.companyId,
+        documentName: doc.name,
+        daysUntilExpiry,
+        expiryDate: String(doc.expiryDate),
+        bucket: bucketFor(daysUntilExpiry),
+      };
+    })
+    .sort((a, b) => a.daysUntilExpiry - b.daysUntilExpiry)
+    .slice(0, 300);
 
-    for (const company of companies) {
-      const docs = await listDocumentsForCompany(company.id);
-      for (const doc of docs) {
-        if (!doc.expiryDate) continue;
-        const expiryMs = new Date(doc.expiryDate).getTime();
-        const daysUntilExpiry = Math.ceil((expiryMs - now) / (1000 * 60 * 60 * 24));
-
-        renewals.push({
-          id: doc.id,
-          companyName: company.name,
-          companyId: company.id,
-          documentName: doc.name,
-          daysUntilExpiry,
-          expiryDate: doc.expiryDate,
-          bucket: getBucket(daysUntilExpiry),
-        });
-      }
-    }
-
-    renewals.sort((a, b) => a.daysUntilExpiry - b.daysUntilExpiry);
-
-    return NextResponse.json(renewals);
-  } catch (error) {
-    console.error('GET /api/admin/dashboard/renewals error:', error);
-    return NextResponse.json({ detail: 'Internal server error' }, { status: 500 });
-  }
+  return NextResponse.json(items);
 }

@@ -26,11 +26,15 @@ export default function DashboardPage() {
     const auditQuery = useAuditLog(1, 5);
     const notifQuery = useNotifications(5);
     const markAllRead = useMarkAllNotificationsRead();
+    const docs = Array.isArray(docsQuery.data) ? docsQuery.data : [];
+    const notifications = Array.isArray(notifQuery.data) ? notifQuery.data : [];
+    const expiredDocsCount = docs.filter((d) => d.status === 'expired').length;
+    const unreadNotificationsCount = notifications.filter((n) => !n.isRead).length;
 
-    const expiringDocs = docsQuery.data?.filter(
+    const expiringDocs = docs.filter(
         (d) => d.status === 'expired' || d.status === 'uploaded'
-    ) ?? [];
-    const docsUploadedCount = docsQuery.data?.length ?? 0;
+    );
+    const docsUploadedCount = docs.length;
     const showOnboardingChecklist = role === 'user' && docsUploadedCount < 5;
 
     return (
@@ -75,7 +79,7 @@ export default function DashboardPage() {
                         <>
                             <StatCard
                                 title="Total Documents"
-                                value={docsQuery.data?.length ?? 0}
+                                value={docs.length}
                                 subtitle="in compliance vault"
                                 icon={<FileSearch size={18} />}
                             />
@@ -99,12 +103,12 @@ export default function DashboardPage() {
             </div>
 
             {/* Alerts */}
-            {(docsQuery.data?.filter((d) => d.status === 'expired').length ?? 0) > 0 && (
+            {expiredDocsCount > 0 && (
                 <div className="flex items-start gap-3 p-4 rounded-xl border border-amber-500/30 bg-amber-500/10">
                     <AlertTriangle size={18} className="text-[--color-warning] flex-shrink-0 mt-0.5" />
                     <div className="flex-1">
                         <p className="text-sm font-semibold text-[--color-text-primary]">
-                            {docsQuery.data?.filter((d) => d.status === 'expired').length} document(s) expired
+                            {expiredDocsCount} document(s) expired
                         </p>
                         <p className="text-xs text-[--color-text-muted] mt-0.5">
                             Expired documents reduce your Tender Readiness Score. Renew them to stay compliant.
@@ -259,9 +263,9 @@ export default function DashboardPage() {
                         <div className="flex items-center gap-2">
                             <Bell size={15} className="text-[--color-primary]" />
                             <h3 className="text-sm font-semibold text-[--color-text-primary]">Notifications</h3>
-                            {(notifQuery.data?.filter((n) => !n.isRead).length ?? 0) > 0 && (
+                            {unreadNotificationsCount > 0 && (
                                 <Badge variant="danger" size="sm">
-                                    {notifQuery.data!.filter((n) => !n.isRead).length} new
+                                    {unreadNotificationsCount} new
                                 </Badge>
                             )}
                         </div>
@@ -287,13 +291,13 @@ export default function DashboardPage() {
                     <div className="p-4 space-y-3">
                         {[1, 2, 3].map((i) => <Skeleton key={i} className="h-12 w-full" />)}
                     </div>
-                ) : !notifQuery.data?.length ? (
+                ) : !notifications.length ? (
                     <div className="py-8 text-center text-sm text-[--color-text-muted]">
                         🔔 You&apos;re all caught up — no notifications
                     </div>
                 ) : (
                     <ul className="divide-y divide-[--color-border]">
-                        {notifQuery.data.slice(0, 5).map((n) => (
+                        {notifications.slice(0, 5).map((n) => (
                             <li
                                 key={n.id}
                                 className={`flex items-start gap-4 px-6 py-3 transition-colors ${

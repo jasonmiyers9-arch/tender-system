@@ -1,52 +1,99 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getUserByToken } from '@/lib/server/firestoreService';
+import { NextResponse } from 'next/server';
+import type { AuditEntry } from '@/lib/api/types';
+import { requireAdmin } from '@/lib/server/apiAuth';
+import { listAllCompanies, listAllDocuments, listAllUsers } from '@/lib/server/firestoreService';
 
-function parseToken(req: Request): string | null {
-  const header = req.headers.get('authorization');
-  if (!header) return null;
-  const [type, token] = header.split(' ');
-  return type.toLowerCase() === 'bearer' ? token : null;
+function parsePositiveInt(value: string | null, fallback: number) {
+  const parsed = Number.parseInt(value ?? '', 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
-// In-memory audit log — seeded with sample entries for demo purposes.
-// A real implementation would persist these to Firestore / a database.
-const SEED_ENTRIES = [
-  { id: 'aud-1', actor: 'Mouse', action: 'Verified document', entity: 'document', entityId: 'doc-1', timestamp: '2026-03-11T14:22:00Z', metadata: { documentName: 'Tax Clearance Certificate 2025' } },
-  { id: 'aud-2', actor: 'Mouse', action: 'Verified document', entity: 'document', entityId: 'doc-2', timestamp: '2026-03-11T14:25:00Z', metadata: { documentName: 'CIPC Registration' } },
-  { id: 'aud-3', actor: 'System', action: 'Company registered', entity: 'company', entityId: 'demo-company', timestamp: '2026-03-10T08:00:00Z', metadata: { companyName: 'Demo Compliance Holdings' } },
-  { id: 'aud-4', actor: 'Tender Demo User', action: 'Uploaded document', entity: 'document', entityId: 'doc-1', timestamp: '2026-03-10T09:00:00Z', metadata: { documentName: 'Tax Clearance Certificate 2025' } },
-  { id: 'aud-5', actor: 'Tender Demo User', action: 'Uploaded document', entity: 'document', entityId: 'doc-2', timestamp: '2026-03-10T09:15:00Z', metadata: { documentName: 'CIPC Registration' } },
-  { id: 'aud-6', actor: 'Tender Demo User', action: 'Submitted application', entity: 'application', entityId: 'app-1', timestamp: '2026-03-15T10:30:00Z', metadata: { tenderTitle: 'Municipal IT Support Services' } },
-  { id: 'aud-7', actor: 'System', action: 'User created', entity: 'user', entityId: 'demo-user', timestamp: '2026-03-09T12:00:00Z', metadata: {} },
-  { id: 'aud-8', actor: 'Mouse', action: 'Logged in', entity: 'session', entityId: 'demo-admin', timestamp: '2026-04-07T08:00:00Z', metadata: {} },
-];
+function toTimestamp(value: string | null | undefined) {
+  return value ? new Date(value).getTime() : 0;
+}
 
-export async function GET(req: NextRequest) {
-  const token = parseToken(req);
-  if (!token) {
-    return NextResponse.json({ detail: 'Unauthorized' }, { status: 401 });
-  }
+export async function GET(req: Request) {
+  const { error } = await requireAdmin(req);
+  if (error) return error;
 
-  try {
-    const user = await getUserByToken(token);
-    if (!user || user.role !== 'admin') {
-      return NextResponse.json({ detail: 'Forbidden' }, { status: 403 });
-    }
+  const url = new URL(req.url);
+  const page = parsePositiveInt(url.searchParams.get('page'), 1);
+  const pageSize = Math.min(parsePositiveInt(url.searchParams.get('page_size'), 20), 100);
+  const actorFilter = url.searchParams.get('actor')?.trim().toLowerCase() ?? '';
+  const actionFilter = url.searchParams.get('action')?.trim().toLowerCase() ?? '';
 
-    const page = parseInt(req.nextUrl.searchParams.get('page') ?? '1', 10);
-    const pageSize = parseInt(req.nextUrl.searchParams.get('page_size') ?? '20', 10);
+  const [users, companies, documents] = await Promise.all([
+    listAllUsers(),
+    listAllCompanies(),
+    listAllDocuments(),
+  ]);
 
-    // Sort newest first
-    const sorted = [...SEED_ENTRIES].sort(
-      (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
-    );
+  const companyNames = new Map(companies.map((company) => [company.id, company.name]));
+  const userNames = new Map(users.map((user) => [user.id, user.fullName]));
 
-    const start = (page - 1) * pageSize;
-    const entries = sorted.slice(start, start + pageSize);
+  const entries: AuditEntry[] = [
+    ...users.map((user) => ({
+      id: `user-created-${user.id}`,
+      actor: user.fullName || user.email,
+      action: `Account ${user.verificationStatus}`,
+      entity: 'user',
+      entityId: user.id,
+      timestamp: user.createdAt,
+      metadata: {
+        email: user.email,
+        role: user.role,
+        verificationStatus: user.verificationStatus,
+      },
+    })),
+    ...documents.flatMap((document) => {
+      const companyName = companyNames.get(document.companyId) ?? document.companyId;
+      const uploadedEntry: AuditEntry = {
+        id: `document-uploaded-${document.id}`,
+        actor: companyName,
+        action: 'Document uploaded',
+        entity: document.category,
+        entityId: document.id,
+        timestamp: document.uploadedAt,
+        metadata: {
+          companyId: document.companyId,
+          companyName,
+          documentName: document.name,
+          status: document.status,
+        },
+      };
 
-    return NextResponse.json({ entries, total: sorted.length });
-  } catch (error) {
-    console.error('GET /api/admin/audit error:', error);
-    return NextResponse.json({ detail: 'Internal server error' }, { status: 500 });
-  }
+      const verifiedEntry = document.verifiedAt
+        ? {
+            id: `document-reviewed-${document.id}`,
+            actor: userNames.get(document.verifiedBy ?? '') ?? document.verifiedBy ?? 'System',
+            action: document.status === 'rejected' ? 'Document rejected' : 'Document verified',
+            entity: document.category,
+            entityId: document.id,
+            timestamp: document.verifiedAt,
+            metadata: {
+              companyId: document.companyId,
+              companyName,
+              documentName: document.name,
+              status: document.status,
+            },
+          }
+        : null;
+
+      return verifiedEntry ? [uploadedEntry, verifiedEntry] : [uploadedEntry];
+    }),
+  ]
+    .filter((entry) => {
+      if (actorFilter && !entry.actor.toLowerCase().includes(actorFilter)) return false;
+      if (actionFilter && !entry.action.toLowerCase().includes(actionFilter)) return false;
+      return true;
+    })
+    .sort((left, right) => toTimestamp(right.timestamp) - toTimestamp(left.timestamp));
+
+  const start = (page - 1) * pageSize;
+  const paged = entries.slice(start, start + pageSize);
+
+  return NextResponse.json({
+    entries: paged,
+    total: entries.length,
+  });
 }

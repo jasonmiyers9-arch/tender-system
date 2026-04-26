@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getUserByToken, updateCompanyProfile, getCompanyById } from '@/lib/server/firestoreService';
+import { publishRescoreEvent } from '@/lib/server/analystEngine';
 
 function parseToken(req: Request): string | null {
   const header = req.headers.get('authorization');
@@ -41,6 +42,15 @@ export async function POST(req: Request) {
     email: company.email,
     phone: company.phone,
     website: company.website,
+  });
+
+  await publishRescoreEvent({
+    eventType: 'company.updated',
+    companyId: user.activeCompanyId,
+    actorUserId: user.id,
+    metadata: {
+      updatedFields: Object.keys(allowedFields).filter((key) => allowedFields[key as keyof typeof allowedFields] !== null),
+    },
   });
 
   return NextResponse.json({ ok: true, company: updatedCompany, onboardingCompleted: false });

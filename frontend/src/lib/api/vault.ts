@@ -25,6 +25,38 @@ async function authFetch(path: string, init?: RequestInit): Promise<Response> {
     return res;
 }
 
+// ─── Renewal Types ────────────────────────────────────────────────────────────
+
+export interface RenewalItem {
+    documentId: string;
+    documentName: string;
+    category: string;
+    companyId: string;
+    expiryDate: string;
+    daysOverdue: number;
+    urgency: 'expired' | 'critical' | 'warning' | 'upcoming';
+    daysRemaining: number;
+    affectedTenders: Array<{
+        tenderId: string;
+        title: string;
+        deadline: string;
+        requiredCategory: string;
+    }>;
+}
+
+export interface RenewalsResponse {
+    companyId: string;
+    summary: {
+        expired: number;
+        critical: number;
+        warning: number;
+        upcoming: number;
+        totalAffectedTenders: number;
+    };
+    renewals: RenewalItem[];
+    lastChecked: string;
+}
+
 export const vault = {
     async listDocuments(filters?: {
         status?: DocumentStatus;
@@ -35,7 +67,15 @@ export const vault = {
         if (filters?.category) params.set('category', filters.category);
         const suffix = params.toString() ? `?${params.toString()}` : '';
         const res = await authFetch(`/documents${suffix}`);
-        return res.json();
+        const json: unknown = await res.json();
+
+        // Some API paths return { items: [] } on soft failures; normalize to an array for callers.
+        if (Array.isArray(json)) return json as VaultDocument[];
+        if (json && typeof json === 'object' && 'items' in json) {
+            const items = (json as { items?: unknown }).items;
+            return Array.isArray(items) ? (items as VaultDocument[]) : [];
+        }
+        return [];
     },
 
     async getDocument(id: string): Promise<VaultDocumentDetail> {
@@ -47,11 +87,13 @@ export const vault = {
         name: string;
         category: DocumentCategory;
         file: File;
+        runAi?: boolean;
     }): Promise<VaultDocument> {
         const token = getToken();
         const form = new FormData();
         form.set('file', data.file, data.file.name || `${data.name}.pdf`);
         form.set('category', data.category);
+        form.set('run_ai', data.runAi === false ? 'false' : 'true');
 
         const headers: Record<string, string> = {};
         if (token) headers.Authorization = `Bearer ${token}`;
@@ -61,7 +103,16 @@ export const vault = {
             headers,
             body: form,
         });
-        if (!res.ok) throw new Error(`Upload failed (${res.status})`);
+        if (!res.ok) {
+            let detail = '';
+            try {
+                const json = await res.json() as { detail?: string };
+                detail = json.detail ? `: ${json.detail}` : '';
+            } catch {
+                // ignore json parse errors and keep generic message
+            }
+            throw new Error(`Upload failed (${res.status})${detail}`);
+        }
         return res.json();
     },
 
@@ -76,6 +127,20 @@ export const vault = {
 
     async requestVerification(id: string): Promise<{ ok: boolean; status: string }> {
         const res = await authFetch(`/documents/${id}/request-verification`, { method: 'POST' });
+        return res.json();
+    },
+
+    async reExtractDocument(id: string): Promise<{ ok: boolean; extractionStatus: 'ok' | 'failed' | 'skipped'; extractionError?: string | null }> {
+        const res = await authFetch(`/documents/${id}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'reextract' }),
+        });
+        return res.json();
+    },
+
+    async getRenewals(): Promise<RenewalsResponse> {
+        const res = await authFetch('/documents/renewals');
         return res.json();
     },
 

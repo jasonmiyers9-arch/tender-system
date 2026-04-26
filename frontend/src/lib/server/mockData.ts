@@ -9,6 +9,9 @@ export interface InternalUser {
   verificationStatus: 'approved' | 'pending' | 'rejected';
   activeCompanyId: string | null;
   companyId: string | null;
+  companyName?: string;
+  registrationNumber?: string;
+  phone?: string;
   createdAt: string;
 }
 
@@ -19,6 +22,8 @@ export interface InternalCompany extends Company {
 export interface InternalTender extends TenderDetail {
   status: NonNullable<TenderMatch['status']>;
   isSystem: boolean;
+  createdBy?: string;
+  companyId?: string;
 }
 
 export interface InternalApplication {
@@ -39,7 +44,7 @@ export interface InternalDocument {
   id: string;
   companyId: string;
   name: string;
-  category: 'tax' | 'legal' | 'financial' | 'certification' | 'bbbee' | 'registration';
+  category: 'tax' | 'legal' | 'financial' | 'certification' | 'bbbee' | 'registration' | 'policy';
   status: 'uploaded' | 'verified' | 'rejected' | 'expired';
   fileUrl: string | null;
   storagePath?: string;  // Firebase Storage path for deletion
@@ -53,6 +58,11 @@ export interface InternalDocument {
   mimeType?: string;
   pageCount?: number;
   extractedText?: string;
+  extractionStatus?: 'ok' | 'failed' | 'skipped';
+  extractionError?: string | null;
+  aiSummary?: string;
+  aiSummaryModel?: string;
+  aiSummaryUpdatedAt?: string;
   documentAnalysis?: {
     wordCount: number;
     hasSignature: boolean;
@@ -79,6 +89,9 @@ export const DEFAULT_USERS: InternalUser[] = [
     verificationStatus: 'approved',
     activeCompanyId: 'demo-company',
     companyId: 'demo-company',
+    companyName: 'Demo Compliance Holdings',
+    registrationNumber: '2024/123456/07',
+    phone: '+27 21 555 0123',
     createdAt: new Date().toISOString(),
   },
   {

@@ -8,8 +8,42 @@ import { ErrorState } from '@/components/ui/ErrorState';
 import { CardSkeleton } from '@/components/ui/Skeleton';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { formatDate } from '@/lib/utils/formatters';
-import { FileSearch, Calendar, Building2, AlertCircle, ArrowRight } from 'lucide-react';
+import { FileSearch, Calendar, Building2, AlertCircle, ArrowRight, CheckCircle2, FileCheck, Shield, Clock, Target } from 'lucide-react';
 import Link from 'next/link';
+import type { TenderReadinessScoreBreakdown } from '@/lib/api/types';
+
+// Score dimension config
+const SCORE_DIMENSIONS = [
+    { key: 'documentCompleteness' as const, label: 'Docs', max: 30, icon: FileCheck, color: '#4F46E5' },
+    { key: 'verificationCoverage' as const, label: 'Verified', max: 25, icon: Shield, color: '#059669' },
+    { key: 'csdProfileCompleteness' as const, label: 'Profile', max: 20, icon: Building2, color: '#0891B2' },
+    { key: 'complianceConsistency' as const, label: 'History', max: 15, icon: Clock, color: '#7C3AED' },
+    { key: 'tenderFitBonus' as const, label: 'Fit', max: 10, icon: Target, color: '#D97706' },
+];
+
+function ScoreBreakdownMini({ breakdown }: { breakdown?: TenderReadinessScoreBreakdown }) {
+    if (!breakdown) return null;
+    
+    return (
+        <div className="flex items-center gap-1.5 mt-2">
+            {SCORE_DIMENSIONS.map(({ key, label, max, color }) => {
+                const value = breakdown[key] ?? 0;
+                const pct = Math.round((value / max) * 100);
+                return (
+                    <div key={key} className="flex items-center gap-1" title={`${label}: ${value}/${max}`}>
+                        <div className="w-8 h-1.5 rounded-full bg-[--color-surface-raised] overflow-hidden">
+                            <div 
+                                className="h-full rounded-full transition-all"
+                                style={{ width: `${pct}%`, backgroundColor: color }}
+                            />
+                        </div>
+                        <span className="text-[9px] text-[--color-text-muted]">{value}</span>
+                    </div>
+                );
+            })}
+        </div>
+    );
+}
 
 export default function TendersPage() {
     const { data: matches, isLoading, isError, refetch } = useTenderMatches();
@@ -39,21 +73,26 @@ export default function TendersPage() {
             </div>
         );
 
+    const bidReadyCount = matches.filter(t => t.isBidReady).length;
+    const highMatchCount = matches.filter(t => (t.readinessScore ?? t.matchScore) >= 85).length;
+    const gapsCount = matches.filter(t => t.gaps.length > 0).length;
+
     return (
         <div className="space-y-6 max-w-5xl mx-auto">
             <PageHeader
-                title="Tender Matches"
-                subtitle={`${matches.length} opportunities matched to your compliance profile`}
+                title="Tender Match Intelligence"
+                subtitle={`${matches.length} opportunities scored against your Tender Readiness Score™`}
                 icon={<FileSearch size={22} />}
                 iconColor="#D97706"
             />
 
             {/* Stats row */}
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-4 gap-3">
                 {[
                     { label: 'Total Matches', value: matches.length, color: '#4F46E5' },
-                    { label: 'High Match (85%+)', value: matches.filter(t => t.matchScore >= 85).length, color: '#059669' },
-                    { label: 'With Gaps', value: matches.filter(t => t.gaps.length > 0).length, color: '#D97706' },
+                    { label: 'Bid Ready', value: bidReadyCount, color: '#059669', icon: CheckCircle2 },
+                    { label: 'High Score (85%+)', value: highMatchCount, color: '#0891B2' },
+                    { label: 'Have Gaps', value: gapsCount, color: '#D97706' },
                 ].map((s) => (
                     <Card key={s.label} padding="sm">
                         <div className="flex items-center gap-3">
@@ -67,55 +106,81 @@ export default function TendersPage() {
                 ))}
             </div>
 
-            <div className="space-y-3">
-                {matches.map((t) => (
-                    <Link key={t.id} href={`/tenders/${t.id}`} className="block group">
-                        <Card className="transition-all duration-150 group-hover:scale-[1.005] group-hover:border-[--color-border-strong]" padding="none">
-                            <div className="p-5">
-                                <div className="flex items-start justify-between gap-4">
-                                    <div className="flex-1">
-                                        <div className="flex items-center gap-2 mb-1">
-                                            <Badge variant="default" size="sm">{t.category}</Badge>
-                                        </div>
-                                        <h2 className="text-base font-semibold text-[--color-text-primary] group-hover:text-[--color-primary] transition-colors">
-                                            {t.title}
-                                        </h2>
-                                        <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-sm text-[--color-text-muted]">
-                                            <span className="flex items-center gap-1">
-                                                <Building2 size={13} /> {t.organization}
-                                            </span>
-                                            <span className="flex items-center gap-1">
-                                                <Calendar size={13} /> Deadline: {formatDate(t.deadline)}
-                                            </span>
-                                            <span>{t.value}</span>
-                                        </div>
-                                    </div>
-                                    <div className="flex flex-col items-end gap-2 flex-shrink-0">
-                                        <Badge
-                                            variant={t.matchScore >= 85 ? 'success' : t.matchScore >= 65 ? 'warning' : 'danger'}
-                                            size="md"
-                                        >
-                                            {t.matchScore}% match
-                                        </Badge>
-                                        <ArrowRight
-                                            size={14}
-                                            className="text-[--color-text-muted] opacity-0 group-hover:opacity-100 transition-opacity"
-                                        />
-                                    </div>
-                                </div>
-
-                                {t.gaps.length > 0 && (
-                                    <div className="mt-3 pt-3 border-t border-[--color-border] flex items-start gap-2">
-                                        <AlertCircle size={14} className="text-[--color-warning] mt-0.5 flex-shrink-0" />
-                                        <p className="text-xs text-[--color-text-muted]">
-                                            Gaps: {t.gaps.join(', ')}
-                                        </p>
-                                    </div>
-                                )}
-                            </div>
-                        </Card>
-                    </Link>
+            {/* Score breakdown legend */}
+            <div className="flex items-center gap-4 px-2 py-2 bg-[--color-surface] rounded-lg text-xs">
+                <span className="text-[--color-text-muted] font-medium">Readiness Dimensions:</span>
+                {SCORE_DIMENSIONS.map(({ label, max, color }) => (
+                    <span key={label} className="flex items-center gap-1">
+                        <span className="w-2 h-2 rounded-full" style={{ backgroundColor: color }} />
+                        <span className="text-[--color-text-muted]">{label} ({max}pts)</span>
+                    </span>
                 ))}
+            </div>
+
+            <div className="space-y-3">
+                {matches.map((t) => {
+                    const score = t.readinessScore ?? t.matchScore;
+                    const isBidReady = t.isBidReady;
+                    
+                    return (
+                        <Link key={t.id} href={`/tenders/${t.id}`} className="block group">
+                            <Card className="transition-all duration-150 group-hover:scale-[1.005] group-hover:border-[--color-border-strong]" padding="none">
+                                <div className="p-5">
+                                    <div className="flex items-start justify-between gap-4">
+                                        <div className="flex-1">
+                                            <div className="flex items-center gap-2 mb-1">
+                                                <Badge variant="default" size="sm">{t.category}</Badge>
+                                                {isBidReady && (
+                                                    <Badge variant="success" size="sm">
+                                                        <CheckCircle2 size={10} className="mr-1" />
+                                                        Bid Ready
+                                                    </Badge>
+                                                )}
+                                            </div>
+                                            <h2 className="text-base font-semibold text-[--color-text-primary] group-hover:text-[--color-primary] transition-colors">
+                                                {t.title}
+                                            </h2>
+                                            <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-sm text-[--color-text-muted]">
+                                                <span className="flex items-center gap-1">
+                                                    <Building2 size={13} /> {t.organization}
+                                                </span>
+                                                <span className="flex items-center gap-1">
+                                                    <Calendar size={13} /> Deadline: {formatDate(t.deadline)}
+                                                </span>
+                                                <span>{t.value}</span>
+                                            </div>
+                                            
+                                            {/* Score breakdown mini bars */}
+                                            <ScoreBreakdownMini breakdown={t.scoreBreakdown} />
+                                        </div>
+                                        <div className="flex flex-col items-end gap-2 flex-shrink-0">
+                                            <Badge
+                                                variant={score >= 85 ? 'success' : score >= 65 ? 'warning' : 'danger'}
+                                                size="md"
+                                            >
+                                                {score}/100
+                                            </Badge>
+                                            <span className="text-[10px] text-[--color-text-muted]">Readiness Score™</span>
+                                            <ArrowRight
+                                                size={14}
+                                                className="text-[--color-text-muted] opacity-0 group-hover:opacity-100 transition-opacity mt-1"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    {t.gaps.length > 0 && (
+                                        <div className="mt-3 pt-3 border-t border-[--color-border] flex items-start gap-2">
+                                            <AlertCircle size={14} className="text-[--color-warning] mt-0.5 flex-shrink-0" />
+                                            <p className="text-xs text-[--color-text-muted]">
+                                                {t.gaps.length} gap{t.gaps.length > 1 ? 's' : ''}: {t.gaps.slice(0, 3).join(', ')}{t.gaps.length > 3 ? '...' : ''}
+                                            </p>
+                                        </div>
+                                    )}
+                                </div>
+                            </Card>
+                        </Link>
+                    );
+                })}
             </div>
         </div>
     );

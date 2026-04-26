@@ -1,4 +1,13 @@
 ﻿import type { AuthUser, LoginResponse } from './types';
+import {
+    applyFirebaseEmailVerificationCode,
+    confirmFirebasePasswordReset,
+    getCurrentIdToken,
+    registerWithEmailPassword,
+    sendFirebasePasswordReset,
+    signInWithEmailPassword,
+    signInWithGooglePopup,
+} from '@/lib/firebaseClient';
 
 function getToken(): string | null {
     if (typeof window === 'undefined') return null;
@@ -16,7 +25,7 @@ const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? '/api';
 
 export const auth = {
     async me(): Promise<AuthUser> {
-        const token = getToken();
+        const token = (await getCurrentIdToken()) ?? getToken();
         const res = await fetch(`${API_BASE}/auth/me`, {
             headers: token ? { Authorization: `Bearer ${token}` } : undefined,
             cache: 'no-store',
@@ -28,10 +37,11 @@ export const auth = {
         return res.json();
     },
     async login(email: string, password: string): Promise<LoginResponse> {
+        const { idToken } = await signInWithEmailPassword(email, password);
         const res = await fetch(`${API_BASE}/auth/login`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email, password }),
+            body: JSON.stringify({ idToken }),
         });
 
         if (!res.ok) {
@@ -47,7 +57,6 @@ export const auth = {
             throw new Error('Google sign-in is only available in the browser.');
         }
 
-        const { signInWithGooglePopup } = await import('@/lib/firebaseClient');
         const { idToken } = await signInWithGooglePopup();
 
         const res = await fetch(`${API_BASE}/auth/google`, {
@@ -72,18 +81,26 @@ export const auth = {
         companyName: string;
         registrationNumber?: string;
         phone?: string;
+        tenderCategories?: string[];
     }): Promise<{ status: string; message: string; verifyLink?: string | null; user: AuthUser }> {
+        const { idToken } = await registerWithEmailPassword({
+            email: data.email,
+            password: data.password,
+            fullName: data.name,
+        });
+
         const res = await fetch(`${API_BASE}/auth/register`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
+                idToken,
                 name: data.name,
                 email: data.email,
-                password: data.password,
                 role: data.role,
                 company_name: data.companyName,
                 registration_number: data.registrationNumber,
                 phone: data.phone,
+                tender_categories: data.tenderCategories,
             }),
         });
 
@@ -96,7 +113,7 @@ export const auth = {
     },
 
     async updateProfile(name: string): Promise<AuthUser> {
-        const token = getToken();
+        const token = (await getCurrentIdToken(true)) ?? getToken();
         const res = await fetch(`${API_BASE}/auth/me`, {
             method: 'PATCH',
             headers: {
@@ -113,43 +130,17 @@ export const auth = {
     },
 
     async verifyEmail(token: string): Promise<{ ok: boolean }> {
-        const res = await fetch(`${API_BASE}/auth/verify-email`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ token }),
-        });
-        if (!res.ok) {
-            const err = await res.json().catch(() => ({ detail: 'Email verification failed' }));
-            throw new Error(err.detail ?? 'Email verification failed');
-        }
-        return res.json();
+        await applyFirebaseEmailVerificationCode(token);
+        return { ok: true };
     },
 
     async forgotPassword(email: string): Promise<{ success: boolean; message: string }> {
-        const res = await fetch(`${API_BASE}/auth/forgot-password`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email }),
-        });
-        if (!res.ok) {
-            const err = await res.json().catch(() => ({ detail: 'Request failed' }));
-            throw new Error(err.detail ?? 'Request failed');
-        }
-        const data = await res.json();
-        return { success: true, message: data.message };
+        await sendFirebasePasswordReset(email);
+        return { success: true, message: 'Password reset email sent.' };
     },
 
     async resetPassword(token: string, password: string): Promise<{ success: boolean; message: string }> {
-        const res = await fetch(`${API_BASE}/auth/reset-password`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ token, password }),
-        });
-        if (!res.ok) {
-            const err = await res.json().catch(() => ({ detail: 'Reset failed' }));
-            throw new Error(err.detail ?? 'Reset failed');
-        }
-        const data = await res.json();
-        return { success: true, message: data.message };
+        await confirmFirebasePasswordReset(token, password);
+        return { success: true, message: 'Password reset successful.' };
     },
 };

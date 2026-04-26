@@ -1,7 +1,7 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import { useRequestVerification, useVaultDocument } from '@/lib/hooks/useVault';
+import { useReExtractDocument, useRequestVerification, useVaultDocument } from '@/lib/hooks/useVault';
 import { vault } from '@/lib/api/vault';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -24,6 +24,7 @@ export default function VaultDocumentPage() {
     const docId = params?.docId;
     const { data: doc, isLoading, isError, refetch } = useVaultDocument(docId ?? '');
     const requestVerification = useRequestVerification();
+    const reExtract = useReExtractDocument();
 
     if (isLoading) return <CardSkeleton />;
     if (isError || !doc) return <ErrorState onRetry={refetch} />;
@@ -67,6 +68,7 @@ export default function VaultDocumentPage() {
                         <dl className="grid grid-cols-2 gap-x-6 gap-y-4 text-sm">
                             {[
                                 ['Status', <StatusBadge key="s" status={doc.status} />],
+                                ['Extraction', doc.extractionStatus ?? 'skipped'],
                                 ['Expiry Date', formatDate(doc.expiryDate)],
                                 ['Last Updated', formatDate(doc.lastUpdated)],
                                 ['File Size', doc.fileSize],
@@ -79,7 +81,66 @@ export default function VaultDocumentPage() {
                                 </div>
                             ))}
                         </dl>
+                        {doc.extractionError && (
+                            <p className="mt-4 text-xs text-[--color-danger]">
+                                Extraction warning: {doc.extractionError}
+                            </p>
+                        )}
+                        {reExtract.isError && (
+                            <p className="mt-2 text-xs text-[--color-danger]">
+                                Re-extraction failed. Please try again.
+                            </p>
+                        )}
                     </Card>
+
+                    {(doc.extractedText || doc.aiSummary || doc.documentAnalysis) && (
+                        <Card header={<h3 className="text-sm font-semibold text-[--color-text-primary]">Extracted Knowledge Base</h3>}>
+                            <div className="space-y-4">
+                                {doc.aiSummary && (
+                                    <div>
+                                        <p className="text-xs uppercase tracking-wide text-[--color-text-muted] mb-1">AI Summary</p>
+                                        <p className="text-sm text-[--color-text-primary] leading-relaxed whitespace-pre-wrap">{doc.aiSummary}</p>
+                                        {doc.aiSummaryModel && (
+                                            <p className="text-[11px] text-[--color-text-muted] mt-2">
+                                                Model: {doc.aiSummaryModel}
+                                                {doc.aiSummaryUpdatedAt ? ` - Updated ${formatDateTime(doc.aiSummaryUpdatedAt)}` : ''}
+                                            </p>
+                                        )}
+                                    </div>
+                                )}
+
+                                {doc.documentAnalysis && (
+                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                                        <div className="rounded-lg border border-[--color-border] p-3">
+                                            <p className="text-xs text-[--color-text-muted]">Word Count</p>
+                                            <p className="text-sm font-semibold text-[--color-text-primary]">{doc.documentAnalysis.wordCount}</p>
+                                        </div>
+                                        <div className="rounded-lg border border-[--color-border] p-3">
+                                            <p className="text-xs text-[--color-text-muted]">Doc Type</p>
+                                            <p className="text-sm font-semibold text-[--color-text-primary]">{doc.documentAnalysis.documentType ?? 'Unknown'}</p>
+                                        </div>
+                                        <div className="rounded-lg border border-[--color-border] p-3">
+                                            <p className="text-xs text-[--color-text-muted]">Confidence</p>
+                                            <p className="text-sm font-semibold text-[--color-text-primary]">{Math.round((doc.documentAnalysis.confidence ?? 0) * 100)}%</p>
+                                        </div>
+                                        <div className="rounded-lg border border-[--color-border] p-3">
+                                            <p className="text-xs text-[--color-text-muted]">Pages</p>
+                                                <p className="text-sm font-semibold text-[--color-text-primary]">{doc.pageCount ?? '--'}</p>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {doc.extractedText && (
+                                    <div>
+                                        <p className="text-xs uppercase tracking-wide text-[--color-text-muted] mb-1">Extracted Text</p>
+                                        <pre className="max-h-72 overflow-auto rounded-lg border border-[--color-border] bg-[--color-bg] p-3 text-xs text-[--color-text-primary] whitespace-pre-wrap">
+                                            {doc.extractedText}
+                                        </pre>
+                                    </div>
+                                )}
+                            </div>
+                        </Card>
+                    )}
 
                     {/* Timeline */}
                     <Card header={<h3 className="text-sm font-semibold text-[--color-text-primary]">Status Timeline</h3>}>
@@ -117,6 +178,15 @@ export default function VaultDocumentPage() {
                                 onClick={() => requestVerification.mutate(doc.id)}
                             >
                                 Request Re-verification
+                            </Button>
+                            <Button
+                                variant="ghost"
+                                className="w-full justify-start"
+                                leftIcon={<RefreshCw size={15} />}
+                                onClick={() => reExtract.mutate(doc.id)}
+                                loading={reExtract.isPending}
+                            >
+                                Re-extract Text
                             </Button>
                         </div>
                     </Card>
