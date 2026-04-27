@@ -2,13 +2,16 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
+import { AnimatePresence, motion } from 'motion/react';
 import { Sidebar } from './Sidebar';
 import { Topbar } from './Topbar';
+import { PageTransition } from './PageTransition';
 import { useAppStore } from '@/store/useAppStore';
 import { auth } from '@/lib/api/auth';
 import { companies } from '@/lib/api/companies';
 import { useMarkNotificationRead, useUnreadNotifications } from '@/lib/hooks/useNotifications';
 import { signOutFirebase } from '@/lib/firebaseClient';
+import { overlay, popToast, slideUpPanel, T } from '@/lib/motion';
 
 /** Inactivity limits */
 const IDLE_TIMEOUT_MS = 30 * 60 * 1000;   // 30 min → force logout
@@ -210,27 +213,46 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     // Returning users: _hasHydrated resolves instantly + sessionReady set immediately.
     if (!_hasHydrated || !sessionReady) {
         return (
-            <div className="flex h-screen flex-col items-center justify-center bg-[--color-bg] gap-6">
+            <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.2 }}
+                className="flex h-screen flex-col items-center justify-center bg-[--color-bg] gap-6"
+            >
                 {/* Branded logo mark */}
                 <div className="relative">
-                    <div className="w-14 h-14 rounded-2xl bg-[--color-primary] flex items-center justify-center shadow-lg">
+                    <motion.div
+                        initial={{ scale: 0.6, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        transition={T.softSpring}
+                        className="w-14 h-14 rounded-2xl flex items-center justify-center shadow-lg"
+                        style={{ background: 'linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%)' }}
+                    >
                         <span className="text-xl font-bold text-white tracking-tight">TG</span>
-                    </div>
-                    <div className="absolute inset-0 w-14 h-14 rounded-2xl bg-[--color-primary] animate-ping opacity-20" />
+                    </motion.div>
+                    <motion.div
+                        className="absolute inset-0 w-14 h-14 rounded-2xl"
+                        style={{ background: 'var(--color-primary)' }}
+                        animate={{ scale: [1, 1.4], opacity: [0.4, 0] }}
+                        transition={{ repeat: Infinity, duration: 1.4, ease: 'easeOut' }}
+                    />
                 </div>
                 {/* Animated progress bar */}
                 <div className="w-48 h-1 rounded-full bg-[--color-border] overflow-hidden">
-                    <div className="h-full w-1/2 rounded-full bg-[--color-primary] animate-[shimmer_1.2s_ease-in-out_infinite]"
-                         style={{ animation: 'shimmer 1.2s ease-in-out infinite' }} />
+                    <motion.div
+                        className="h-full w-1/2 rounded-full bg-[--color-primary]"
+                        animate={{ x: ['-100%', '200%'] }}
+                        transition={{ repeat: Infinity, duration: 1.2, ease: 'easeInOut' }}
+                    />
                 </div>
-                <p className="text-sm text-[--color-text-muted]">Preparing your workspace…</p>
-                <style>{`
-                    @keyframes shimmer {
-                        0% { transform: translateX(-100%); }
-                        100% { transform: translateX(200%); }
-                    }
-                `}</style>
-            </div>
+                <motion.p
+                    className="text-sm text-[--color-text-muted]"
+                    animate={{ opacity: [0.5, 1, 0.5] }}
+                    transition={{ repeat: Infinity, duration: 1.6, ease: 'easeInOut' }}
+                >
+                    Preparing your workspace…
+                </motion.p>
+            </motion.div>
         );
     }
 
@@ -240,62 +262,102 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <div className="flex flex-col flex-1 overflow-hidden min-w-0">
                 <Topbar />
                 <main className="flex-1 overflow-auto p-6 lg:p-8" style={{ backgroundColor: 'var(--color-bg)' }}>
-                    {children}
+                    <PageTransition>{children}</PageTransition>
                 </main>
             </div>
 
             {/* Notification popup */}
-            {popup && (
-                <div className="fixed bottom-5 right-5 z-50 w-[360px] rounded-xl border border-amber-500/30 bg-[--color-surface] p-4 shadow-xl card-shadow">
-                    <p className="text-sm font-semibold text-[--color-text-primary]">{popup.title}</p>
-                    <p className="mt-1 text-sm text-[--color-text-muted]">{popup.message}</p>
-                    <div className="mt-3 flex justify-end gap-2">
-                        <button className="text-xs text-[--color-text-muted] hover:underline" onClick={() => setDismissed((s) => [...s, popup.id])}>
-                            Dismiss
-                        </button>
-                        <button className="text-xs text-[--color-primary] hover:underline" onClick={() => { markRead.mutate(popup.id); setDismissed((s) => [...s, popup.id]); }}>
-                            Mark as read
-                        </button>
-                    </div>
-                </div>
-            )}
+            <AnimatePresence>
+                {popup && (
+                    <motion.div
+                        key={`popup-${popup.id}`}
+                        variants={popToast}
+                        initial="hidden"
+                        animate="show"
+                        exit="exit"
+                        className="fixed bottom-5 right-5 z-50 w-[360px] rounded-xl border border-amber-500/30 bg-[--color-surface] p-4 shadow-xl card-shadow"
+                    >
+                        <p className="text-sm font-semibold text-[--color-text-primary]">{popup.title}</p>
+                        <p className="mt-1 text-sm text-[--color-text-muted]">{popup.message}</p>
+                        <div className="mt-3 flex justify-end gap-2">
+                            <button className="text-xs text-[--color-text-muted] hover:underline cursor-pointer" onClick={() => setDismissed((s) => [...s, popup.id])}>
+                                Dismiss
+                            </button>
+                            <button className="text-xs text-[--color-primary] hover:underline cursor-pointer" onClick={() => { markRead.mutate(popup.id); setDismissed((s) => [...s, popup.id]); }}>
+                                Mark as read
+                            </button>
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
 
             {/* Idle session warning modal */}
-            {idleWarning && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm">
-                    <div className="w-[420px] rounded-2xl bg-[--color-surface] p-8 card-shadow border border-amber-500/30 text-center">
-                        <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-amber-500/10 border border-amber-500/25">
-                            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-amber-500">
-                                <circle cx="12" cy="12" r="10" />
-                                <line x1="12" y1="8" x2="12" y2="12" />
-                                <line x1="12" y1="16" x2="12.01" y2="16" />
-                            </svg>
-                        </div>
-                        <h2 className="text-lg font-bold text-[--color-text-primary] mb-2">Session About to Expire</h2>
-                        <p className="text-sm text-[--color-text-muted] mb-1">
-                            You have been inactive for a while. For your security, you will be signed out in:
-                        </p>
-                        <p className="text-4xl font-bold text-amber-500 my-4 tabular-nums">
-                            {String(Math.floor(idleCountdown / 60)).padStart(2, '0')}:{String(idleCountdown % 60).padStart(2, '0')}
-                        </p>
-                        <p className="text-xs text-[--color-text-muted] mb-6">Move your mouse or press any key to stay signed in.</p>
-                        <div className="flex gap-3 justify-center">
-                            <button
-                                onClick={resetIdleTimers}
-                                className="px-5 py-2.5 rounded-xl bg-[--color-primary] text-white text-sm font-semibold hover:opacity-90 transition-opacity"
+            <AnimatePresence>
+                {idleWarning && (
+                    <motion.div
+                        key="idle-overlay"
+                        variants={overlay}
+                        initial="hidden"
+                        animate="show"
+                        exit="exit"
+                        className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm"
+                    >
+                        <motion.div
+                            key="idle-panel"
+                            variants={slideUpPanel}
+                            initial="hidden"
+                            animate="show"
+                            exit="exit"
+                            className="w-[420px] rounded-2xl bg-[--color-surface] p-8 card-shadow border border-amber-500/30 text-center"
+                        >
+                            <motion.div
+                                animate={{ rotate: [0, -8, 8, -6, 6, 0] }}
+                                transition={{ repeat: Infinity, repeatDelay: 1.6, duration: 0.7, ease: 'easeInOut' }}
+                                className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-amber-500/10 border border-amber-500/25"
                             >
-                                Stay Signed In
-                            </button>
-                            <button
-                                onClick={forceLogout}
-                                className="px-5 py-2.5 rounded-xl bg-[--color-surface-raised] border border-[--color-border] text-sm font-medium text-[--color-text-muted] hover:text-[--color-text-primary] transition-colors"
+                                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-amber-500">
+                                    <circle cx="12" cy="12" r="10" />
+                                    <line x1="12" y1="8" x2="12" y2="12" />
+                                    <line x1="12" y1="16" x2="12.01" y2="16" />
+                                </svg>
+                            </motion.div>
+                            <h2 className="text-lg font-bold text-[--color-text-primary] mb-2">Session About to Expire</h2>
+                            <p className="text-sm text-[--color-text-muted] mb-1">
+                                You have been inactive for a while. For your security, you will be signed out in:
+                            </p>
+                            <motion.p
+                                key={idleCountdown}
+                                initial={{ scale: 1.1, opacity: 0.7 }}
+                                animate={{ scale: 1, opacity: 1 }}
+                                transition={T.snappy}
+                                className="text-4xl font-bold text-amber-500 my-4 tabular-nums"
                             >
-                                Sign Out Now
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
+                                {String(Math.floor(idleCountdown / 60)).padStart(2, '0')}:{String(idleCountdown % 60).padStart(2, '0')}
+                            </motion.p>
+                            <p className="text-xs text-[--color-text-muted] mb-6">Move your mouse or press any key to stay signed in.</p>
+                            <div className="flex gap-3 justify-center">
+                                <motion.button
+                                    whileHover={{ y: -1, scale: 1.02 }}
+                                    whileTap={{ scale: 0.97 }}
+                                    onClick={resetIdleTimers}
+                                    className="px-5 py-2.5 rounded-xl text-white text-sm font-semibold cursor-pointer"
+                                    style={{ background: 'linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%)', boxShadow: '0 4px 14px rgba(79,70,229,0.35)' }}
+                                >
+                                    Stay Signed In
+                                </motion.button>
+                                <motion.button
+                                    whileHover={{ y: -1 }}
+                                    whileTap={{ scale: 0.97 }}
+                                    onClick={forceLogout}
+                                    className="px-5 py-2.5 rounded-xl bg-[--color-surface-raised] border border-[--color-border] text-sm font-medium text-[--color-text-muted] hover:text-[--color-text-primary] cursor-pointer"
+                                >
+                                    Sign Out Now
+                                </motion.button>
+                            </div>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </div>
     );
 }

@@ -2,13 +2,15 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { motion, AnimatePresence } from 'motion/react';
 import {
     LayoutDashboard, FolderLock, FileSearch, Building2, Calendar,
     ShieldCheck, BarChart2, Users, ClipboardList, Activity, UserCheck,
-    ChevronLeft, ChevronRight, Shield, Home, Brain, Globe, RefreshCw,
+    ChevronRight, Shield, Home, Brain, Globe, RefreshCw,
 } from 'lucide-react';
 import { classNames } from '@/lib/utils/formatters';
 import { useAppStore } from '@/store/useAppStore';
+import { T } from '@/lib/motion';
 
 interface NavItem {
     label: string;
@@ -86,51 +88,67 @@ export function Sidebar() {
             ? providerNavGroups
             : companyNavGroups;
 
-    // Sidebar is ALWAYS dark — enterprise pattern (Linear, Vercel, GitHub all do this)
     const sidebarStyle: React.CSSProperties = {
         backgroundColor: 'var(--color-sidebar-bg)',
         borderRight: '1px solid var(--color-sidebar-border)',
     };
 
     return (
-        <aside
+        <motion.aside
             style={sidebarStyle}
-            className={classNames(
-                'flex flex-col flex-shrink-0 transition-all duration-200 h-full',
-                sidebarCollapsed ? 'w-16' : 'w-60'
-            )}
+            animate={{ width: sidebarCollapsed ? 64 : 240 }}
+            transition={T.softSpring}
+            className="flex flex-col flex-shrink-0 h-full overflow-hidden"
         >
             {/* Brand */}
             <div
                 style={{ borderBottom: '1px solid var(--color-sidebar-border)', height: 60 }}
                 className="flex items-center gap-3 px-4 flex-shrink-0"
             >
-                <div
+                <motion.div
+                    whileHover={{ rotate: [0, -10, 10, 0], scale: 1.05 }}
+                    transition={{ duration: 0.5 }}
                     className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 shadow-sm"
                     style={{ background: 'linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%)' }}
                 >
                     <Shield size={15} color="#fff" />
-                </div>
-                {!sidebarCollapsed && (
-                    <div className="min-w-0">
-                        <p className="text-sm font-bold leading-tight tracking-tight" style={{ color: '#F1F5F9' }}>TenderGuard</p>
-                        <p className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: '#6366F1' }}>Pro Platform</p>
-                    </div>
-                )}
+                </motion.div>
+                <AnimatePresence initial={false}>
+                    {!sidebarCollapsed && (
+                        <motion.div
+                            key="brand-text"
+                            initial={{ opacity: 0, x: -8 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            exit={{ opacity: 0, x: -8 }}
+                            transition={T.snappy}
+                            className="min-w-0"
+                        >
+                            <p className="text-sm font-bold leading-tight tracking-tight" style={{ color: '#F1F5F9' }}>TenderGuard</p>
+                            <p className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: '#6366F1' }}>Pro Platform</p>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
             </div>
 
             {/* Navigation */}
             <nav className="flex-1 overflow-y-auto py-4 px-2 space-y-6">
                 {navGroups.map((group) => (
                     <div key={group.label}>
-                        {!sidebarCollapsed && (
-                            <p
-                                className="px-3 mb-2 text-[10px] font-semibold uppercase tracking-widest"
-                                style={{ color: '#374151' }}
-                            >
-                                {group.label}
-                            </p>
-                        )}
+                        <AnimatePresence initial={false}>
+                            {!sidebarCollapsed && (
+                                <motion.p
+                                    key={`label-${group.label}`}
+                                    initial={{ opacity: 0, height: 0 }}
+                                    animate={{ opacity: 1, height: 'auto' }}
+                                    exit={{ opacity: 0, height: 0 }}
+                                    transition={T.snappy}
+                                    className="px-3 mb-2 text-[10px] font-semibold uppercase tracking-widest overflow-hidden"
+                                    style={{ color: '#374151' }}
+                                >
+                                    {group.label}
+                                </motion.p>
+                            )}
+                        </AnimatePresence>
                         <ul className="space-y-0.5">
                             {group.items.map((item) => {
                                 const active = isActive(item.href);
@@ -139,37 +157,56 @@ export function Sidebar() {
                                         <Link
                                             href={item.href}
                                             title={sidebarCollapsed ? item.label : undefined}
+                                            className={classNames(
+                                                'group relative flex items-center gap-2.5 rounded-lg text-[13.5px] no-underline cursor-pointer',
+                                                sidebarCollapsed ? 'px-2.5 py-2 justify-center' : 'px-3 py-2',
+                                                active ? 'font-semibold' : 'font-medium'
+                                            )}
                                             style={{
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                gap: 10,
-                                                padding: sidebarCollapsed ? '8px 10px' : '8px 12px',
-                                                borderRadius: 8,
-                                                fontSize: 13.5,
-                                                fontWeight: active ? 600 : 500,
-                                                textDecoration: 'none',
-                                                borderLeft: active ? '2px solid #6366F1' : '2px solid transparent',
-                                                backgroundColor: active ? 'var(--color-sidebar-active-bg)' : 'transparent',
-                                                color: active ? 'var(--color-sidebar-text-active)' : 'var(--color-sidebar-text)',
-                                                transition: 'all 120ms ease',
-                                            }}
-                                            onMouseEnter={(e) => {
-                                                if (!active) {
-                                                    (e.currentTarget as HTMLElement).style.backgroundColor = 'rgba(255,255,255,0.05)';
-                                                    (e.currentTarget as HTMLElement).style.color = '#CBD5E1';
-                                                }
-                                            }}
-                                            onMouseLeave={(e) => {
-                                                if (!active) {
-                                                    (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent';
-                                                    (e.currentTarget as HTMLElement).style.color = 'var(--color-sidebar-text)';
-                                                }
+                                                color: active
+                                                    ? 'var(--color-sidebar-text-active)'
+                                                    : 'var(--color-sidebar-text)',
                                             }}
                                         >
-                                            <span className="flex-shrink-0" style={{ opacity: active ? 1 : 0.75 }}>
-                                                {item.icon}
-                                            </span>
-                                            {!sidebarCollapsed && <span className="truncate">{item.label}</span>}
+                                            {/* Animated active background — shared layoutId */}
+                                            {active && (
+                                                <motion.span
+                                                    layoutId="sidebar-active"
+                                                    className="absolute inset-0 rounded-lg"
+                                                    style={{
+                                                        background: 'var(--color-sidebar-active-bg)',
+                                                        borderLeft: '2px solid #6366F1',
+                                                    }}
+                                                    transition={{ type: 'spring', stiffness: 380, damping: 32 }}
+                                                />
+                                            )}
+                                            {/* Hover backdrop (non-active) */}
+                                            {!active && (
+                                                <span className="absolute inset-0 rounded-lg bg-white/0 group-hover:bg-white/[0.05] transition-colors" />
+                                            )}
+                                            <motion.span
+                                                whileHover={!active ? { x: 2 } : undefined}
+                                                transition={T.snappy}
+                                                className="relative z-10 flex items-center gap-2.5 w-full"
+                                            >
+                                                <span className="flex-shrink-0" style={{ opacity: active ? 1 : 0.75 }}>
+                                                    {item.icon}
+                                                </span>
+                                                <AnimatePresence initial={false}>
+                                                    {!sidebarCollapsed && (
+                                                        <motion.span
+                                                            key="lbl"
+                                                            initial={{ opacity: 0, width: 0 }}
+                                                            animate={{ opacity: 1, width: 'auto' }}
+                                                            exit={{ opacity: 0, width: 0 }}
+                                                            transition={T.snappy}
+                                                            className="truncate whitespace-nowrap"
+                                                        >
+                                                            {item.label}
+                                                        </motion.span>
+                                                    )}
+                                                </AnimatePresence>
+                                            </motion.span>
                                         </Link>
                                     </li>
                                 );
@@ -181,35 +218,22 @@ export function Sidebar() {
 
             {/* Collapse toggle */}
             <div style={{ borderTop: '1px solid var(--color-sidebar-border)' }} className="p-2">
-                <button
+                <motion.button
                     onClick={toggleSidebar}
                     title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-                    style={{
-                        width: '100%',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        padding: 8,
-                        borderRadius: 8,
-                        color: '#475569',
-                        background: 'transparent',
-                        border: 'none',
-                        cursor: 'pointer',
-                        transition: 'all 120ms ease',
-                    }}
-                    onMouseEnter={(e) => {
-                        (e.currentTarget as HTMLElement).style.backgroundColor = 'rgba(255,255,255,0.06)';
-                        (e.currentTarget as HTMLElement).style.color = '#94A3B8';
-                    }}
-                    onMouseLeave={(e) => {
-                        (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent';
-                        (e.currentTarget as HTMLElement).style.color = '#475569';
-                    }}
+                    whileHover={{ backgroundColor: 'rgba(255,255,255,0.06)' }}
+                    whileTap={{ scale: 0.94 }}
+                    className="w-full flex items-center justify-center p-2 rounded-lg cursor-pointer text-[#475569] hover:text-[#94A3B8]"
+                    style={{ background: 'transparent', border: 'none' }}
                 >
-                    {sidebarCollapsed ? <ChevronRight size={15} /> : <ChevronLeft size={15} />}
-                </button>
+                    <motion.span
+                        animate={{ rotate: sidebarCollapsed ? 0 : 180 }}
+                        transition={T.softSpring}
+                    >
+                        <ChevronRight size={15} />
+                    </motion.span>
+                </motion.button>
             </div>
-        </aside>
+        </motion.aside>
     );
 }
-

@@ -1,7 +1,9 @@
+import { PageTransition } from '@/components/layout/PageTransition';
+
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
     return (
         <div className="min-h-screen bg-[--color-bg] flex flex-col justify-center py-12 sm:px-6 lg:px-8">
-            {children}
+            <PageTransition>{children}</PageTransition>
         </div>
     );
 }

@@ -1,17 +1,22 @@
 'use client';
 
 import { forwardRef } from 'react';
+import { motion, type HTMLMotionProps } from 'motion/react';
 import { classNames } from '@/lib/utils/formatters';
+import { T } from '@/lib/motion';
 
 type Variant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'success' | 'outline';
 type Size = 'sm' | 'md' | 'lg';
 
-interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+type DivergentProps = 'onAnimationStart' | 'onAnimationEnd' | 'onAnimationIteration' | 'onDrag' | 'onDragEnd' | 'onDragStart' | 'onDragEnter' | 'onDragLeave' | 'onDragOver' | 'onDrop' | 'onTransitionEnd' | 'children';
+
+interface ButtonProps extends Omit<HTMLMotionProps<'button'>, DivergentProps> {
     variant?: Variant;
     size?: Size;
     loading?: boolean;
     leftIcon?: React.ReactNode;
     rightIcon?: React.ReactNode;
+    children?: React.ReactNode;
 }
 
 const variantClasses: Record<Variant, string> = {
@@ -64,13 +69,17 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         },
         ref
     ) => {
+        const isDisabled = disabled || loading;
         return (
-            <button
+            <motion.button
                 ref={ref}
-                disabled={disabled || loading}
+                disabled={isDisabled}
+                whileHover={isDisabled ? undefined : { y: -1, scale: 1.01 }}
+                whileTap={isDisabled ? undefined : { scale: 0.97 }}
+                transition={T.snappy}
                 className={classNames(
-                    'inline-flex items-center justify-center font-medium transition-all duration-150',
-                    'disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-90 active:scale-[0.98]',
+                    'inline-flex items-center justify-center font-medium',
+                    'disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer',
                     variantClasses[variant],
                     sizeClasses[size],
                     className
@@ -79,8 +88,10 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
                 {...props}
             >
                 {loading ? (
-                    <svg
-                        className="animate-spin h-4 w-4"
+                    <motion.svg
+                        animate={{ rotate: 360 }}
+                        transition={{ repeat: Infinity, duration: 0.8, ease: 'linear' }}
+                        className="h-4 w-4"
                         xmlns="http://www.w3.org/2000/svg"
                         fill="none"
                         viewBox="0 0 24 24"
@@ -98,13 +109,13 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
                             fill="currentColor"
                             d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
                         />
-                    </svg>
+                    </motion.svg>
                 ) : (
                     leftIcon
                 )}
                 {children}
                 {!loading && rightIcon}
-            </button>
+            </motion.button>
         );
     }
 );

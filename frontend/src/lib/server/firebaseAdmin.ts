@@ -24,6 +24,7 @@ if (projectId && clientEmail && privateKey) {
       });
     }
     firestore = admin.firestore();
+    firestore.settings({ ignoreUndefinedProperties: true });
     if (storageBucket) {
       bucket = admin.storage().bucket();
     }

@@ -1,3 +1,6 @@
+'use client';
+
+import { motion } from 'motion/react';
 import { classNames } from '@/lib/utils/formatters';
 
 interface SkeletonProps {
@@ -5,6 +8,8 @@ interface SkeletonProps {
     lines?: number;
     circle?: boolean;
 }
+
+const shimmer = 'relative overflow-hidden bg-[--color-border] before:absolute before:inset-0 before:-translate-x-full before:animate-[shimmer_1.6s_infinite] before:bg-gradient-to-r before:from-transparent before:via-white/15 before:to-transparent';
 
 export function Skeleton({ className, lines = 1, circle = false }: SkeletonProps) {
     if (lines > 1) {
@@ -14,9 +19,9 @@ export function Skeleton({ className, lines = 1, circle = false }: SkeletonProps
                     <div
                         key={i}
                         className={classNames(
-                            'animate-pulse bg-[--color-border] rounded-md',
+                            shimmer,
+                            'rounded-md h-4',
                             i === lines - 1 ? 'w-3/4' : 'w-full',
-                            'h-4',
                             className
                         )}
                     />
@@ -28,7 +33,7 @@ export function Skeleton({ className, lines = 1, circle = false }: SkeletonProps
     return (
         <div
             className={classNames(
-                'animate-pulse bg-[--color-border]',
+                shimmer,
                 circle ? 'rounded-full' : 'rounded-md',
                 className
             )}
@@ -64,10 +69,20 @@ export function PageLoader({ message }: { message?: string }) {
         <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
             <div className="relative">
                 <div className="w-10 h-10 rounded-full border-2 border-[--color-border]" />
-                <div className="absolute inset-0 w-10 h-10 rounded-full border-2 border-[--color-primary] border-t-transparent animate-spin" />
+                <motion.div
+                    className="absolute inset-0 w-10 h-10 rounded-full border-2 border-[--color-primary] border-t-transparent"
+                    animate={{ rotate: 360 }}
+                    transition={{ repeat: Infinity, duration: 0.9, ease: 'linear' }}
+                />
             </div>
             {message && (
-                <p className="text-sm text-[--color-text-muted] animate-pulse">{message}</p>
+                <motion.p
+                    className="text-sm text-[--color-text-muted]"
+                    animate={{ opacity: [0.5, 1, 0.5] }}
+                    transition={{ repeat: Infinity, duration: 1.6, ease: 'easeInOut' }}
+                >
+                    {message}
+                </motion.p>
             )}
         </div>
     );
@@ -76,7 +91,12 @@ export function PageLoader({ message }: { message?: string }) {
 /** Full-page dashboard skeleton — header bar, 4 stat cards, content area */
 export function PageSkeleton() {
     return (
-        <div className="space-y-6 animate-in fade-in duration-300">
+        <motion.div
+            className="space-y-6"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.3 }}
+        >
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div className="space-y-2">
@@ -103,6 +123,6 @@ export function PageSkeleton() {
                     </div>
                 ))}
             </div>
-        </div>
+        </motion.div>
     );
 }
