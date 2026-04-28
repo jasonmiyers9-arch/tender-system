@@ -40,6 +40,11 @@ export async function POST(req: Request) {
       return NextResponse.json({ detail: 'Unable to load user profile' }, { status: 500 });
     }
 
+    if (user.role === 'admin') {
+      await logAuthFailure(req, user.email, 'Admin attempted public login');
+      return NextResponse.json({ detail: 'admin_portal_required' }, { status: 403 });
+    }
+
     // Log successful authentication
     await logAuthSuccess(req, user.id, user.email, 'password');
 

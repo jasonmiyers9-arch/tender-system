@@ -6,7 +6,7 @@ const nextConfig: NextConfig = {
   },
   // pdfjs-dist uses a dynamic worker that can't survive webpack chunking;
   // keep it as a real node_modules import at runtime.
-  serverExternalPackages: ['pdfjs-dist'],
+  serverExternalPackages: ['pdfjs-dist', 'firebase-admin', '@google-cloud/firestore', '@google-cloud/storage'],
 };
 
 export default nextConfig;

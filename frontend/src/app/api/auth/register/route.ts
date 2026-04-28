@@ -25,6 +25,10 @@ export async function POST(req: Request) {
     return NextResponse.json({ detail: 'Firebase token, name and email are required' }, { status: 400 });
   }
 
+  if (role === 'admin') {
+    return NextResponse.json({ detail: 'admin_registration_disabled' }, { status: 403 });
+  }
+
   const ctx = extractRequestContext(req);
 
   try {

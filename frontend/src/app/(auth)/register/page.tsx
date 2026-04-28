@@ -45,9 +45,8 @@ const TENDER_CATEGORIES = [
 ] as const;
 
 export default function RegisterPage() {
-    const [formData, setFormData] = useState({ name: '', email: '', password: '', role: 'company' as 'admin' | 'company' | 'tender_provider', companyName: '', registrationNumber: '', phone: '', tenderCategories: [] as string[] });
+    const [formData, setFormData] = useState({ name: '', email: '', password: '', role: 'company' as 'company' | 'tender_provider', companyName: '', registrationNumber: '', phone: '', tenderCategories: [] as string[] });
     const [categoryDropdownOpen, setCategoryDropdownOpen] = useState(false);
-    const needsOrganisationFields = formData.role !== 'admin';
     const [loading, setLoading] = useState(false);
     const [progress, setProgress] = useState(0);
     const [flowMessage, setFlowMessage] = useState('');
@@ -98,7 +97,7 @@ export default function RegisterPage() {
             return;
         }
 
-        if (needsOrganisationFields && (!formData.companyName.trim() || !formData.registrationNumber.trim() || !formData.phone.trim())) {
+        if (!formData.companyName.trim() || !formData.registrationNumber.trim() || !formData.phone.trim()) {
             setError('Please complete company name, registration number and phone number.');
             setLoading(false);
             setProgress(0);
@@ -214,39 +213,36 @@ export default function RegisterPage() {
                             <select
                                 className="w-full rounded-xl border border-[--color-border] bg-[--color-surface] px-3.5 py-2.5 text-sm text-[--color-text-primary] outline-none focus:ring-2 focus:ring-[--color-primary] focus:border-[--color-primary] transition-colors cursor-pointer"
                                 value={formData.role}
-                                onChange={e => setFormData({ ...formData, role: e.target.value as 'admin' | 'company' | 'tender_provider' })}
+                                onChange={e => setFormData({ ...formData, role: e.target.value as 'company' | 'tender_provider' })}
                             >
                                 <option value="company">Company</option>
                                 <option value="tender_provider">Tender Provider</option>
-                                <option value="admin">Admin</option>
                             </select>
                         </div>
 
-                        {needsOrganisationFields && (
-                            <>
-                                <Input
-                                    label={formData.role === 'tender_provider' ? 'Organisation Name' : 'Company Name'}
-                                    placeholder={formData.role === 'tender_provider' ? 'e.g. City Infrastructure Dept' : 'e.g. Acme Infra (Pty) Ltd'}
-                                    required
-                                    value={formData.companyName}
-                                    onChange={e => setFormData({ ...formData, companyName: e.target.value })}
-                                />
-                                <Input
-                                    label="Registration Number"
-                                    placeholder="e.g. 2019/123456/07"
-                                    required
-                                    value={formData.registrationNumber}
-                                    onChange={e => setFormData({ ...formData, registrationNumber: e.target.value })}
-                                />
-                                <Input
-                                    label="Phone Number"
-                                    placeholder="e.g. +27 82 000 0000"
-                                    required
-                                    value={formData.phone}
-                                    onChange={e => setFormData({ ...formData, phone: e.target.value })}
-                                />
-                            </>
-                        )}
+                        <>
+                            <Input
+                                label={formData.role === 'tender_provider' ? 'Organisation Name' : 'Company Name'}
+                                placeholder={formData.role === 'tender_provider' ? 'e.g. City Infrastructure Dept' : 'e.g. Acme Infra (Pty) Ltd'}
+                                required
+                                value={formData.companyName}
+                                onChange={e => setFormData({ ...formData, companyName: e.target.value })}
+                            />
+                            <Input
+                                label="Registration Number"
+                                placeholder="e.g. 2019/123456/07"
+                                required
+                                value={formData.registrationNumber}
+                                onChange={e => setFormData({ ...formData, registrationNumber: e.target.value })}
+                            />
+                            <Input
+                                label="Phone Number"
+                                placeholder="e.g. +27 82 000 0000"
+                                required
+                                value={formData.phone}
+                                onChange={e => setFormData({ ...formData, phone: e.target.value })}
+                            />
+                        </>
 
                         {/* Tender Categories — multi-select */}
                         {formData.role === 'company' && (

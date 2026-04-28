@@ -29,7 +29,7 @@ export function Topbar() {
     const handleLogout = async () => {
         await signOutFirebase();
         logout();
-        router.push('/login');
+        router.push(currentUser?.role === 'admin' ? '/admin/login' : '/login');
     };
 
     const unreadCount = unreadQuery.data?.length ?? 0;

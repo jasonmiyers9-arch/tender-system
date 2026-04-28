@@ -20,8 +20,8 @@ export default function AdminAccountsPage() {
     return (
         <div className="max-w-6xl mx-auto space-y-6">
             <PageHeader
-                title="Accounts / Companies"
-                subtitle="Verify newly created accounts before portal access."
+                title="External Accounts"
+                subtitle="Review company and tender-provider accounts before portal access."
                 icon={<Users size={22} />}
                 iconColor="#3B82F6"
             />

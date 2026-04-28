@@ -12,6 +12,7 @@ export async function GET(req: Request) {
 
   const now = Date.now();
   const items = (await listAllUsers())
+    .filter((u) => u.role !== 'admin')
     .filter((u) => (statusParam ? u.verificationStatus === statusParam : true))
     .map((u) => {
       const createdAtMs = new Date(u.createdAt).getTime();

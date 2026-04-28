@@ -30,6 +30,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     const markRead = useMarkNotificationRead();
     const router = useRouter();
     const pathname = usePathname();
+    const loginPath = pathname.startsWith('/admin') ? '/admin/login' : '/login';
 
     // ─── 1. Auth guard — instant render if session already in store ──────────
     // currentUser + token are persisted in localStorage via Zustand persist.
@@ -43,7 +44,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         if (!token) {
             authCheckedRef.current = false;
             setSessionReady(false);
-            router.push('/login?reason=auth_required');
+            router.push(`${loginPath}?reason=auth_required`);
             return;
         }
 
@@ -74,7 +75,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                     if (!cancelled) {
                         await signOutFirebase();
                         logout();
-                        router.push('/login?reason=session_expired');
+                        router.push(`${loginPath}?reason=session_expired`);
                     }
                 });
             return () => { cancelled = true; };
@@ -100,12 +101,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 if (!cancelled) {
                     await signOutFirebase();
                     logout();
-                    router.push('/login?reason=session_expired');
+                    router.push(`${loginPath}?reason=session_expired`);
                 }
             });
         return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [_hasHydrated, token]);
+    }, [_hasHydrated, loginPath, token]);
 
     // ─── 2. Role-based route guard ────────────────────────────────────────────
     useEffect(() => {
@@ -140,8 +141,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         if (countdownRef.current) clearInterval(countdownRef.current);
         await signOutFirebase();
         logout();
-        router.push('/login?reason=inactivity');
-    }, [logout, router]);
+        router.push(`${loginPath}?reason=inactivity`);
+    }, [loginPath, logout, router]);
 
     const resetIdleTimers = useCallback(() => {
         if (warnTimerRef.current) clearTimeout(warnTimerRef.current);
@@ -176,7 +177,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         const handleActivity = () => resetIdleTimers();
 
         // Initialize idle timers on mount - intentional pattern
-        // eslint-disable-next-line react-hooks/set-state-in-effect
         resetIdleTimers();
         ACTIVITY_EVENTS.forEach((e) => window.addEventListener(e, handleActivity, { passive: true }));
 

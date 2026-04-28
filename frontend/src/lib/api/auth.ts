@@ -23,6 +23,22 @@ function getToken(): string | null {
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? '/api';
 
+async function loginForPortal(path: string, email: string, password: string): Promise<LoginResponse> {
+    const { idToken } = await signInWithEmailPassword(email, password);
+    const res = await fetch(`${API_BASE}${path}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ idToken }),
+    });
+
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: 'Login failed' }));
+        throw new Error(err.detail ?? 'Login failed');
+    }
+
+    return res.json();
+}
+
 export const auth = {
     async me(): Promise<AuthUser> {
         const token = (await getCurrentIdToken()) ?? getToken();
@@ -37,19 +53,11 @@ export const auth = {
         return res.json();
     },
     async login(email: string, password: string): Promise<LoginResponse> {
-        const { idToken } = await signInWithEmailPassword(email, password);
-        const res = await fetch(`${API_BASE}/auth/login`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ idToken }),
-        });
+        return loginForPortal('/auth/login', email, password);
+    },
 
-        if (!res.ok) {
-            const err = await res.json().catch(() => ({ detail: 'Login failed' }));
-            throw new Error(err.detail ?? 'Login failed');
-        }
-
-        return res.json();
+    async adminLogin(email: string, password: string): Promise<LoginResponse> {
+        return loginForPortal('/auth/admin/login', email, password);
     },
 
     async googleSignIn(): Promise<LoginResponse> {
@@ -77,7 +85,7 @@ export const auth = {
         name: string;
         email: string;
         password: string;
-        role: 'admin' | 'company' | 'tender_provider';
+        role: 'company' | 'tender_provider';
         companyName: string;
         registrationNumber?: string;
         phone?: string;
