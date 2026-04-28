@@ -43,6 +43,21 @@ export function useAdminAccounts(status: 'pending' | 'approved' | 'rejected' | '
     });
 }
 
+export function useInternalAdminUsers() {
+    return useQuery({
+        queryKey: ['internal-admin-users'],
+        queryFn: () => admin.listInternalUsers(),
+    });
+}
+
+export function useCreateInternalAdmin() {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: (payload: { name: string; email: string; password: string }) => admin.createInternalAdmin(payload),
+        onSuccess: () => qc.invalidateQueries({ queryKey: ['internal-admin-users'] }),
+    });
+}
+
 export function useApproveAccount() {
     const qc = useQueryClient();
     return useMutation({

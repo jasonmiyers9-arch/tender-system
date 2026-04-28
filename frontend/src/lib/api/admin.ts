@@ -24,12 +24,32 @@ async function authFetch(path: string, init?: RequestInit) {
     const res = await fetch(`${API_BASE}${path}`, { ...init, headers, cache: 'no-store' });
     if (!res.ok) {
         const text = await res.text();
-        throw new Error(`Request failed (${res.status}): ${text || path}`);
+        let detail = text || path;
+        try {
+            const parsed = JSON.parse(text) as { detail?: string };
+            detail = parsed.detail ?? detail;
+        } catch {
+            // Keep the raw text fallback when the response is not JSON.
+        }
+        throw new Error(`Request failed (${res.status}): ${detail}`);
     }
     return res;
 }
 
 export const admin = {
+    async listInternalUsers() {
+        const res = await authFetch('/auth/admin/internal-users');
+        return res.json() as Promise<{ items: Array<{ id: string; name: string; email: string; role: string; verificationStatus: string; createdAt: string }> }>;
+    },
+
+    async createInternalAdmin(payload: { name: string; email: string; password: string }) {
+        const res = await authFetch('/auth/admin/internal-users', {
+            method: 'POST',
+            body: JSON.stringify(payload),
+        });
+        return res.json() as Promise<{ user: { id: string; name: string; email: string; role: string; verificationStatus?: string } }>;
+    },
+
     async getPortfolioStats(): Promise<AdminStats> {
         try {
             const res = await authFetch('/admin/dashboard/stats');

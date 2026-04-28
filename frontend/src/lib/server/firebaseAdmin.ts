@@ -132,3 +132,27 @@ export async function verifyIdToken(idToken: string) {
   }
   return admin.auth().verifyIdToken(idToken);
 }
+
+export async function createEmailPasswordUser(payload: {
+  email: string;
+  password: string;
+  displayName: string;
+}) {
+  if (!initialized || !admin.apps.length) {
+    throw new Error('Firebase Admin is not configured for user provisioning.');
+  }
+
+  return admin.auth().createUser({
+    email: payload.email,
+    password: payload.password,
+    displayName: payload.displayName,
+  });
+}
+
+export async function deleteAuthUser(uid: string) {
+  if (!initialized || !admin.apps.length) {
+    throw new Error('Firebase Admin is not configured for user provisioning.');
+  }
+
+  await admin.auth().deleteUser(uid);
+}
