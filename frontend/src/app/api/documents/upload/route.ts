@@ -160,23 +160,27 @@ export async function POST(req: Request) {
 
     // Upload to storage
     let fileUrl: string;
+    let persistedStoragePath: string;
     try {
       if (isFirebaseStorageConfigured()) {
         try {
           fileUrl = await uploadDocumentToFirebase(storageKey, buffer, mimeType);
+          persistedStoragePath = storageKey;
           console.log(`Document uploaded to Firebase Storage: ${fileUrl}`);
         } catch (firebaseStorageError) {
           console.warn('Firebase storage upload failed, falling back to local storage.', firebaseStorageError);
           fileUrl = writeLocalFallback(storageKey, buffer);
+          persistedStoragePath = fileUrl;
           console.log(`Document saved locally after Firebase fallback: ${fileUrl}`);
         }
       } else {
         fileUrl = writeLocalFallback(storageKey, buffer);
+        persistedStoragePath = fileUrl;
         console.log(`Document saved locally: ${fileUrl}`);
       }
     } catch (storageError) {
       console.error('Storage save failed:', storageError);
-      return NextResponse.json({ detail: 'Failed to save document to storage. Check Firebase Storage configuration.' }, { status: 500 });
+      return NextResponse.json({ detail: 'Failed to save document to storage.' }, { status: 500 });
     }
 
     // Create document record with full metadata
@@ -185,7 +189,7 @@ export async function POST(req: Request) {
       name: safeFileName,
       category: documentCategory,
       fileUrl,
-      storagePath: storageKey,
+      storagePath: persistedStoragePath,
       expiryDate: detectedExpiryDate,
       fileSize,
       mimeType,

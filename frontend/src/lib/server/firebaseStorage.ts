@@ -1,5 +1,6 @@
 import admin from 'firebase-admin';
-import { mkdirSync, writeFileSync, existsSync } from 'node:fs';
+import { mkdirSync, writeFileSync, existsSync, rmSync } from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 
 function normalizeBucket(bucket?: string): string | undefined {
@@ -13,6 +14,7 @@ const projectId = process.env.FIREBASE_PROJECT_ID;
 const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
 const rawPrivateKey = process.env.FIREBASE_PRIVATE_KEY;
 const storageBucket = normalizeBucket(process.env.FIREBASE_STORAGE_BUCKET ?? 'gs://tender-f8e31.firebasestorage.app');
+let cachedLocalStorageRoot: string | null = null;
 
 function normalizePrivateKey(key?: string): string | null {
   if (!key) return null;
@@ -52,6 +54,10 @@ function getBucket() {
 
 export function isFirebaseStorageConfigured() {
   return !!(projectId && clientEmail && rawPrivateKey && storageBucket);
+}
+
+export function isLocalStorageReference(storageRef: string): boolean {
+  return path.isAbsolute(storageRef);
 }
 
 export async function uploadDocumentToFirebase(blobName: string, data: Buffer, contentType = 'application/octet-stream'): Promise<string> {
@@ -102,8 +108,39 @@ export async function downloadDocumentFromFirebase(blobName: string): Promise<{
   };
 }
 
+function resolveLocalStorageRoot(): string {
+  if (cachedLocalStorageRoot) {
+    return cachedLocalStorageRoot;
+  }
+
+  const configuredDir = process.env.LOCAL_STORAGE_DIR?.trim();
+  const candidates = [
+    configuredDir,
+    path.join(process.cwd(), 'storage'),
+    path.join(os.tmpdir(), 'tenderguard-storage'),
+  ].filter((value): value is string => Boolean(value));
+
+  let lastError: unknown;
+  for (const candidate of candidates) {
+    try {
+      mkdirSync(candidate, { recursive: true });
+      const probePath = path.join(candidate, `.write-test-${process.pid}-${Date.now()}`);
+      writeFileSync(probePath, '');
+      rmSync(probePath, { force: true });
+      cachedLocalStorageRoot = candidate;
+      return candidate;
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  throw new Error(
+    `No writable local storage directory available.${lastError instanceof Error ? ` Last error: ${lastError.message}` : ''}`,
+  );
+}
+
 export function writeLocalFallback(blobName: string, data: Buffer): string {
-  const storageRoot = path.join(process.cwd(), 'storage');
+  const storageRoot = resolveLocalStorageRoot();
   const targetPath = path.join(storageRoot, blobName);
   const dir = path.dirname(targetPath);
   if (!existsSync(dir)) {

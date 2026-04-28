@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import * as fs from 'node:fs';
 import { getDocumentById } from '../../../../../lib/server/firestoreService';
-import { isFirebaseStorageConfigured, downloadDocumentFromFirebase } from '../../../../../lib/server/firebaseStorage';
+import { isFirebaseStorageConfigured, downloadDocumentFromFirebase, isLocalStorageReference } from '../../../../../lib/server/firebaseStorage';
 import { requireAuth, resolveCompanyContext } from '../../../../../lib/server/apiAuth';
 
 export async function GET(
@@ -29,7 +29,7 @@ export async function GET(
       return NextResponse.json({ detail: 'No file available' }, { status: 404 });
     }
 
-    if (isFirebaseStorageConfigured()) {
+    if (!isLocalStorageReference(fileUrl) && isFirebaseStorageConfigured()) {
       const { buffer, contentType } = await downloadDocumentFromFirebase(fileUrl);
       return new Response(buffer as unknown as BodyInit, {
         status: 200,

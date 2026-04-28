@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import * as fs from 'node:fs';
 import { getDocumentById, getUserByToken } from '@/lib/server/firestoreService';
-import { isFirebaseStorageConfigured, generateFirebaseSignedDownloadUrl } from '@/lib/server/firebaseStorage';
+import { isFirebaseStorageConfigured, generateFirebaseSignedDownloadUrl, isLocalStorageReference } from '@/lib/server/firebaseStorage';
 
 function parseToken(req: Request): string | null {
   const header = req.headers.get('authorization');
@@ -34,7 +34,7 @@ export async function GET(
     return NextResponse.json({ detail: 'No file available' }, { status: 404 });
   }
 
-  if (isFirebaseStorageConfigured()) {
+  if (!isLocalStorageReference(document.fileUrl) && isFirebaseStorageConfigured()) {
     const signedUrl = await generateFirebaseSignedDownloadUrl(document.fileUrl);
     return NextResponse.redirect(signedUrl);
   }

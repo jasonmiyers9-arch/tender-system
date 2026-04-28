@@ -1,4 +1,6 @@
 import { NextResponse } from 'next/server';
+import path from 'node:path';
+import { rm } from 'node:fs/promises';
 import { 
   getDocumentById, 
   verifyDocument, 
@@ -247,7 +249,11 @@ export async function DELETE(
     // Delete from Firebase Storage first
     if (document.storagePath) {
       try {
-        await deleteDocumentFromStorage(document.storagePath);
+        if (path.isAbsolute(document.storagePath)) {
+          await rm(document.storagePath, { force: true });
+        } else {
+          await deleteDocumentFromStorage(document.storagePath);
+        }
       } catch (storageError) {
         console.warn('Failed to delete storage file:', storageError);
         // Continue with document deletion even if storage deletion fails
