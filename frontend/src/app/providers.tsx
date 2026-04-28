@@ -48,7 +48,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
                 showSpinner={false}
                 shadow="0 0 10px #6366F1,0 0 5px #6366F1"
             />
-            <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false}>
+            <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} forcedTheme="light">
                 {children}
             </ThemeProvider>
             <ReactQueryDevtools initialIsOpen={false} position="bottom" />
