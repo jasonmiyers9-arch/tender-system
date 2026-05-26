@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getUserByToken, getCompanyById, listCompaniesForUser, ensureUserCompanyContext } from '@/lib/server/firestoreService';
+import { getUserByToken, getCompanyById, listCompaniesForUser, ensureUserCompanyContext, updateCompanyProfile } from '@/lib/server/firestoreService';
 
 function parseToken(req: Request): string | null {
   const header = req.headers.get('authorization');
@@ -48,4 +48,47 @@ export async function GET(req: Request) {
   }
 
   return NextResponse.json(activeCompany);
+}
+
+export async function PATCH(req: Request) {
+  const token = parseToken(req);
+  if (!token) {
+    return NextResponse.json({ detail: 'Unauthorized' }, { status: 401 });
+  }
+
+  const user = await getUserByToken(token);
+  if (!user) {
+    return NextResponse.json({ detail: 'Unauthorized' }, { status: 401 });
+  }
+
+  let companyId: string | null = null;
+  if (user.role === 'admin') {
+    companyId = user.activeCompanyId ?? null;
+  } else {
+    const companies = await listCompaniesForUser(user.id);
+    companyId = user.activeCompanyId ?? companies[0]?.id ?? null;
+    const isMember = companies.some((c) => c.id === companyId);
+    if (!isMember) companyId = null;
+  }
+
+  if (!companyId) {
+    return NextResponse.json({ detail: 'No active company' }, { status: 400 });
+  }
+
+  let payload: Record<string, unknown>;
+  try {
+    payload = await req.json();
+  } catch {
+    return NextResponse.json({ detail: 'Invalid JSON body' }, { status: 400 });
+  }
+
+  try {
+    const company = await updateCompanyProfile(companyId, payload);
+    return NextResponse.json(company);
+  } catch (error) {
+    return NextResponse.json(
+      { detail: error instanceof Error ? error.message : 'Failed to update company' },
+      { status: 400 },
+    );
+  }
 }

@@ -41,7 +41,7 @@ export default function AdminCompanyDetailPage({ params }: { params: Promise<{ c
                 subtitle={company.registrationNumber}
                 icon={<FileText size={22} />}
                 iconColor="#10B981"
-                actions={<Button leftIcon={<Edit size={16} />} variant="secondary">Edit Details</Button>}
+                actions={<Button leftIcon={<Edit size={16} />} variant="secondary" disabled title="Edit not yet available">Edit Details</Button>}
             />
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

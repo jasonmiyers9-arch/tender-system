@@ -4,10 +4,11 @@ import { useAppStore } from '@/store/useAppStore';
 
 export function useTenderMatches() {
     const activeCompanyId = useAppStore((s) => s.activeCompanyId);
+    const role = useAppStore((s) => s.currentUser?.role);
     return useQuery({
-        queryKey: ['tenders', activeCompanyId],
+        queryKey: ['tenders', activeCompanyId, role],
         queryFn: () => tenders.listMatches(),
-        enabled: !!activeCompanyId,
+        enabled: !!activeCompanyId || role === 'admin',
     });
 }
 
@@ -29,10 +30,11 @@ export function useTenderReadiness(tenderId: string) {
 
 export function useTenderCalendar() {
     const activeCompanyId = useAppStore((s) => s.activeCompanyId);
+    const role = useAppStore((s) => s.currentUser?.role);
     return useQuery({
-        queryKey: ['tender-calendar', activeCompanyId],
+        queryKey: ['tender-calendar', activeCompanyId, role],
         queryFn: () => tenders.getCalendar(),
-        enabled: !!activeCompanyId,
+        enabled: !!activeCompanyId || role === 'admin',
     });
 }
 

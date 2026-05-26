@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import * as fs from 'node:fs';
 import { getDocumentById, getUserByToken } from '@/lib/server/firestoreService';
-import { isFirebaseStorageConfigured, generateFirebaseSignedDownloadUrl, isLocalStorageReference } from '@/lib/server/firebaseStorage';
+import { isFirebaseStorageConfigured, downloadDocumentFromFirebase, isLocalStorageReference } from '@/lib/server/firebaseStorage';
 
 function parseToken(req: Request): string | null {
   const header = req.headers.get('authorization');
@@ -35,8 +35,15 @@ export async function GET(
   }
 
   if (!isLocalStorageReference(document.fileUrl) && isFirebaseStorageConfigured()) {
-    const signedUrl = await generateFirebaseSignedDownloadUrl(document.fileUrl);
-    return NextResponse.redirect(signedUrl);
+    const { buffer, contentType } = await downloadDocumentFromFirebase(document.fileUrl);
+    return new Response(buffer as unknown as BodyInit, {
+      status: 200,
+      headers: {
+        'Content-Type': contentType,
+        'Content-Disposition': `attachment; filename="${document.name}"`,
+        'Cache-Control': 'private, no-store',
+      },
+    });
   }
 
   if (fs.existsSync(document.fileUrl)) {
@@ -46,6 +53,7 @@ export async function GET(
       headers: {
         'Content-Type': document.mimeType ?? 'application/octet-stream',
         'Content-Disposition': `attachment; filename="${document.name}"`,
+        'Cache-Control': 'private, no-store',
       },
     });
   }
