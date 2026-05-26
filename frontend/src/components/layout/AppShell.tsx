@@ -206,7 +206,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         return () => clearInterval(timer);
     }, [token, pathname]);
 
-    const popup = (unreadQuery.data ?? []).find((n) => !dismissed.includes(n.id));
+    // Operator persona on /admin should not see user-persona notifications (tax doc verified, etc.).
+    const suppressPopup = currentUser?.role === 'admin' || pathname.startsWith('/admin');
+    const popup = suppressPopup ? undefined : (unreadQuery.data ?? []).find((n) => !dismissed.includes(n.id));
 
     // ─── Loading state ────────────────────────────────────────────────────────
     // Only blocks on first-ever load (no currentUser in store yet).

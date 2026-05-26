@@ -1,6 +1,8 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useEffect } from 'react';
 import {
     FolderLock, BarChart2, FileSearch, ShieldCheck,
     ClipboardList, Building2, ArrowRight, Shield,
@@ -90,8 +92,14 @@ function getRoleLabel(role: string) {
 export default function HomePage() {
     const { currentUser } = useAppStore();
     const role = currentUser?.role ?? 'user';
+    const router = useRouter();
     const scoreQuery = useScore();
     const docsQuery = useVaultDocuments();
+
+    // Admin lands on Today (the operator inbox), not the user-style Home grid.
+    useEffect(() => {
+        if (role === 'admin') router.replace('/admin/dashboard');
+    }, [role, router]);
 
     const actions =
         role === 'admin' ? ADMIN_ACTIONS
