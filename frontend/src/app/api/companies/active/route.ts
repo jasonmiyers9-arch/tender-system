@@ -19,6 +19,14 @@ export async function GET(req: Request) {
     return NextResponse.json({ detail: 'Unauthorized' }, { status: 401 });
   }
 
+  if (user.role === 'admin') {
+    if (!user.activeCompanyId) {
+      return NextResponse.json(null);
+    }
+    const activeCompany = await getCompanyById(user.activeCompanyId);
+    return NextResponse.json(activeCompany ?? null);
+  }
+
   const companies = await listCompaniesForUser(user.id);
   if (!companies.length) {
     const ensured = await ensureUserCompanyContext(user.id);
