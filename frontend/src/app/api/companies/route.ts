@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getUserByToken, listCompaniesForUser } from '@/lib/server/firestoreService';
+import { getUserByToken, listAllCompanies, listCompaniesForUser } from '@/lib/server/firestoreService';
 
 function parseToken(req: Request): string | null {
   const header = req.headers.get('authorization');
@@ -19,6 +19,9 @@ export async function GET(req: Request) {
     return NextResponse.json({ items: [] });
   }
 
-  const companies = await listCompaniesForUser(user.id);
+  const companies =
+    user.role === 'admin'
+      ? await listAllCompanies()
+      : await listCompaniesForUser(user.id);
   return NextResponse.json({ items: companies });
 }
