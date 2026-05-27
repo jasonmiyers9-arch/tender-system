@@ -29,6 +29,33 @@ export function useAdminCompanies() {
     });
 }
 
+export function useAdminCompanyUsers(companyId: string) {
+    return useQuery({
+        queryKey: ['admin-company-users', companyId],
+        queryFn: () => admin.listCompanyUsers(companyId),
+        enabled: !!companyId,
+    });
+}
+
+export function useUpdateAdminCompany() {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: ({ companyId, payload }: { companyId: string; payload: Parameters<typeof admin.updateCompany>[1] }) =>
+            admin.updateCompany(companyId, payload),
+        onSuccess: () => {
+            qc.invalidateQueries({ queryKey: ['admin-companies'] });
+            qc.invalidateQueries({ queryKey: ['admin-stats'] });
+        },
+    });
+}
+
+export function useSendPasswordReset() {
+    return useMutation({
+        mutationFn: ({ companyId, userId }: { companyId: string; userId: string }) =>
+            admin.sendPasswordReset(companyId, userId),
+    });
+}
+
 export function usePendingAdminDocuments() {
     return useQuery({
         queryKey: ['admin-pending-docs'],

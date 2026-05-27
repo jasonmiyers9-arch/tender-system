@@ -5,9 +5,9 @@ import { useMemo, useState } from 'react';
 import { motion } from 'motion/react';
 import {
     Search, Filter, ArrowRight, ArrowUpRight, Mail, Bell, Sparkles, Shield,
-    ShieldCheck, AlertTriangle, AlertCircle, Building2, FileCheck, Inbox,
+    ShieldCheck, ShieldOff, AlertTriangle, AlertCircle, Building2, FileCheck, Inbox,
 } from 'lucide-react';
-import { useAdminCompanies, useAdminDashboard } from '@/lib/hooks/useAdmin';
+import { useAdminCompanies, useAdminDashboard, useUpdateAdminCompany } from '@/lib/hooks/useAdmin';
 import { useAppStore } from '@/store/useAppStore';
 import { CardSkeleton } from '@/components/ui/Skeleton';
 import { ErrorState } from '@/components/ui/ErrorState';
@@ -93,7 +93,11 @@ function PulseTile({ label, value, icon, tone, active, onClick }: {
 }
 
 // ─── Client card ─────────────────────────────────────────────────────────────
-function ClientCard({ c }: { c: Company }) {
+function ClientCard({ c, onQuickAction, busy }: {
+    c: Company;
+    onQuickAction: (companyId: string, next: Company['status']) => void;
+    busy: boolean;
+}) {
     const tone = STATUS_TONE[c.status] ?? STATUS_TONE.pending;
     return (
         <motion.div
@@ -144,10 +148,10 @@ function ClientCard({ c }: { c: Company }) {
                             )}
                         </div>
 
-                        <div className="flex items-center justify-between mt-3 pt-3 border-t border-[--color-border]">
+                        <div className="flex items-center justify-between mt-3 pt-3 border-t border-[--color-border] gap-2">
                             {c.email ? (
                                 <span
-                                    className="inline-flex items-center gap-1 text-[11px] text-[--color-text-muted] truncate max-w-[180px]"
+                                    className="inline-flex items-center gap-1 text-[11px] text-[--color-text-muted] truncate max-w-[160px]"
                                     onClick={(ev) => {
                                         ev.preventDefault();
                                         ev.stopPropagation();
@@ -161,9 +165,53 @@ function ClientCard({ c }: { c: Company }) {
                             ) : (
                                 <span className="text-[11px] text-[--color-text-muted] italic">No contact email</span>
                             )}
-                            <span className="inline-flex items-center gap-1 text-xs font-semibold text-[--color-primary] opacity-0 group-hover:opacity-100 transition-opacity">
-                                Open <ArrowRight size={12} />
-                            </span>
+                            <div className="flex items-center gap-1.5 flex-shrink-0">
+                                {c.status === 'pending' && (
+                                    <button
+                                        type="button"
+                                        disabled={busy}
+                                        onClick={(ev) => {
+                                            ev.preventDefault();
+                                            ev.stopPropagation();
+                                            onQuickAction(c.id, 'verified');
+                                        }}
+                                        className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-semibold text-white bg-emerald-600 hover:bg-emerald-700 transition-colors disabled:opacity-50 cursor-pointer"
+                                    >
+                                        <ShieldCheck size={10} /> Verify
+                                    </button>
+                                )}
+                                {c.status === 'verified' && (
+                                    <button
+                                        type="button"
+                                        disabled={busy}
+                                        onClick={(ev) => {
+                                            ev.preventDefault();
+                                            ev.stopPropagation();
+                                            if (window.confirm(`Suspend ${c.name}?`)) onQuickAction(c.id, 'rejected');
+                                        }}
+                                        className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-semibold text-red-600 hover:bg-red-500/10 transition-colors disabled:opacity-50 cursor-pointer"
+                                    >
+                                        <ShieldOff size={10} /> Suspend
+                                    </button>
+                                )}
+                                {c.status === 'rejected' && (
+                                    <button
+                                        type="button"
+                                        disabled={busy}
+                                        onClick={(ev) => {
+                                            ev.preventDefault();
+                                            ev.stopPropagation();
+                                            onQuickAction(c.id, 'pending');
+                                        }}
+                                        className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-semibold text-amber-600 hover:bg-amber-500/10 transition-colors disabled:opacity-50 cursor-pointer"
+                                    >
+                                        <Sparkles size={10} /> Reactivate
+                                    </button>
+                                )}
+                                <span className="inline-flex items-center gap-1 text-xs font-semibold text-[--color-primary] opacity-0 group-hover:opacity-100 transition-opacity">
+                                    Open <ArrowRight size={12} />
+                                </span>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -177,6 +225,7 @@ export default function AdminPortfolioPage() {
     const currentUser = useAppStore((s) => s.currentUser);
     const { data: companies, isLoading, isError, refetch } = useAdminCompanies();
     const statsQuery = useAdminDashboard();
+    const updateCompany = useUpdateAdminCompany();
 
     const [search, setSearch] = useState('');
     const [statusFilter, setStatusFilter] = useState<StatusKey>('all');
@@ -493,7 +542,12 @@ export default function AdminPortfolioPage() {
                             className="grid grid-cols-1 md:grid-cols-2 gap-3"
                         >
                             {filtered.map((c) => (
-                                <ClientCard key={c.id} c={c} />
+                                <ClientCard
+                                    key={c.id}
+                                    c={c}
+                                    busy={updateCompany.isPending && updateCompany.variables?.companyId === c.id}
+                                    onQuickAction={(companyId, next) => updateCompany.mutate({ companyId, payload: { status: next } })}
+                                />
                             ))}
                         </motion.div>
                     )}

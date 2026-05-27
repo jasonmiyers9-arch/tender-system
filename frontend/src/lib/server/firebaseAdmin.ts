@@ -156,3 +156,10 @@ export async function deleteAuthUser(uid: string) {
 
   await admin.auth().deleteUser(uid);
 }
+
+export async function generatePasswordResetLink(email: string): Promise<string> {
+  if (!initialized || !admin.apps.length) {
+    throw new Error('Firebase Admin is not configured for password reset.');
+  }
+  return admin.auth().generatePasswordResetLink(email);
+}

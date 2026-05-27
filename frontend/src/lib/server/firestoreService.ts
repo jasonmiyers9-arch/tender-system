@@ -645,6 +645,11 @@ async function updateCompanyProfile(companyId: string, payload: Partial<Company>
   if (payload.email !== undefined) updatedFields.email = payload.email;
   if (payload.website !== undefined) updatedFields.website = payload.website;
   if (payload.industry !== undefined) updatedFields.industry = payload.industry;
+  if (payload.status !== undefined) updatedFields.status = payload.status;
+  if (payload.province !== undefined) updatedFields.province = payload.province;
+  if (payload.bbbeeLevel !== undefined) updatedFields.bbbeeLevel = payload.bbbeeLevel;
+  if (payload.cidbGrade !== undefined) updatedFields.cidbGrade = payload.cidbGrade;
+  if (payload.csdNumber !== undefined) updatedFields.csdNumber = payload.csdNumber;
 
   if (isFirestoreAvailable()) {
     const db = getFirestore()!;
@@ -659,6 +664,16 @@ async function updateCompanyProfile(companyId: string, payload: Partial<Company>
   if (!company) throw new Error('Company not found');
   Object.assign(company, updatedFields);
   return mapCompanyToPublic(company);
+}
+
+async function listCompanyMembers(companyId: string): Promise<InternalUser[]> {
+  if (isFirestoreAvailable()) {
+    await ensureFirestoreSeed();
+    const db = getFirestore()!;
+    const snapshot = await db.collection(USERS_COLLECTION).where('companyId', '==', companyId).get();
+    return snapshot.docs.map((doc) => doc.data() as InternalUser);
+  }
+  return MEMORY_DB.users.filter((u) => u.companyId === companyId);
 }
 
 async function createTender(payload: {
@@ -1282,6 +1297,7 @@ export {
   getCompanyById,
   setActiveCompany,
   updateCompanyProfile,
+  listCompanyMembers,
   createTender,
   listTenders,
   getTenderById,

@@ -111,6 +111,26 @@ export const admin = {
         return Array.isArray(json.items) ? json.items : [];
     },
 
+    async updateCompany(companyId: string, payload: Partial<Company>): Promise<Company> {
+        const res = await authFetch(`/admin/companies/${companyId}`, {
+            method: 'PATCH',
+            body: JSON.stringify(payload),
+        });
+        return res.json() as Promise<Company>;
+    },
+
+    async listCompanyUsers(companyId: string) {
+        const res = await authFetch(`/admin/companies/${companyId}/users`);
+        return res.json() as Promise<{ items: Array<{ id: string; name: string; email: string; role: string; verificationStatus: string; createdAt: string }> }>;
+    },
+
+    async sendPasswordReset(companyId: string, userId: string): Promise<{ email: string; resetLink: string }> {
+        const res = await authFetch(`/admin/companies/${companyId}/users/${userId}/password-reset`, {
+            method: 'POST',
+        });
+        return res.json() as Promise<{ email: string; resetLink: string }>;
+    },
+
     async markDocumentVerified(docId: string): Promise<{ success: boolean }> {
         const res = await authFetch(`/admin/documents/${docId}/verify`, { method: 'POST' });
         const json = await res.json();
