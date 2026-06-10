@@ -3,7 +3,7 @@
 import { Suspense, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { AlertCircle, Lock, ShieldAlert, UserCog } from 'lucide-react';
+import { AlertCircle, Lock, ShieldAlert } from 'lucide-react';
 import { Input } from '@/components/ui/Input';
 import { auth } from '@/lib/api/auth';
 import { useAppStore } from '@/store/useAppStore';
@@ -32,11 +32,6 @@ const SESSION_MESSAGES: Record<string, BannerConfig> = {
         text: 'Please sign in with an internal admin account.',
         accent: 'bg-blue-50 dark:bg-blue-500/10 border-blue-200 dark:border-blue-500/30 text-blue-800 dark:text-blue-300',
     },
-};
-
-const ADMIN_DEMO_LOGIN = {
-    email: 'mouse@tenderguard.dev',
-    password: 'Demo@1234',
 };
 
 function AdminLoginForm() {
@@ -200,24 +195,6 @@ function AdminLoginForm() {
                                 ) : mfaChallenge ? 'Verify MFA & Sign In' : 'Sign In to Admin'}
                             </button>
                         </form>
-
-                        <div className="space-y-2 border-t border-[--color-border] pt-5">
-                            <p className="text-xs font-semibold uppercase tracking-wide text-[--color-text-muted]">Demo portal login</p>
-                            <button
-                                type="button"
-                                disabled={loading}
-                                onClick={() => signIn(ADMIN_DEMO_LOGIN.email, ADMIN_DEMO_LOGIN.password)}
-                                className="flex w-full items-center gap-3 rounded-xl border border-[--color-border] bg-[--color-surface-raised] px-3.5 py-3 text-left transition-colors hover:border-rose-700 disabled:cursor-not-allowed disabled:opacity-70"
-                            >
-                                <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-rose-700/10 text-rose-700">
-                                    <UserCog size={17} />
-                                </span>
-                                <span className="min-w-0 flex-1">
-                                    <span className="block text-sm font-semibold text-[--color-text-primary]">Admin Portal</span>
-                                    <span className="block truncate text-xs text-[--color-text-muted]">Platform operations, approvals, audit log</span>
-                                </span>
-                            </button>
-                        </div>
 
                         <p className="text-center text-xs text-[--color-text-muted] pt-1">
                             Internal accounts are provisioned separately from company and evaluator users.
