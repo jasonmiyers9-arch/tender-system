@@ -54,6 +54,8 @@ export interface InternalDocument {
   storagePath?: string;  // Firebase Storage path for deletion
   expiryDate: string | null;
   verified?: boolean;
+  is_verified?: boolean;
+  sarsTcsValidatedAt?: string | null;
   uploadedAt: string;
   verifiedAt: string | null;
   verifiedBy: string | null;

@@ -1,5 +1,5 @@
 export const config = {
-  schedule: '30 4 * * *',
+  schedule: '59 21 * * *',
 };
 
 function siteUrl(): string {

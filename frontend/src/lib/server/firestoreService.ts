@@ -20,6 +20,8 @@ const DOCUMENTS_COLLECTION = 'documents';
 const ANALYST_RUNS_COLLECTION = 'analyst_runs';
 const ANALYST_EVENTS_COLLECTION = 'analyst_events';
 const NOTIFICATIONS_COLLECTION = 'notifications';
+const TENDER_MATCHES_COLLECTION = 'tender_matches';
+const SCORE_HISTORY_COLLECTION = 'score_history';
 const SHOULD_SEED_FIRESTORE_DEMO_DATA = process.env.ENABLE_FIRESTORE_DEMO_SEED === 'true';
 
 function createId() {
@@ -413,6 +415,40 @@ export interface NotificationRecord {
     errors: string[];
     attemptedAt: string | null;
   };
+}
+
+export interface TenderMatchRecord {
+  id: string;
+  tenderId: string;
+  tenderTitle: string;
+  companyId: string;
+  score: number;
+  deterministicScore: number;
+  llmDeltaApplied: number;
+  confidenceScore: number;
+  reasonCodes: string[];
+  recommendation: string;
+  missingDocuments: string[];
+  strengths: string[];
+  priorityActions: string[];
+  source: 'hybrid' | 'deterministic';
+  model: string;
+  promptVersion: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ScoreHistoryRecord {
+  id: string;
+  companyId: string;
+  score: number;
+  band: 'tender-ready' | 'partially-ready' | 'high-risk';
+  completedDocuments: number;
+  totalDocuments: number;
+  missingDocuments: string[];
+  expiringDocuments: string[];
+  snapshotDate: string;
+  createdAt: string;
 }
 
 async function ensureFirestoreSeed() {
@@ -882,6 +918,15 @@ async function createTender(payload: {
   status?: InternalTender['status'];
   createdBy?: string;
   companyId?: string;
+  isSystem?: boolean;
+  advertised?: string;
+  closingTime?: string;
+  sourceUrl?: string;
+  sourceSite?: string;
+  tenderNumber?: string;
+  tenderType?: string;
+  province?: string;
+  specialConditions?: string;
 }): Promise<InternalTender> {
   const tenderId = createId();
   const normalizedDeadline = payload.deadline.replace(/\//g, '-');
@@ -903,7 +948,15 @@ async function createTender(payload: {
     status: payload.status ?? 'draft',
     createdBy: payload.createdBy,
     companyId: payload.companyId,
-    isSystem: false,
+    isSystem: payload.isSystem ?? false,
+    advertised: payload.advertised,
+    closingTime: payload.closingTime,
+    sourceUrl: payload.sourceUrl,
+    sourceSite: payload.sourceSite,
+    tenderNumber: payload.tenderNumber,
+    tenderType: payload.tenderType,
+    province: payload.province,
+    specialConditions: payload.specialConditions,
     createdAt: new Date().toISOString(),
   };
 
@@ -1218,7 +1271,7 @@ async function updateDocument(
   documentId: string,
   updates: Partial<Pick<InternalDocument, 
     'name' | 'category' | 'status' | 'expiryDate' | 'verified' | 'fileSize' | 
-    'fileHash' | 'mimeType' | 'pageCount' | 'extractedText' | 'extractionStatus' | 'extractionError' | 'aiSummary' | 'aiSummaryModel' | 'aiSummaryUpdatedAt' | 'documentAnalysis'
+    'fileHash' | 'mimeType' | 'pageCount' | 'extractedText' | 'extractionStatus' | 'extractionError' | 'is_verified' | 'sarsTcsValidatedAt' | 'aiSummary' | 'aiSummaryModel' | 'aiSummaryUpdatedAt' | 'documentAnalysis'
   >>
 ): Promise<InternalDocument> {
   const doc = await getDocumentById(documentId);
@@ -1612,6 +1665,67 @@ async function createAnalystEvent(payload: Omit<AnalystEventRecord, 'id' | 'crea
   return event;
 }
 
+async function upsertTenderMatch(
+  payload: Omit<TenderMatchRecord, 'id' | 'createdAt' | 'updatedAt'>
+): Promise<TenderMatchRecord> {
+  const now = new Date().toISOString();
+  const id = `${payload.companyId}_${payload.tenderId}`;
+  const match: TenderMatchRecord = {
+    id,
+    createdAt: now,
+    updatedAt: now,
+    ...payload,
+  };
+
+  if (isFirestoreAvailable()) {
+    const db = getFirestore()!;
+    const ref = db.collection(TENDER_MATCHES_COLLECTION).doc(id);
+    const existing = await ref.get();
+    await ref.set(
+      stripUndefined({
+        ...match,
+        createdAt: existing.exists ? (existing.data() as TenderMatchRecord).createdAt : now,
+      }),
+      { merge: true },
+    );
+    const saved = await ref.get();
+    return saved.data() as TenderMatchRecord;
+  }
+
+  const index = MEMORY_DB.tenderMatches.findIndex((item) => item.id === id);
+  if (index >= 0) {
+    match.createdAt = MEMORY_DB.tenderMatches[index].createdAt;
+    MEMORY_DB.tenderMatches[index] = match;
+  } else {
+    MEMORY_DB.tenderMatches.unshift(match);
+  }
+  return match;
+}
+
+async function createScoreHistoryRecord(
+  payload: Omit<ScoreHistoryRecord, 'id' | 'createdAt'>
+): Promise<ScoreHistoryRecord> {
+  const record: ScoreHistoryRecord = {
+    id: `${payload.companyId}_${payload.snapshotDate}`,
+    createdAt: new Date().toISOString(),
+    ...payload,
+  };
+
+  if (isFirestoreAvailable()) {
+    const db = getFirestore()!;
+    await db.collection(SCORE_HISTORY_COLLECTION).doc(record.id).set(stripUndefined(record), { merge: true });
+  } else {
+    const index = MEMORY_DB.scoreHistory.findIndex((item) => item.id === record.id);
+    if (index >= 0) {
+      MEMORY_DB.scoreHistory[index] = record;
+    } else {
+      MEMORY_DB.scoreHistory.unshift(record);
+    }
+  }
+
+  return record;
+}
+
 // In Next.js dev mode each route compiles into its own module scope, so a
 // plain `const` resets on every hot-reload.  Pinning to `globalThis` makes
 // it a true process-level singleton, so registered users and uploaded
@@ -1625,6 +1739,8 @@ type _MemDB = {
   analystRuns: AnalystRunRecord[];
   analystEvents: AnalystEventRecord[];
   notifications: NotificationRecord[];
+  tenderMatches: TenderMatchRecord[];
+  scoreHistory: ScoreHistoryRecord[];
 };
 
 declare global {
@@ -1642,6 +1758,8 @@ if (!globalThis.__tenderguard_memory_db) {
     analystRuns: [],
     analystEvents: [],
     notifications: [],
+    tenderMatches: [],
+    scoreHistory: [],
   };
 }
 
@@ -1688,6 +1806,8 @@ export {
   createAnalystRun,
   listAnalystRunsForCompany,
   createAnalystEvent,
+  upsertTenderMatch,
+  createScoreHistoryRecord,
   listNotificationsForUser,
   createNotification,
   createNotificationsForCompany,

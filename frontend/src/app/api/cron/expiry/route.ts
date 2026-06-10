@@ -8,7 +8,7 @@ export async function POST(req: Request) {
 
   const result = await runExpiryCheck(false);
   return NextResponse.json({
-    job: 'daily-expiry-check',
+    job: 'check_document_expiry',
     ok: result.errors.length === 0,
     ...result,
   }, { status: result.errors.length ? 207 : 200 });
