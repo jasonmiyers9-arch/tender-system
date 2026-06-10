@@ -40,10 +40,6 @@ export async function POST(req: Request) {
       await logAuthFailure(req, null, 'No email in token');
       return NextResponse.json({ detail: 'Authenticated email is required' }, { status: 400 });
     }
-    if (!decoded.email_verified) {
-      await logAuthFailure(req, decoded.email, 'Email not verified');
-      return NextResponse.json({ detail: 'account_email_unverified' }, { status: 403 });
-    }
 
     let user = await getUserByToken(idToken);
     if (!user) {

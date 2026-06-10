@@ -86,8 +86,6 @@ function LoginForm() {
             const msg = e instanceof Error ? e.message : 'Invalid credentials';
             if (msg.includes('admin_portal_required')) {
                 setError('Admin accounts use the internal sign-in portal.');
-            } else if (msg.includes('account_email_unverified')) {
-                setError('Please verify your email first before signing in.');
             } else if (msg.includes('account_pending')) {
                 setError('Your account is awaiting admin approval.');
             } else if (msg.includes('account_rejected')) {
