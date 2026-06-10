@@ -33,7 +33,7 @@ const STATUS_TONE: Record<string, { dot: string; chip: string; chipText: string;
 
 const ROLE_LABEL: Record<string, string> = {
     user: 'Company user',
-    evaluator: 'Tender provider',
+    evaluator: 'Evaluator',
     admin: 'Administrator',
 };
 
@@ -219,15 +219,15 @@ export default function AdminSignupsPage() {
     const [createError, setCreateError] = useState<string | null>(null);
     const [formData, setFormData] = useState({ name: '', email: '', password: '' });
 
-    const items = (accountsQuery.data?.items ?? []) as SignupItem[];
-    const adminItems = internalAdmins.data?.items ?? [];
+    const items = useMemo(() => (accountsQuery.data?.items ?? []) as SignupItem[], [accountsQuery.data?.items]);
+    const adminItems = useMemo(() => internalAdmins.data?.items ?? [], [internalAdmins.data?.items]);
 
     const pending = useMemo(() => items.filter((u) => u.verificationStatus === 'pending'), [items]);
     const approvedCount = useMemo(() => items.filter((u) => u.verificationStatus === 'approved').length, [items]);
     const rejectedCount = useMemo(() => items.filter((u) => u.verificationStatus === 'rejected').length, [items]);
     const slaBreached = useMemo(() => pending.filter((u) => u.slaBreached).length, [pending]);
 
-    const monthAgo = Date.now() - 30 * 86_400_000;
+    const [monthAgo] = useState(() => Date.now() - 30 * 86_400_000);
     const onboardedThisMonth = useMemo(
         () => items.filter((u) => u.verificationStatus === 'approved' && u.createdAt && new Date(u.createdAt).getTime() >= monthAgo).length,
         [items, monthAgo],

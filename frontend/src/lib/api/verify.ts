@@ -1,6 +1,7 @@
 import type { CompanySearchResult, CompanyComplianceReport } from './types';
+import { resolveApiBase } from './base';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? '/api';
+const API_BASE = resolveApiBase();
 
 function getToken(): string | null {
     if (typeof window === 'undefined') return null;
@@ -46,4 +47,12 @@ export const verify = {
         const res = await authFetch(`/verify/companies/${companyId}/bundle-url`);
         return res.json();
     },
+
+    async downloadBundle(companyId: string): Promise<Blob> {
+        const res = await authFetch(`/verify/companies/${companyId}/bundle-url`, {
+            headers: { Accept: 'application/pdf' },
+        });
+        return res.blob();
+    },
 };
+

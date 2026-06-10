@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { requireAdmin } from '@/lib/server/apiAuth';
+import { isAdminRole, requireAdmin } from '@/lib/server/apiAuth';
 import { getUserDocumentById, setUserVerificationStatus } from '@/lib/server/firestoreService';
 
 export async function POST(
@@ -14,7 +14,7 @@ export async function POST(
   if (!target) {
     return NextResponse.json({ detail: 'User not found' }, { status: 404 });
   }
-  if (target.role === 'admin') {
+  if (isAdminRole(target.role)) {
     return NextResponse.json({ detail: 'Internal admin accounts are managed separately' }, { status: 400 });
   }
 

@@ -11,14 +11,14 @@ export default function ProviderDashboardPage() {
     return (
         <div className="space-y-6 max-w-7xl mx-auto">
             <PageHeader
-                title="Tender Provider Dashboard"
-                subtitle="Manage tender issuers, review company readiness, and track provider-side activity."
+                title="Evaluator Dashboard"
+                subtitle="Manage tender issuers, review company readiness, and track evaluator-side activity."
                 icon={<LayoutDashboard size={22} />}
                 iconColor="#3B82F6"
                 actions={
                     <div className="flex gap-3">
                         <Link href="/provider/profile">
-                            <Button variant="ghost">Provider Profile</Button>
+                            <Button variant="ghost">Evaluator Profile</Button>
                         </Link>
                         <Link href="/provider/tenders/new">
                             <Button>Upload Tender</Button>
@@ -51,7 +51,7 @@ export default function ProviderDashboardPage() {
                         <ShieldCheck size={18} className="text-[--color-primary]" />
                         <div>
                             <p className="text-sm font-semibold text-[--color-text-primary]">Portal Type</p>
-                            <Badge variant="accent" size="sm">Tender Provider</Badge>
+                            <Badge variant="accent" size="sm">Evaluator</Badge>
                         </div>
                     </div>
                 </Card>
@@ -61,7 +61,7 @@ export default function ProviderDashboardPage() {
                 <div className="flex items-start gap-3">
                     <Building2 size={18} className="text-[--color-primary] mt-0.5" />
                     <div>
-                        <p className="text-sm font-semibold text-[--color-text-primary]">Provider portal separation is now active</p>
+                        <p className="text-sm font-semibold text-[--color-text-primary]">Evaluator portal separation is now active</p>
                         <p className="text-sm text-[--color-text-muted] mt-1">
                             This portal is separated from the company and admin experiences. Next step after the meeting is to flesh out tender creation, issuer management, and submission review workflows.
                         </p>

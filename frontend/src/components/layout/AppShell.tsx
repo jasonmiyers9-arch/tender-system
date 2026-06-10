@@ -17,6 +17,10 @@ import { overlay, popToast, slideUpPanel, T } from '@/lib/motion';
 const IDLE_TIMEOUT_MS = 30 * 60 * 1000;   // 30 min → force logout
 const IDLE_WARNING_MS = 28 * 60 * 1000;   // 28 min → show warning (2 min before)
 
+function isAdminRole(role: string | null | undefined): boolean {
+    return role === 'admin' || role === 'super_admin';
+}
+
 export function AppShell({ children }: { children: React.ReactNode }) {
     const { token, _hasHydrated, currentUser, setCurrentUser, setActiveCompany, logout } = useAppStore();
     const [sessionReady, setSessionReady] = useState(false);
@@ -112,25 +116,42 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     useEffect(() => {
         if (!token || !currentUser) return;
 
-        if (pathname.startsWith('/admin') && currentUser.role !== 'admin') {
-            router.push(currentUser.role === 'evaluator' ? '/provider/dashboard' : '/dashboard');
+        if (pathname.startsWith('/admin') && !isAdminRole(currentUser.role)) {
+            router.push(currentUser.role === 'evaluator' ? '/verify' : '/dashboard');
             return;
         }
-        if (pathname.startsWith('/provider') && currentUser.role !== 'evaluator') {
-            router.push(currentUser.role === 'admin' ? '/admin/dashboard' : '/dashboard');
-            return;
+        if (pathname.startsWith('/provider')) {
+            if (currentUser.role !== 'evaluator') {
+                router.push(isAdminRole(currentUser.role) ? '/admin/dashboard' : '/dashboard');
+                return;
+            }
         }
         if (currentUser.role === 'user') {
             if (pathname.startsWith('/admin') || pathname.startsWith('/provider')) {
                 router.push('/dashboard');
                 return;
             }
+            if (
+                currentUser.onboardingCompleted === false
+                && pathname !== '/onboarding'
+                && pathname !== '/vault'
+            ) {
+                router.push('/onboarding');
+                return;
+            }
         }
-        if (currentUser.role === 'evaluator' && !pathname.startsWith('/provider') && pathname !== '/verify' && !pathname.startsWith('/tenders/calendar') && pathname !== '/home') {
+        if (
+            currentUser.role === 'evaluator'
+            && pathname !== '/verify'
+            && !pathname.startsWith('/verify/company')
+            && !pathname.startsWith('/provider')
+            && !pathname.startsWith('/tenders/calendar')
+            && pathname !== '/home'
+        ) {
             router.push('/provider/dashboard');
             return;
         }
-        if (currentUser.role === 'admin' && (pathname === '/dashboard' || pathname === '/verify')) {
+        if (isAdminRole(currentUser.role) && (pathname === '/dashboard' || pathname === '/verify')) {
             router.push('/admin/dashboard');
         }
     }, [token, currentUser, pathname, router]);
@@ -207,7 +228,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     }, [token, pathname]);
 
     // Operator persona on /admin should not see user-persona notifications (tax doc verified, etc.).
-    const suppressPopup = currentUser?.role === 'admin' || pathname.startsWith('/admin');
+    const suppressPopup = isAdminRole(currentUser?.role) || pathname.startsWith('/admin');
     const popup = suppressPopup ? undefined : (unreadQuery.data ?? []).find((n) => !dismissed.includes(n.id));
 
     // ─── Loading state ────────────────────────────────────────────────────────

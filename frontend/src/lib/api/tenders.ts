@@ -1,4 +1,5 @@
-﻿import type { TenderMatch, TenderDetail, TenderReadiness, TenderCalendarItem } from './types';
+import type { TenderMatch, TenderDetail, TenderReadiness, TenderCalendarItem } from './types';
+import { resolveApiBase } from './base';
 
 export type ProviderTender = TenderMatch;
 
@@ -16,7 +17,7 @@ export interface CreateTenderPayload {
     status?: 'draft' | 'published';
 }
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? '/api';
+const API_BASE = resolveApiBase();
 
 function getToken(): string | null {
     if (typeof window === 'undefined') return null;
@@ -115,3 +116,4 @@ export const tenders = {
         return res.json();
     },
 };
+

@@ -34,7 +34,7 @@ export function useTenderCalendar() {
     return useQuery({
         queryKey: ['tender-calendar', activeCompanyId, role],
         queryFn: () => tenders.getCalendar(),
-        enabled: !!activeCompanyId || role === 'admin',
+        enabled: !!activeCompanyId || role === 'admin' || role === 'super_admin' || role === 'evaluator',
     });
 }
 

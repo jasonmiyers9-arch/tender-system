@@ -2,8 +2,10 @@
 
 import { useState, useRef } from 'react';
 import { useVaultDocuments, useUploadDocument } from '@/lib/hooks/useVault';
+import { useScore } from '@/lib/hooks/useScore';
 import { Table } from '@/components/ui/Table';
 import { Button } from '@/components/ui/Button';
+import { Badge } from '@/components/ui/Badge';
 import { Select } from '@/components/ui/Select';
 import { Modal } from '@/components/ui/Modal';
 import { Input } from '@/components/ui/Input';
@@ -13,17 +15,18 @@ import { ErrorState } from '@/components/ui/ErrorState';
 import { TableRowSkeleton, Skeleton } from '@/components/ui/Skeleton';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { formatDate, docCategoryLabel } from '@/lib/utils/formatters';
-import type { DocumentStatus, DocumentCategory, VaultDocument } from '@/lib/api/types';
+import { DOCUMENT_CATEGORY_GROUPS, DOCUMENT_UPLOAD_CATEGORIES } from '@/lib/api/types';
+import type { DocumentStatus, DocumentCategory, DocumentUploadCategory, VaultDocument } from '@/lib/api/types';
 import {
     Upload, MoreHorizontal, Plus, FolderLock, AlertTriangle,
     CheckCircle2, Clock, XCircle, FileText, Landmark, BadgeCheck,
     Scale, BarChart3, Award, ChevronRight, CloudUpload,
 } from 'lucide-react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 
 // ─── Category metadata ────────────────────────────────────────────────────────
 
-const CATEGORY_META: Record<DocumentCategory, {
+const BASE_META: Record<string, {
     label: string;
     description: string;
     icon: React.ReactNode;
@@ -81,7 +84,66 @@ const CATEGORY_META: Record<DocumentCategory, {
     },
 };
 
-const CATEGORY_COLORS: Record<DocumentCategory, { bg: string; text: string; border: string }> = {
+const UPLOAD_CATEGORY_DETAILS: Record<DocumentUploadCategory, { description: string; required: boolean; examples: string }> = {
+    tax_clearance: { description: 'SARS tax clearance certificate or equivalent proof', required: true, examples: 'Tax Clearance Certificate' },
+    sars_pin: { description: 'SARS Tax Compliance Status PIN document', required: true, examples: 'SARS TCS PIN letter' },
+    vat_certificate: { description: 'VAT registration or vendor certificate', required: false, examples: 'VAT103 Certificate' },
+    cipc_registration: { description: 'Company registration issued by CIPC', required: true, examples: 'COR14.3, CK document' },
+    company_profile: { description: 'Current supplier or company profile', required: false, examples: 'Company Profile PDF' },
+    csd_supplier_summary: { description: 'Central Supplier Database supplier summary', required: true, examples: 'CSD Supplier Summary Report' },
+    director_ids: { description: 'Identity documents for directors or members', required: false, examples: 'Certified Director IDs' },
+    shareholder_register: { description: 'Ownership or shareholder register', required: false, examples: 'Share Register' },
+    bbbee_certificate: { description: 'Valid B-BBEE certificate from accredited agency', required: true, examples: 'B-BBEE Level Certificate' },
+    bbbee_affidavit: { description: 'B-BBEE sworn affidavit where applicable', required: true, examples: 'EME/QSE Affidavit' },
+    cidb_certificate: { description: 'CIDB grading certificate for construction work', required: false, examples: 'CIDB Grade Certificate' },
+    nhbrc_certificate: { description: 'NHBRC registration certificate', required: false, examples: 'NHBRC Certificate' },
+    letter_good_standing: { description: 'Letter of good standing from Compensation Fund', required: false, examples: 'Letter of Good Standing' },
+    coida_certificate: { description: 'COIDA registration or confirmation', required: false, examples: 'COIDA Certificate' },
+    public_liability_insurance: { description: 'Public liability insurance schedule', required: false, examples: 'Public Liability Cover' },
+    professional_indemnity: { description: 'Professional indemnity insurance where required', required: false, examples: 'PI Insurance Schedule' },
+    financial_statements: { description: 'Annual financial statements or audited accounts', required: true, examples: 'AFS, Management Accounts' },
+    bank_statement: { description: 'Recent bank statements', required: false, examples: '3-Month Bank Statement' },
+    bank_confirmation: { description: 'Bank confirmation or account verification letter', required: false, examples: 'Bank Confirmation Letter' },
+    municipal_account: { description: 'Municipal account or rates clearance document', required: false, examples: 'Municipal Account' },
+    proof_of_address: { description: 'Proof of physical trading address', required: false, examples: 'Utility Bill, Lease Proof' },
+    lease_agreement: { description: 'Lease agreement for business premises', required: false, examples: 'Signed Lease Agreement' },
+    health_safety_plan: { description: 'Health and safety plan or file', required: false, examples: 'SHE Plan' },
+    quality_management_policy: { description: 'Quality management policy or procedure', required: false, examples: 'QMS Policy' },
+    environmental_policy: { description: 'Environmental management policy', required: false, examples: 'Environmental Policy' },
+    iso_certificate: { description: 'ISO or standards accreditation certificate', required: false, examples: 'ISO 9001 Certificate' },
+    poa_authority: { description: 'Power of attorney or signatory authority', required: false, examples: 'Authority Resolution' },
+    joint_venture_agreement: { description: 'Joint venture or consortium agreement', required: false, examples: 'JV Agreement' },
+    other_compliance: { description: 'Other tender-specific compliance evidence', required: false, examples: 'Special Permit, Licence' },
+};
+
+const CATEGORY_META: Record<DocumentUploadCategory, {
+    label: string;
+    description: string;
+    icon: React.ReactNode;
+    required: boolean;
+    examples: string;
+}> = Object.fromEntries(
+    DOCUMENT_UPLOAD_CATEGORIES.map((category) => {
+        const group = DOCUMENT_CATEGORY_GROUPS[category];
+        const base = BASE_META[group];
+        const detail = UPLOAD_CATEGORY_DETAILS[category];
+        return [category, {
+            label: docCategoryLabel(category),
+            description: detail.description,
+            icon: base.icon,
+            required: detail.required,
+            examples: detail.examples,
+        }];
+    })
+) as Record<DocumentUploadCategory, {
+    label: string;
+    description: string;
+    icon: React.ReactNode;
+    required: boolean;
+    examples: string;
+}>;
+
+const CATEGORY_COLORS: Record<string, { bg: string; text: string; border: string }> = {
     tax:           { bg: '#4F46E515', text: '#4F46E5', border: '#4F46E530' },
     registration:  { bg: '#0EA5E915', text: '#0EA5E9', border: '#0EA5E930' },
     bbbee:         { bg: '#10B98115', text: '#10B981', border: '#10B98130' },
@@ -91,7 +153,12 @@ const CATEGORY_COLORS: Record<DocumentCategory, { bg: string; text: string; bord
     policy:        { bg: '#64748B15', text: '#64748B', border: '#64748B30' },
 };
 
-const ALL_CATEGORIES: DocumentCategory[] = ['tax', 'registration', 'bbbee', 'financial', 'legal', 'certification', 'policy'];
+const ALL_CATEGORIES: DocumentUploadCategory[] = [...DOCUMENT_UPLOAD_CATEGORIES];
+const PRIORITY_ONBOARDING_CATEGORIES: DocumentUploadCategory[] = [
+    'bbbee_certificate',
+    'sars_pin',
+    'cipc_registration',
+];
 
 const statusOptions = [
     { value: '', label: 'All Statuses' },
@@ -114,18 +181,19 @@ function CategoryCard({
     onUpload,
     onRowClick,
 }: {
-    category: DocumentCategory;
+    category: DocumentUploadCategory;
     docs: VaultDocument[];
-    onUpload: (cat: DocumentCategory) => void;
+    onUpload: (cat: DocumentUploadCategory) => void;
     onRowClick: (doc: VaultDocument) => void;
 }) {
     const meta = CATEGORY_META[category];
-    const color = CATEGORY_COLORS[category];
+    const color = CATEGORY_COLORS[DOCUMENT_CATEGORY_GROUPS[category]];
     const isEmpty = docs.length === 0;
     const hasExpired = docs.some((d) => d.status === 'expired');
+    const [referenceNow] = useState(() => Date.now());
     const hasExpiringSoon = docs.some((d) => {
         if (!d.expiryDate || d.status === 'expired') return false;
-        const diff = (new Date(d.expiryDate).getTime() - Date.now()) / 86400000;
+        const diff = (new Date(d.expiryDate).getTime() - referenceNow) / 86400000;
         return diff >= 0 && diff <= 30;
     });
 
@@ -220,30 +288,19 @@ function UploadModal({
 }: {
     open: boolean;
     onClose: () => void;
-    initialCategory: DocumentCategory | null;
-    onUpload: (data: { name: string; category: DocumentCategory; file: File }) => void;
+    initialCategory: DocumentUploadCategory | null;
+    onUpload: (data: { name: string; category: DocumentUploadCategory; file: File }) => void;
     isLoading: boolean;
 }) {
     const [name, setName] = useState('');
-    const [category, setCategory] = useState<DocumentCategory>(initialCategory ?? 'tax');
+    const [category, setCategory] = useState<DocumentUploadCategory>(initialCategory ?? 'tax_clearance');
     const [file, setFile] = useState<File | null>(null);
     const [issueDate, setIssueDate] = useState('');
     const [expiryDate, setExpiryDate] = useState('');
     const fileRef = useRef<HTMLInputElement>(null);
 
-    // Sync category when modal opens with a pre-selected category
-    const prevOpen = useRef(false);
-    if (open && !prevOpen.current) {
-        if (initialCategory) setCategory(initialCategory);
-        setName('');
-        setFile(null);
-        setIssueDate('');
-        setExpiryDate('');
-    }
-    prevOpen.current = open;
-
     const meta = CATEGORY_META[category];
-    const color = CATEGORY_COLORS[category];
+    const color = CATEGORY_COLORS[DOCUMENT_CATEGORY_GROUPS[category]];
 
     const handleSubmit = () => {
         if (!file) return;
@@ -289,7 +346,7 @@ function UploadModal({
                         label="Category"
                         options={ALL_CATEGORIES.map((c) => ({ value: c, label: CATEGORY_META[c].label }))}
                         value={category}
-                        onChange={(e) => setCategory(e.target.value as DocumentCategory)}
+                        onChange={(e) => setCategory(e.target.value as DocumentUploadCategory)}
                     />
                 )}
 
@@ -350,14 +407,16 @@ function UploadModal({
 // ─── Main page ─────────────────────────────────────────────────────────────────
 
 export default function VaultPage() {
+    const searchParams = useSearchParams();
     const [statusFilter, setStatusFilter] = useState<DocumentStatus | ''>('');
     const [categoryFilter, setCategoryFilter] = useState<DocumentCategory | ''>('');
     const [uploadOpen, setUploadOpen] = useState(false);
-    const [uploadCategory, setUploadCategory] = useState<DocumentCategory | null>(null);
+    const [uploadCategory, setUploadCategory] = useState<DocumentUploadCategory | null>(null);
 
     const router = useRouter();
 
     const allDocsQuery = useVaultDocuments();
+    const scoreQuery = useScore();
     const allDocs = allDocsQuery.data ?? [];
     const today = new Date();
 
@@ -374,19 +433,22 @@ export default function VaultPage() {
         category: categoryFilter || undefined,
     });
     const uploadMutation = useUploadDocument();
+    const firstDocumentUploaded = allDocs.length === 1;
 
-    const openUpload = (cat: DocumentCategory | null = null) => {
+    const openUpload = (cat: DocumentUploadCategory | null = null) => {
         setUploadCategory(cat);
         setUploadOpen(true);
     };
 
-    const handleUpload = async (data: { name: string; category: DocumentCategory; file: File }) => {
+    const handleUpload = async (data: { name: string; category: DocumentUploadCategory; file: File }) => {
         await uploadMutation.mutateAsync(data);
         setUploadOpen(false);
     };
 
-    const docsByCategory = (cat: DocumentCategory) =>
+    const docsByCategory = (cat: DocumentUploadCategory) =>
         allDocs.filter((d) => d.category === cat);
+    const onboardingMode = searchParams.get('onboarding') === '1';
+    const priorityMissing = PRIORITY_ONBOARDING_CATEGORIES.filter((cat) => docsByCategory(cat).length === 0);
 
     const columns = [
         {
@@ -513,6 +575,76 @@ export default function VaultPage() {
                 </div>
             )}
 
+            {onboardingMode && (
+                <Card accent>
+                    <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                        <div>
+                            <p className="text-sm font-semibold text-[--color-text-primary]">Required before workspace access</p>
+                            <p className="mt-1 text-xs text-[--color-text-muted]">
+                                Upload these three priority documents: B-BBEE certificate, SARS TCS Pin, and CIPC registration certificate.
+                            </p>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                            {PRIORITY_ONBOARDING_CATEGORIES.map((cat) => {
+                                const uploaded = docsByCategory(cat).length > 0;
+                                return (
+                                    <Button
+                                        key={cat}
+                                        size="sm"
+                                        variant={uploaded ? 'secondary' : 'primary'}
+                                        leftIcon={uploaded ? <CheckCircle2 size={14} /> : <CloudUpload size={14} />}
+                                        onClick={() => openUpload(cat)}
+                                    >
+                                        {CATEGORY_META[cat].label}
+                                    </Button>
+                                );
+                            })}
+                        </div>
+                    </div>
+                    {priorityMissing.length === 0 && (
+                        <div className="mt-4 flex items-center justify-between rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-4 py-3">
+                            <p className="text-sm font-medium text-[--color-text-primary]">Priority documents are uploaded.</p>
+                            <Button size="sm" rightIcon={<ChevronRight size={14} />} onClick={() => router.push('/onboarding')}>
+                                Continue Setup
+                            </Button>
+                        </div>
+                    )}
+                </Card>
+            )}
+
+            {firstDocumentUploaded && scoreQuery.data && (
+                <Card accent>
+                    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                        <div className="space-y-2">
+                            <p className="text-sm font-semibold text-[--color-text-primary]">Tender Readiness Score™ generated</p>
+                            <p className="text-xs text-[--color-text-muted]">
+                                Your first document has been saved. The system has now calculated an initial readiness score and highlighted what still needs attention.
+                            </p>
+                            <div className="flex items-center gap-3 pt-1">
+                                <Badge variant={scoreQuery.data.band === 'tender-ready' ? 'success' : scoreQuery.data.band === 'partially-ready' ? 'warning' : 'danger'} size="md">
+                                    {scoreQuery.data.score}/100
+                                </Badge>
+                                <span className="text-xs text-[--color-text-muted]">
+                                    {scoreQuery.data.completedDocuments} of {scoreQuery.data.totalDocuments} required categories complete
+                                </span>
+                            </div>
+                        </div>
+                        <div className="grid gap-2 min-w-0 lg:max-w-xl">
+                            {scoreQuery.data.missingDocuments.slice(0, 3).map((cat) => (
+                                <div key={cat} className="rounded-xl border border-[--color-border] bg-[--color-surface-raised] px-3 py-2 text-xs text-[--color-text-primary]">
+                                    Missing: {docCategoryLabel(cat)}
+                                </div>
+                            ))}
+                            {scoreQuery.data.expiringDocuments.length > 0 && (
+                                <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-xs text-[--color-text-primary]">
+                                    Near expiry: {scoreQuery.data.expiringDocuments.slice(0, 2).join(', ')}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </Card>
+            )}
+
             {/* Category grid */}
             <div>
                 <div className="flex items-center justify-between mb-3">
@@ -601,13 +733,16 @@ export default function VaultPage() {
                 </div>
             )}
 
-            <UploadModal
-                open={uploadOpen}
-                onClose={() => setUploadOpen(false)}
-                initialCategory={uploadCategory}
-                onUpload={handleUpload}
-                isLoading={uploadMutation.isPending}
-            />
+            {uploadOpen && (
+                <UploadModal
+                    key={uploadCategory ?? 'default'}
+                    open={uploadOpen}
+                    onClose={() => setUploadOpen(false)}
+                    initialCategory={uploadCategory}
+                    onUpload={handleUpload}
+                    isLoading={uploadMutation.isPending}
+                />
+            )}
         </div>
     );
 }

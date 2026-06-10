@@ -83,7 +83,7 @@ export default function NewProviderTenderPage() {
         <div className="space-y-6 max-w-4xl mx-auto">
             <div>
                 <h1 className="text-2xl font-bold text-[--color-text-primary]">Upload Tender</h1>
-                <p className="text-sm text-[--color-text-muted] mt-1">Create a tender in the provider portal and publish it to all company portals.</p>
+                <p className="text-sm text-[--color-text-muted] mt-1">Create a tender in the evaluator portal and publish it to all company portals.</p>
             </div>
 
             <Card>

@@ -32,7 +32,7 @@ const firebaseConfig = {
   measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
 };
 
-function isFirebaseClientConfigured() {
+export function isFirebaseClientConfigured() {
   return Boolean(firebaseConfig.apiKey && firebaseConfig.authDomain && firebaseConfig.projectId);
 }
 
@@ -68,6 +68,16 @@ export async function signInWithEmailPassword(email: string, password: string) {
 }
 
 export async function registerWithEmailPassword(payload: { email: string; password: string; fullName: string }) {
+  if (!isFirebaseClientConfigured()) {
+    return {
+      idToken: `local:${payload.email.toLowerCase()}`,
+      uid: payload.email.toLowerCase(),
+      email: payload.email,
+      fullName: payload.fullName,
+      emailVerified: true,
+    };
+  }
+
   const auth = ensureFirebaseAuth();
   const result = await createUserWithEmailAndPassword(auth, payload.email, payload.password);
   if (payload.fullName.trim()) {
@@ -111,7 +121,6 @@ export async function getCurrentIdToken(forceRefresh = false) {
 
 export function subscribeToIdTokenChanges(callback: (payload: { user: User | null; token: string | null }) => void) {
   if (!isFirebaseClientConfigured()) {
-    callback({ user: null, token: null });
     return () => undefined;
   }
 

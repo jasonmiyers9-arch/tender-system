@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getUserByToken, getCompanyById, listCompaniesForUser, ensureUserCompanyContext, updateCompanyProfile } from '@/lib/server/firestoreService';
+import { isAdminRole } from '@/lib/server/apiAuth';
 
 function parseToken(req: Request): string | null {
   const header = req.headers.get('authorization');
@@ -19,7 +20,7 @@ export async function GET(req: Request) {
     return NextResponse.json({ detail: 'Unauthorized' }, { status: 401 });
   }
 
-  if (user.role === 'admin') {
+  if (isAdminRole(user.role)) {
     if (!user.activeCompanyId) {
       return NextResponse.json(null);
     }
@@ -62,7 +63,7 @@ export async function PATCH(req: Request) {
   }
 
   let companyId: string | null = null;
-  if (user.role === 'admin') {
+  if (isAdminRole(user.role)) {
     companyId = user.activeCompanyId ?? null;
   } else {
     const companies = await listCompaniesForUser(user.id);

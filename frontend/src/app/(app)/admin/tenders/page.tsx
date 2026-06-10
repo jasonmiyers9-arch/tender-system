@@ -51,7 +51,7 @@ function deadlineLabel(deadline: string): { text: string; expired: boolean; soon
 
 function sourceLabel(t: TenderMatch): string {
     if (!t.createdBy) return 'Scraped';
-    return 'Provider';
+    return 'Evaluator';
 }
 
 function effectiveStatus(t: TenderMatch): string {
@@ -216,11 +216,11 @@ export default function AdminTenderFeedPage() {
     const [search, setSearch] = useState('');
     const [filter, setFilter] = useState<StatusKey>('all');
 
-    const list = tenders ?? [];
+    const list = useMemo(() => tenders ?? [], [tenders]);
 
     const pending = useMemo(() => list.filter((t) => t.status === 'pending'), [list]);
 
-    const now = Date.now();
+    const [now] = useState(() => Date.now());
     const oneDayAgo = now - 86_400_000;
     const oneWeekAgo = now - 7 * 86_400_000;
 

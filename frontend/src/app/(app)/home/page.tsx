@@ -67,13 +67,12 @@ const ADMIN_ACTIONS = [
     { icon: <Bell size={22} />, title: 'Frontend Monitor', description: 'Monitor frontend health signals.', href: '/admin/monitor', color: '#DC2626' },
 ];
 
-const PROVIDER_ACTIONS = [
-    { icon: <BarChart2 size={22} />, title: 'Provider Dashboard', description: 'Overview of your tender activity.', href: '/provider/dashboard', color: '#4F46E5' },
-    { icon: <FileSearch size={22} />, title: 'My Tenders', description: 'Manage all your published tenders.', href: '/provider/tenders', color: '#059669' },
-    { icon: <ShieldCheck size={22} />, title: 'Tender Review', description: 'Evaluate and score applications.', href: '/verify', color: '#D97706' },
+const EVALUATOR_ACTIONS = [
+    { icon: <BarChart2 size={22} />, title: 'Evaluator Dashboard', description: 'Review evaluator-side tender and application activity.', href: '/provider/dashboard', color: '#4F46E5' },
+    { icon: <FileSearch size={22} />, title: 'Manage Tenders', description: 'Create, edit, and monitor tender opportunities.', href: '/provider/tenders', color: '#059669' },
+    { icon: <ClipboardList size={22} />, title: 'Review Applications', description: 'Assess submitted company applications.', href: '/provider/applications', color: '#D97706' },
+    { icon: <ShieldCheck size={22} />, title: 'Company Search', description: 'Verify company compliance by name, registration number, or CSD number.', href: '/verify', color: '#0F766E' },
     { icon: <Calendar size={22} />, title: 'Tender Calendar', description: 'Track tender deadlines.', href: '/tenders/calendar', color: '#7C3AED' },
-    { icon: <ClipboardList size={22} />, title: 'Applications', description: 'Review submitted applications.', href: '/provider/applications', color: '#0891B2' },
-    { icon: <Building2 size={22} />, title: 'Provider Profile', description: 'Update your provider information.', href: '/provider/profile', color: '#DC2626' },
 ];
 
 function getGreeting() {
@@ -85,7 +84,7 @@ function getGreeting() {
 
 function getRoleLabel(role: string) {
     if (role === 'admin') return 'Administrator';
-    if (role === 'evaluator') return 'Tender Provider';
+    if (role === 'evaluator') return 'Evaluator';
     return 'Company User';
 }
 
@@ -103,7 +102,7 @@ export default function HomePage() {
 
     const actions =
         role === 'admin' ? ADMIN_ACTIONS
-        : role === 'evaluator' ? PROVIDER_ACTIONS
+        : role === 'evaluator' ? EVALUATOR_ACTIONS
         : COMPANY_ACTIONS;
 
     const docs = Array.isArray(docsQuery.data) ? docsQuery.data : [];
@@ -144,7 +143,7 @@ export default function HomePage() {
                             {role === 'admin'
                                 ? 'Manage the TenderGuard Pro platform from here.'
                                 : role === 'evaluator'
-                                ? 'Review applications and manage your published tenders.'
+                                ? 'Manage evaluator tenders, review applications, and verify supplier compliance records.'
                                 : 'Your compliance hub — manage documents, track scores, and discover tenders.'}
                         </p>
                     </div>

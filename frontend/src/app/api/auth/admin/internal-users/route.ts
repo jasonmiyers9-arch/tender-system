@@ -8,7 +8,7 @@ export async function GET(req: Request) {
   if (error) return error;
 
   const items = (await listAllUsers())
-    .filter((u) => u.role === 'admin')
+    .filter((u) => u.role === 'admin' || u.role === 'super_admin')
     .map((u) => ({
       id: u.id,
       name: u.fullName || u.email.split('@')[0],
@@ -29,6 +29,7 @@ export async function POST(req: Request) {
   const name = String(body.name ?? '').trim();
   const email = String(body.email ?? '').trim().toLowerCase();
   const password = String(body.password ?? '').trim();
+  const role = String(body.role ?? 'admin').trim() === 'super_admin' ? 'super_admin' : 'admin';
 
   if (!name || !email || !password) {
     return NextResponse.json({ detail: 'Name, email, and password are required' }, { status: 400 });
@@ -59,7 +60,7 @@ export async function POST(req: Request) {
       uid: authUser.uid,
       name,
       email,
-      role: 'admin',
+      role,
     });
 
     return NextResponse.json({ user }, { status: 201 });

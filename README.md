@@ -12,13 +12,13 @@ The app is a **fully functional monolithic BFF** (Backend-for-Frontend) with 53 
 
 ### What Works
 
-- **Authentication**: Email/password + Google OAuth sign-in/register, role-based access (Company, Provider, Admin), demo login buttons
-- **Document Vault**: Upload compliance documents (PDF, DOC, XLS, images, ZIP — up to 50 MB), AI-powered text extraction, expiry detection, verification workflow
+- **Authentication**: Email/password + Google OAuth sign-in/register, role-based access (Company, Evaluator, Admin), demo login buttons
+- **Document Vault**: Upload compliance documents (PDF, DOC, XLS, images, ZIP — up to 10 MB), AI-powered text extraction, expiry detection, verification workflow
 - **Compliance Scoring**: Weighted scoring engine (completeness 25%, validity 25%, requirement matching 30%, verification 20%) with optional LLM-based adjustment via OpenRouter
 - **Tender Marketplace**: Browse tenders with AI match scores, category filters, deadline calendar with iCal export, gap analysis before applying
 - **Tender Scraper**: Scrapes SA government sites (eTenders.gov.za, tenderbulletins.co.za), parses full detail pages, downloads and extracts attached PDFs, filters by company categories
-- **Applications**: Submit applications to tenders, provider-side review with document access, approve/reject workflow
-- **Provider Portal**: Create/edit/delete tenders, define required documents, review applications
+- **Applications**: Submit applications to tenders, evaluator-side review with document access, approve/reject workflow
+- **Evaluator Portal**: Create/edit/delete tenders, define required documents, review applications
 - **Admin Portal**: Account approvals (with 48h SLA tracking), document verification queue, Kanban renewal pipeline, audit log, AI settings management, scraper controls, frontend health monitoring
 - **Knowledge Base**: AI Q&A against uploaded document content via OpenRouter LLM
 - **Notifications**: Expiry reminders, deadline alerts, configurable preferences
@@ -29,7 +29,7 @@ The app is a **fully functional monolithic BFF** (Backend-for-Frontend) with 53 
 | Role | Access |
 |------|--------|
 | **Company** | Dashboard, Vault, Score, Tenders, Applications, Company Profile, Knowledge Base |
-| **Provider / Evaluator** | Everything above + Create Tenders, Review Applications, Verify Companies |
+| **Evaluator** | Create Tenders, Review Applications, Verify Companies |
 | **Admin** | Full platform: Account Approvals, Document Verification, Audit Log, Scraper, AI Settings, Monitoring |
 
 ### Tech Stack
@@ -93,6 +93,14 @@ NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=your-project.firebasestorage.app
 # OpenRouter AI (optional — enables AI scoring, summaries, knowledge Q&A)
 OPENROUTER_API_KEY=sk-or-v1-...
 
+# Scheduled jobs and outbound alerts (production)
+CRON_SECRET=replace-with-a-long-random-secret
+SENDGRID_API_KEY=SG...
+SENDGRID_FROM_EMAIL=alerts@your-domain.co.za
+SENDGRID_FROM_NAME=TenderGuard Pro
+CLICKATELL_API_KEY=your-clickatell-api-key
+CLICKATELL_FROM=TenderGuard
+
 # App URL
 NEXT_PUBLIC_APP_URL=http://localhost:3000
 ```
@@ -113,8 +121,9 @@ The login page has one-click demo login buttons:
 
 | Name | Email | Password | Role |
 |------|-------|----------|------|
-| Mouse | mouse@tenderguard.co.za | Mouse@123 | Admin |
-| Vusu | vusu@tenderguard.co.za | Vusu@123 | Evaluator |
+| Tender Demo User | demo@tenderguard.local | password | Company |
+| Vusu | vusu@tenderguard.dev | Demo@1234 | Evaluator |
+| Mouse | mouse@tenderguard.dev | Demo@1234 | Admin |
 
 Or register a new company account via the sign-up page.
 
@@ -138,7 +147,7 @@ tender-system/
 │       │   │   ├── company/          # Company profile editor
 │       │   │   ├── knowledge/        # AI document Q&A
 │       │   │   ├── verify/           # Evaluator company compliance reports
-│       │   │   ├── provider/         # Tender provider portal (CRUD + review)
+│       │   │   ├── provider/         # Evaluator portal (CRUD + review)
 │       │   │   ├── admin/            # Admin dashboard, accounts, docs, audit, scraper
 │       │   │   ├── notifications/    # Notification center
 │       │   │   ├── settings/         # Preferences

@@ -12,6 +12,7 @@
 
 import type { InternalDocument } from './mockData';
 import type { DocumentAnalysis } from './pdfExtractor';
+import { DOCUMENT_CATEGORY_GROUPS } from '@/lib/api/types';
 import type { DocumentCategory } from '@/lib/api/types';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -148,6 +149,10 @@ const TENDER_SCORE_WEIGHTS = {
 const EXPIRY_WARNING_DAYS = 30;
 const EXPIRY_CRITICAL_DAYS = 7;
 
+function complianceGroup(category: string): string {
+  return DOCUMENT_CATEGORY_GROUPS[category as DocumentCategory] ?? category;
+}
+
 /**
  * Sector-based expected document categories
  * Used by Document Completeness scoring to determine expected doc count per sector
@@ -188,7 +193,7 @@ function daysUntilExpiry(expiryDate: string | null): number | null {
  * Calculate score for a single category
  */
 function calculateCategoryScore(documents: DocumentWithAnalysis[], category: string): CategoryScore {
-  const categoryDocs = documents.filter(d => d.category === category);
+  const categoryDocs = documents.filter(d => complianceGroup(d.category) === category);
   const hasDocument = categoryDocs.length > 0;
   const verifiedDocs = categoryDocs.filter(d => d.status === 'verified');
   const isVerified = verifiedDocs.length > 0;
@@ -650,6 +655,8 @@ export interface TenderReadinessScore {
     uploadedDocuments: number;
     csdFieldsComplete: number;
     csdFieldsTotal: number;
+    csdCompletenessScore: number;
+    csdCompletenessSource: 'supplier_summary' | 'profile_fields';
     expiredInPast12Months: number;
   };
   isBidReady: boolean;
@@ -699,6 +706,15 @@ function calculateCsdCompleteness(profile: CompanyProfileFields): { complete: nu
   return { complete, total: fields.length };
 }
 
+function getBestCsdSupplierSummary(documents: DocumentWithAnalysis[]): DocumentAnalysis['csdSupplierSummary'] | null {
+  const summaries = documents
+    .map(doc => doc.documentAnalysis?.csdSupplierSummary ?? doc.analysis?.csdSupplierSummary)
+    .filter((summary): summary is NonNullable<DocumentAnalysis['csdSupplierSummary']> => Boolean(summary?.isCsdSupplierSummary));
+
+  if (summaries.length === 0) return null;
+  return summaries.sort((a, b) => b.completenessScore - a.completenessScore)[0];
+}
+
 /**
  * Calculate Compliance Consistency score based on renewal history
  * - No expired documents in past 12 months = 15pts
@@ -741,10 +757,10 @@ export function calculateTenderReadinessScore(
   const validDocs = documents.filter(doc => {
     const days = daysUntilExpiry(doc.expiryDate);
     const isValid = days === null || days >= 0;
-    const categoryMatch = expectedCategories.includes(doc.category);
+    const categoryMatch = expectedCategories.includes(complianceGroup(doc.category));
     return isValid && categoryMatch;
   });
-  const validDocCategories = new Set(validDocs.map(d => d.category));
+  const validDocCategories = new Set(validDocs.map(d => complianceGroup(d.category)));
   const validDocCount = validDocCategories.size;
   const documentCompletenessScore = Math.round((validDocCount / Math.max(expectedCount, 1)) * TENDER_READINESS_WEIGHTS.documentCompleteness);
   
@@ -757,8 +773,15 @@ export function calculateTenderReadinessScore(
     : 0;
   
   // 3. CSD Profile Completeness (20pts)
-  const csdCompletion = calculateCsdCompleteness(companyProfile);
-  const csdProfileCompletenessScore = Math.round((csdCompletion.complete / csdCompletion.total) * TENDER_READINESS_WEIGHTS.csdProfileCompleteness);
+  const profileCsdCompletion = calculateCsdCompleteness(companyProfile);
+  const supplierSummary = getBestCsdSupplierSummary(documents);
+  const csdCompletion = supplierSummary
+    ? { complete: supplierSummary.fieldsComplete, total: supplierSummary.fieldsTotal }
+    : profileCsdCompletion;
+  const csdCompletenessPercent = supplierSummary
+    ? supplierSummary.completenessScore
+    : Math.round((profileCsdCompletion.complete / profileCsdCompletion.total) * 100);
+  const csdProfileCompletenessScore = Math.round((csdCompletenessPercent / 100) * TENDER_READINESS_WEIGHTS.csdProfileCompleteness);
   
   // 4. Compliance Consistency (15pts)
   const complianceConsistencyScore = calculateComplianceConsistency(expiredInPast12Months, isNewAccount);
@@ -766,7 +789,7 @@ export function calculateTenderReadinessScore(
   // 5. Tender Fit Bonus (10pts) - optional, based on tender requirements match
   let tenderFitBonusScore = 0;
   if (tenderRequirements) {
-    const requiredCategories = tenderRequirements.requiredCategories as DocumentCategory[];
+    const requiredCategories = tenderRequirements.requiredCategories.map(complianceGroup);
     if (requiredCategories.length > 0) {
       const matchedRequired = requiredCategories.filter(cat => validDocCategories.has(cat)).length;
       tenderFitBonusScore = Math.round((matchedRequired / requiredCategories.length) * TENDER_READINESS_WEIGHTS.tenderFitBonus);
@@ -780,7 +803,7 @@ export function calculateTenderReadinessScore(
   // Determine bid-ready status (100% = all expected docs valid + verified)
   const missingForBidReady: string[] = [];
   for (const category of expectedCategories) {
-    const doc = documents.find(d => d.category === category);
+    const doc = documents.find(d => complianceGroup(d.category) === category);
     if (!doc) {
       missingForBidReady.push(`Missing ${category.toUpperCase()} document`);
     } else if (doc.status !== 'verified') {
@@ -811,6 +834,8 @@ export function calculateTenderReadinessScore(
       uploadedDocuments: uploadedCount,
       csdFieldsComplete: csdCompletion.complete,
       csdFieldsTotal: csdCompletion.total,
+      csdCompletenessScore: csdCompletenessPercent,
+      csdCompletenessSource: supplierSummary ? 'supplier_summary' : 'profile_fields',
       expiredInPast12Months,
     },
     isBidReady,

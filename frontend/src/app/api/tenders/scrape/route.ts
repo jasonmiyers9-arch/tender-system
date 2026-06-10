@@ -12,10 +12,25 @@ import {
   removeCustomSource,
   toggleScraperSource,
   scrapeGenericUrl,
-  scrapeForCompanyCategories,
-  getScrapedTendersForCompanyCategories,
 } from '@/lib/server/tenderScraper';
+import type { ScrapeOptions } from '@/lib/server/tenderScraper';
 import { TENDER_CATEGORIES } from '@/lib/server/tenderCategories';
+
+function getManualScrapeOptions(body: Record<string, unknown>): ScrapeOptions {
+  const deep = body.deep === true;
+  const maxPages = Number.isFinite(Number(body.maxPages))
+    ? Math.min(10, Math.max(1, Number(body.maxPages)))
+    : deep
+      ? undefined
+      : 2;
+
+  return {
+    categories: Array.isArray(body.categories) ? body.categories.map(String).filter(Boolean) : undefined,
+    maxPages,
+    extractPdfs: deep,
+    scrapeDetails: deep,
+  };
+}
 
 // GET /api/tenders/scrape — Get scraper status, history, and scraped tenders
 export async function GET(req: Request) {
@@ -83,15 +98,14 @@ export async function POST(req: Request) {
 
     switch (action) {
       case 'scrape-all': {
-        const categories = body.categories as string[] | undefined;
-        const results = categories?.length
-          ? await scrapeForCompanyCategories(categories)
-          : await runScrapeAll();
+        const options = getManualScrapeOptions(body);
+        const results = await runScrapeAll(options);
+        const hasErrors = results.some((result) => result.errors.length > 0);
         return NextResponse.json({
           message: 'Scraping completed',
           results,
           totalScrapedTenders: getScrapedTenderCount(),
-        });
+        }, { status: hasErrors ? 207 : 200 });
       }
 
       case 'scrape-source': {
@@ -99,13 +113,12 @@ export async function POST(req: Request) {
         if (!sourceName) {
           return NextResponse.json({ detail: 'sourceName is required' }, { status: 400 });
         }
-        const categories = body.categories as string[] | undefined;
-        const result = await runScrapeSingle(sourceName, categories?.length ? { categories } : undefined);
+        const result = await runScrapeSingle(sourceName, getManualScrapeOptions(body));
         return NextResponse.json({
           message: `Scraped ${sourceName}`,
           result,
           totalScrapedTenders: getScrapedTenderCount(),
-        });
+        }, { status: result.errors.length ? 207 : 200 });
       }
 
       case 'scrape-url': {

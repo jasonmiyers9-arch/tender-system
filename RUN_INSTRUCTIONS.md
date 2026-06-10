@@ -13,7 +13,7 @@ TenderGuard Pro helps companies manage compliance documents, track tender readin
 | Role | Portal | Capabilities |
 |------|--------|-------------|
 | **Company User** | Dashboard, Vault, Score, Tenders | Upload compliance docs, track readiness score, browse & apply for tenders |
-| **Tender Provider** | Provider Dashboard | Create tenders, review applications, manage provider profile |
+| **Evaluator** | Evaluator Dashboard | Create tenders, review applications, manage evaluator profile |
 | **Admin** | Admin Dashboard | Verify documents, manage accounts, audit logs, renewals pipeline |
 
 ---
@@ -49,7 +49,7 @@ tender-system/
 │       │   │   ├── applications/ # Tender applications
 │       │   │   ├── company/      # Company profile
 │       │   │   ├── verify/       # Evaluator portal
-│       │   │   ├── provider/     # Tender provider portal
+│       │   │   ├── provider/     # Evaluator portal
 │       │   │   ├── admin/        # Admin dashboard
 │       │   │   ├── knowledge/    # AI knowledge base
 │       │   │   ├── renewals/     # Document renewals pipeline
@@ -150,6 +150,14 @@ OPENROUTER_API_KEY=sk-or-v1-...
 # Gemini AI (optional — enhanced document analysis)
 GEMINI_API_KEY=your-gemini-key
 
+# Scheduled jobs and outbound alerts (production)
+CRON_SECRET=replace-with-a-long-random-secret
+SENDGRID_API_KEY=SG...
+SENDGRID_FROM_EMAIL=alerts@your-domain.co.za
+SENDGRID_FROM_NAME=TenderGuard Pro
+CLICKATELL_API_KEY=your-clickatell-api-key
+CLICKATELL_FROM=TenderGuard
+
 # App
 NEXT_PUBLIC_APP_URL=http://localhost:3000
 ```
@@ -170,8 +178,9 @@ One-click login buttons are available on the login page:
 
 | Name | Email | Password | Role |
 |------|-------|----------|------|
-| Mouse | mouse@tenderguard.co.za | Mouse@123 | Admin |
-| Vusu | vusu@tenderguard.co.za | Vusu@123 | Evaluator |
+| Tender Demo User | demo@tenderguard.local | password | Company |
+| Vusu | vusu@tenderguard.dev | Demo@1234 | Evaluator |
+| Mouse | mouse@tenderguard.dev | Demo@1234 | Admin |
 
 ---
 

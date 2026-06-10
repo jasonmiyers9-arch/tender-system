@@ -35,7 +35,8 @@ export async function requireRole(req: Request, roles: string[]) {
   const { user, error } = await requireAuth(req);
   if (error) return { user: null, error };
 
-  if (!roles.includes(user!.role)) {
+  const effectiveRoles = user!.role === 'super_admin' ? ['super_admin', 'admin'] : [user!.role];
+  if (!roles.some((role) => effectiveRoles.includes(role))) {
     await logAccessDenied(req, user!.id, `Insufficient role: required ${roles.join('|')}, has ${user!.role}`);
     return { user: null, error: NextResponse.json({ detail: 'Forbidden' }, { status: 403 }) };
   }
@@ -45,6 +46,10 @@ export async function requireRole(req: Request, roles: string[]) {
 
 export async function requireAdmin(req: Request) {
   return requireRole(req, ['admin']);
+}
+
+export function isAdminRole(role: string | null | undefined): boolean {
+  return role === 'admin' || role === 'super_admin';
 }
 
 /**

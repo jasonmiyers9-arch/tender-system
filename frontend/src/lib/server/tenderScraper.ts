@@ -4,6 +4,8 @@
 // ─────────────────────────────────────────────
 
 import * as cheerio from 'cheerio';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import path from 'node:path';
 import { normalizeTenderCategory } from './tenderCategories';
 import { extractPDFContent } from './pdfExtractor';
 
@@ -103,30 +105,86 @@ export interface ScrapeOptions {
   scrapeDetails?: boolean;     // Whether to scrape detail pages (default true)
 }
 
-// ─── Scrape History (in-memory for now) ───────
+// ─── Scrape History and Local Cache ───────────
 
 const scrapeHistory: ScrapeResult[] = [];
 const scrapedTenderCache: Map<string, ScrapedTender> = new Map();
+const scrapedTenderStoragePath = path.join(process.cwd(), 'storage', 'scraped-tenders.json');
+
+function hydrateScrapedTenderCache(): void {
+  if (!existsSync(scrapedTenderStoragePath)) return;
+
+  try {
+    const raw = readFileSync(scrapedTenderStoragePath, 'utf8');
+    const tenders = JSON.parse(raw) as ScrapedTender[];
+    if (!Array.isArray(tenders)) return;
+
+    for (const tender of tenders) {
+      if (!tender.category || tender.category === 'Other') {
+        tender.category = categorizeTender(tender.rawCategory, tender.title, tender.description, tender.fullText);
+      }
+      scrapedTenderCache.set(generateTenderKey(tender), tender);
+    }
+  } catch (error) {
+    console.warn('Failed to hydrate scraped tender cache:', error);
+  }
+}
+
+function persistScrapedTenderCache(): void {
+  try {
+    mkdirSync(path.dirname(scrapedTenderStoragePath), { recursive: true });
+    writeFileSync(
+      scrapedTenderStoragePath,
+      JSON.stringify(Array.from(scrapedTenderCache.values()), null, 2),
+      'utf8',
+    );
+  } catch (error) {
+    console.warn('Failed to persist scraped tender cache:', error);
+  }
+}
+
+function addScrapedTenderToCache(tender: ScrapedTender): boolean {
+  if (!tender.category || tender.category === 'Other') {
+    tender.category = categorizeTender(tender.rawCategory, tender.title, tender.description, tender.fullText);
+  }
+
+  const key = generateTenderKey(tender);
+  const existing = scrapedTenderCache.get(key);
+  if (existing) {
+    if (existing.category !== tender.category || existing.fullText !== tender.fullText) {
+      scrapedTenderCache.set(key, { ...existing, ...tender });
+      return true;
+    }
+    return false;
+  }
+
+  scrapedTenderCache.set(key, tender);
+  return true;
+}
 
 export function getScrapeHistory(): ScrapeResult[] {
   return [...scrapeHistory].reverse();
 }
 
 export function getScrapedTenders(): ScrapedTender[] {
+  hydrateScrapedTenderCache();
   return Array.from(scrapedTenderCache.values());
 }
 
 export function getScrapedTendersByCategory(category: string): ScrapedTender[] {
+  hydrateScrapedTenderCache();
   return Array.from(scrapedTenderCache.values()).filter(t => t.category === category);
 }
 
 export function getScrapedTendersForCompanyCategories(categories: string[]): ScrapedTender[] {
+  hydrateScrapedTenderCache();
   if (!categories.length) return getScrapedTenders();
   const set = new Set(categories);
   return Array.from(scrapedTenderCache.values()).filter(t => set.has(t.category));
 }
 
 export function getScrapedTenderCount(): number {
+  hydrateScrapedTenderCache();
   return scrapedTenderCache.size;
 }
 
@@ -134,6 +192,15 @@ export function getScrapedTenderCount(): number {
 
 function generateTenderKey(tender: ScrapedTender): string {
   return `${tender.tenderNumber || tender.title.toLowerCase().trim()}|${tender.organization.toLowerCase().trim()}|${tender.deadline}`;
+}
+
+function categorizeTender(rawCategory: string, ...textParts: string[]): string {
+  const fromCategory = normalizeTenderCategory(rawCategory);
+  if (fromCategory !== 'Other') return fromCategory;
+
+  const combinedText = textParts.filter(Boolean).join(' ');
+  const fromText = normalizeTenderCategory(combinedText);
+  return fromText !== 'Other' ? fromText : fromCategory;
 }
 
 function parseDate(dateStr: string): string {
@@ -439,7 +506,7 @@ async function scrapeETenders(config: ScraperConfig, options?: ScrapeOptions): P
 
           if (!description || !rawCategory) continue;
 
-          const normalizedCategory = normalizeTenderCategory(rawCategory);
+          const normalizedCategory = categorizeTender(rawCategory, description);
 
           // Skip tenders not in the company's categories
           if (targetCategories && !targetCategories.has(normalizedCategory)) {
@@ -486,8 +553,15 @@ async function scrapeETenders(config: ScraperConfig, options?: ScrapeOptions): P
       await new Promise(resolve => setTimeout(resolve, 1500));
     } catch (err) {
       console.error(`eTenders page ${page} scrape error:`, err);
+      if (page === 1 && tenders.length === 0) {
+        throw err;
+      }
       break;
     }
+  }
+
+  if (tenders.length === 0) {
+    throw new Error('No tenders were parsed from eTenders.gov.za. The source may be unavailable or its listing markup has changed.');
   }
 
   // Extract PDFs for all collected tenders
@@ -573,13 +647,13 @@ async function scrapeTenderBulletins(config: ScraperConfig, options?: ScrapeOpti
 
           const categoryEl = $(article).find('.category, .cat-links a, .tender-category, .tag').first();
           const rawCategory = categoryEl.text().trim() || 'General';
-          const normalizedCategory = normalizeTenderCategory(rawCategory);
+          const fullText = $(article).text();
+          const normalizedCategory = categorizeTender(rawCategory, title, excerpt, fullText);
 
           if (targetCategories && !targetCategories.has(normalizedCategory)) {
             continue;
           }
 
-          const fullText = $(article).text();
           const closingDateMatch = fullText.match(/clos(?:ing|e)\s*(?:date)?[:\s]*(\d{1,2}[\/-]\d{1,2}[\/-]\d{4})/i);
           const orgMatch = fullText.match(/(?:department|dept|municipality|entity|province|organ)\s*(?:of\s*state)?[:\s]*([^\n,]+)/i);
           const refMatch = fullText.match(/(?:ref|reference|bid|tender)\s*(?:no|number)?[:\s]*([A-Z0-9\/-]+)/i);
@@ -664,6 +738,9 @@ async function scrapeTenderBulletins(config: ScraperConfig, options?: ScrapeOpti
       await new Promise(resolve => setTimeout(resolve, 1500));
     } catch (err) {
       console.error(`TenderBulletins page ${page} scrape error:`, err);
+      if (page === 1 && tenders.length === 0) {
+        throw err;
+      }
       break;
     }
   }
@@ -705,6 +782,8 @@ export async function scrapeGenericUrl(url: string): Promise<ScrapedTender[]> {
           const tender = createEmptyScrapedTender();
           tender.title = title.substring(0, 300);
           tender.description = text.substring(0, 500);
+          tender.rawCategory = 'Generic';
+          tender.category = categorizeTender(tender.rawCategory, title, text);
           tender.deadline = dateMatch ? parseDate(dateMatch[1]) : '';
           tender.referenceNumber = refMatch ? refMatch[1] : '';
           tender.organization = new URL(url).hostname;
@@ -743,6 +822,23 @@ const scraperConfigs: ScraperConfig[] = [
 
 const customSources: { url: string; name: string; enabled: boolean }[] = [];
 
+function normalizeSourceName(name: string): string {
+  return name.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+function findScraperConfig(sourceName: string): ScraperConfig | undefined {
+  const requested = normalizeSourceName(sourceName);
+  return scraperConfigs.find((source) => {
+    const canonical = normalizeSourceName(source.name);
+    return canonical === requested || canonical.startsWith(requested) || requested.startsWith(canonical);
+  });
+}
+
+function findCustomSource(sourceName: string): { url: string; name: string; enabled: boolean } | undefined {
+  const requested = normalizeSourceName(sourceName);
+  return customSources.find((source) => normalizeSourceName(source.name) === requested);
+}
+
 export function getScraperConfigs() {
   return scraperConfigs.map(s => ({ name: s.name, enabled: s.enabled, baseUrl: s.baseUrl }));
 }
@@ -764,9 +860,9 @@ export function removeCustomSource(url: string) {
 }
 
 export function toggleScraperSource(name: string, enabled: boolean) {
-  const config = scraperConfigs.find(s => s.name === name);
+  const config = findScraperConfig(name);
   if (config) { config.enabled = enabled; return; }
-  const custom = customSources.find(s => s.name === name);
+  const custom = findCustomSource(name);
   if (custom) { custom.enabled = enabled; return; }
   throw new Error(`Source "${name}" not found`);
 }
@@ -777,7 +873,9 @@ export function toggleScraperSource(name: string, enabled: boolean) {
  * Scrape all enabled sources. Optionally filter by company tender categories.
  */
 export async function runScrapeAll(options?: ScrapeOptions): Promise<ScrapeResult[]> {
+  hydrateScrapedTenderCache();
   const results: ScrapeResult[] = [];
+  let changed = false;
 
   for (const config of scraperConfigs) {
     if (!config.enabled) continue;
@@ -802,9 +900,11 @@ export async function runScrapeAll(options?: ScrapeOptions): Promise<ScrapeResul
         const key = generateTenderKey(tender);
         if (scrapedTenderCache.has(key)) {
           result.duplicatesSkipped++;
+          if (addScrapedTenderToCache(tender)) changed = true;
         } else {
-          scrapedTenderCache.set(key, tender);
+          addScrapedTenderToCache(tender);
           result.newTenders++;
+          changed = true;
         }
         for (const doc of tender.documents) {
           if (doc.extractionStatus === 'success') result.pdfExtracted++;
@@ -841,9 +941,11 @@ export async function runScrapeAll(options?: ScrapeOptions): Promise<ScrapeResul
         const key = generateTenderKey(tender);
         if (scrapedTenderCache.has(key)) {
           result.duplicatesSkipped++;
+          if (addScrapedTenderToCache(tender)) changed = true;
         } else {
-          scrapedTenderCache.set(key, tender);
+          addScrapedTenderToCache(tender);
           result.newTenders++;
+          changed = true;
         }
       }
     } catch (err) {
@@ -854,6 +956,7 @@ export async function runScrapeAll(options?: ScrapeOptions): Promise<ScrapeResul
   }
 
   scrapeHistory.push(...results);
+  if (changed) persistScrapedTenderCache();
   return results;
 }
 
@@ -861,7 +964,9 @@ export async function runScrapeAll(options?: ScrapeOptions): Promise<ScrapeResul
  * Scrape a single source by name, optionally filtered by categories.
  */
 export async function runScrapeSingle(sourceName: string, options?: ScrapeOptions): Promise<ScrapeResult> {
-  const config = scraperConfigs.find(s => s.name === sourceName);
+  hydrateScrapedTenderCache();
+  const config = findScraperConfig(sourceName);
+  let changed = false;
 
   const result: ScrapeResult = {
     source: sourceName,
@@ -880,10 +985,12 @@ export async function runScrapeSingle(sourceName: string, options?: ScrapeOption
 
     if (config) {
       tenders = await config.scrapeFunction(config, options);
+      result.source = config.name;
     } else {
-      const custom = customSources.find(s => s.name === sourceName);
+      const custom = findCustomSource(sourceName);
       if (!custom) throw new Error(`Source "${sourceName}" not found`);
       tenders = await scrapeGenericUrl(custom.url);
+      result.source = custom.name;
     }
 
     result.totalScraped = tenders.length;
@@ -892,9 +999,11 @@ export async function runScrapeSingle(sourceName: string, options?: ScrapeOption
       const key = generateTenderKey(tender);
       if (scrapedTenderCache.has(key)) {
         result.duplicatesSkipped++;
+        if (addScrapedTenderToCache(tender)) changed = true;
       } else {
-        scrapedTenderCache.set(key, tender);
+        addScrapedTenderToCache(tender);
         result.newTenders++;
+        changed = true;
       }
       for (const doc of tender.documents) {
         if (doc.extractionStatus === 'success') result.pdfExtracted++;
@@ -906,6 +1015,7 @@ export async function runScrapeSingle(sourceName: string, options?: ScrapeOption
   }
 
   scrapeHistory.push(result);
+  if (changed) persistScrapedTenderCache();
   return result;
 }
 

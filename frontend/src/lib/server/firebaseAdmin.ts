@@ -53,6 +53,10 @@ export function isStorageAvailable() {
   return initialized && bucket !== null;
 }
 
+export function isFirebaseAdminConfigured() {
+  return initialized && admin.apps.length > 0;
+}
+
 export function requireFirestore() {
   const db = getFirestore();
   if (!db) {
@@ -127,7 +131,7 @@ export async function getDownloadUrl(storagePath: string): Promise<string> {
 }
 
 export async function verifyIdToken(idToken: string) {
-  if (!initialized || !admin.apps.length) {
+  if (!isFirebaseAdminConfigured()) {
     throw new Error('Firebase Admin is not configured for token verification.');
   }
   return admin.auth().verifyIdToken(idToken);
@@ -138,7 +142,7 @@ export async function createEmailPasswordUser(payload: {
   password: string;
   displayName: string;
 }) {
-  if (!initialized || !admin.apps.length) {
+  if (!isFirebaseAdminConfigured()) {
     throw new Error('Firebase Admin is not configured for user provisioning.');
   }
 
@@ -150,7 +154,7 @@ export async function createEmailPasswordUser(payload: {
 }
 
 export async function deleteAuthUser(uid: string) {
-  if (!initialized || !admin.apps.length) {
+  if (!isFirebaseAdminConfigured()) {
     throw new Error('Firebase Admin is not configured for user provisioning.');
   }
 
@@ -158,8 +162,15 @@ export async function deleteAuthUser(uid: string) {
 }
 
 export async function generatePasswordResetLink(email: string): Promise<string> {
-  if (!initialized || !admin.apps.length) {
+  if (!isFirebaseAdminConfigured()) {
     throw new Error('Firebase Admin is not configured for password reset.');
   }
   return admin.auth().generatePasswordResetLink(email);
+}
+
+export async function generateEmailVerificationLink(email: string): Promise<string> {
+  if (!isFirebaseAdminConfigured()) {
+    throw new Error('Firebase Admin is not configured for email verification.');
+  }
+  return admin.auth().generateEmailVerificationLink(email);
 }

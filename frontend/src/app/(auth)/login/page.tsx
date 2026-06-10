@@ -3,7 +3,7 @@
 import { Suspense, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { Shield, AlertCircle, Clock, Lock } from 'lucide-react';
+import { Shield, AlertCircle, Clock, Lock, Building2, ClipboardCheck } from 'lucide-react';
 import { useAppStore } from '@/store/useAppStore';
 import { auth } from '@/lib/api/auth';
 import { Input } from '@/components/ui/Input';
@@ -27,6 +27,25 @@ const SESSION_MESSAGES: Record<string, BannerConfig> = {
         accent: 'bg-blue-50 dark:bg-blue-500/10 border-blue-200 dark:border-blue-500/30 text-blue-800 dark:text-blue-300',
     },
 };
+
+const PORTAL_LOGINS = [
+    {
+        label: 'Company Portal',
+        description: 'Compliance vault, tenders, applications',
+        email: 'demo@tenderguard.local',
+        password: 'password',
+        icon: Building2,
+        destination: '/home',
+    },
+    {
+        label: 'Evaluator Portal',
+        description: 'Tenders, applicants, compliance checks',
+        email: 'vusu@tenderguard.dev',
+        password: 'Demo@1234',
+        icon: ClipboardCheck,
+        destination: '/provider/dashboard',
+    },
+];
 
 function LoginForm() {
     const [email, setEmail] = useState('');
@@ -62,17 +81,25 @@ function LoginForm() {
 
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!email || !password) return setError('Please enter both email and password.');
+        await signIn(email, password);
+    };
+
+    const signIn = async (loginEmail: string, loginPassword: string, destination = '/home') => {
+        if (!loginEmail || !loginPassword) return setError('Please enter both email and password.');
         setError(null);
         setLoading(true);
         try {
-            const res = await auth.login(email, password);
+            setEmail(loginEmail);
+            setPassword(loginPassword);
+            const res = await auth.login(loginEmail, loginPassword);
             settoken(res.token);
             setCurrentUser(res.user);
             if (res.user.onboardingCompleted === false) {
                 router.push('/onboarding');
+            } else if (res.user.role === 'evaluator') {
+                router.push(destination === '/home' ? '/provider/dashboard' : destination);
             } else {
-                router.push('/home');
+                router.push(destination);
             }
         } catch (e) {
             const msg = e instanceof Error ? e.message : 'Invalid credentials';
@@ -200,6 +227,32 @@ function LoginForm() {
                             Continue with Google
                         </button>
                     </form>
+
+                    <div className="space-y-2 border-t border-[--color-border] pt-5">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-[--color-text-muted]">Demo portal logins</p>
+                        <div className="grid gap-2">
+                            {PORTAL_LOGINS.map((portal) => {
+                                const PortalIcon = portal.icon;
+                                return (
+                                    <button
+                                        key={portal.email}
+                                        type="button"
+                                        disabled={loading}
+                                        onClick={() => signIn(portal.email, portal.password, portal.destination)}
+                                        className="flex w-full items-center gap-3 rounded-xl border border-[--color-border] bg-[--color-surface-raised] px-3.5 py-3 text-left transition-colors hover:border-[--color-primary] disabled:cursor-not-allowed disabled:opacity-70"
+                                    >
+                                        <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-indigo-500/10 text-[--color-primary]">
+                                            <PortalIcon size={17} />
+                                        </span>
+                                        <span className="min-w-0 flex-1">
+                                            <span className="block text-sm font-semibold text-[--color-text-primary]">{portal.label}</span>
+                                            <span className="block truncate text-xs text-[--color-text-muted]">{portal.description}</span>
+                                        </span>
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    </div>
 
                     <p className="text-center text-xs text-[--color-text-muted] pt-1">
                         Sign in with your Firebase email/password account or continue with Google.

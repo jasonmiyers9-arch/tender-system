@@ -199,7 +199,7 @@ export default function AdminMonitorPage() {
     const [events, setEvents] = useState<EventItem[]>([]);
     const [error, setError] = useState<string | null>(null);
     const [lastUpdatedAt, setLastUpdatedAt] = useState<number | null>(null);
-    const [tick, setTick] = useState(0);
+    const [currentTime, setCurrentTime] = useState(() => Date.now());
 
     const [levelFilter, setLevelFilter] = useState<LevelKey>('all');
 
@@ -241,9 +241,24 @@ export default function AdminMonitorPage() {
 
     // Re-render every second so "Updated Xs ago" stays current.
     useEffect(() => {
-        const t = setInterval(() => setTick((n) => n + 1), 1000);
+        const t = setInterval(() => setCurrentTime(Date.now()), 1000);
         return () => clearInterval(t);
     }, []);
+
+    const filteredEvents = useMemo(() => {
+        return levelFilter === 'all' ? events : events.filter((e) => e.level === levelFilter);
+    }, [events, levelFilter]);
+
+    const grouped = useMemo(() => {
+        const map = new Map<string, EventItem[]>();
+        for (const e of filteredEvents) {
+            const key = dayBucket(e.timestamp);
+            const arr = map.get(key);
+            if (arr) arr.push(e);
+            else map.set(key, [e]);
+        }
+        return Array.from(map.entries());
+    }, [filteredEvents]);
 
     if (role === undefined || role === null) {
         return (
@@ -281,23 +296,7 @@ export default function AdminMonitorPage() {
     const verdictLine =
         `Frontend ${reachable ? 'UP' : 'DOWN'} · HTTP ${httpInfo.label} · heartbeat ${hbInfo.label} · ${errorCount} error${errorCount === 1 ? '' : 's'} captured`;
 
-    const updatedAgo = lastUpdatedAt ? Math.max(0, Math.round((Date.now() - lastUpdatedAt) / 1000)) : null;
-    void tick; // referenced for refresh
-
-    const filteredEvents = useMemo(() => {
-        return levelFilter === 'all' ? events : events.filter((e) => e.level === levelFilter);
-    }, [events, levelFilter]);
-
-    const grouped = useMemo(() => {
-        const map = new Map<string, EventItem[]>();
-        for (const e of filteredEvents) {
-            const key = dayBucket(e.timestamp);
-            const arr = map.get(key);
-            if (arr) arr.push(e);
-            else map.set(key, [e]);
-        }
-        return Array.from(map.entries());
-    }, [filteredEvents]);
+    const updatedAgo = lastUpdatedAt ? Math.max(0, Math.round((currentTime - lastUpdatedAt) / 1000)) : null;
 
     const handleSaveAi = async () => {
         setSavingAi(true);

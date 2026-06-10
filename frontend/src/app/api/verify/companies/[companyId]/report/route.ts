@@ -8,6 +8,8 @@ import {
   getExpiredInPast12Months, 
   isNewAccount 
 } from '@/lib/server/expiryCheckService';
+import { extractRequestContext, logSecurityEvent, SecurityEventType } from '@/lib/server/securityAudit';
+import { isAdminRole } from '@/lib/server/apiAuth';
 
 function parseToken(req: Request): string | null {
   const header = req.headers.get('authorization');
@@ -39,7 +41,7 @@ export async function GET(
   }
 
   const user = await getUserByToken(token);
-  if (!user || (user.role !== 'admin' && user.role !== 'evaluator')) {
+  if (!user || (!isAdminRole(user.role) && user.role !== 'evaluator')) {
     return NextResponse.json({ detail: 'Evaluator or admin only' }, { status: 403 });
   }
 
@@ -48,6 +50,26 @@ export async function GET(
   if (!company) {
     return NextResponse.json({ detail: 'Company not found' }, { status: 404 });
   }
+
+  await logSecurityEvent({
+    type: SecurityEventType.DATA_ACCESS,
+    userId: user.id,
+    userEmail: user.email,
+    userRole: user.role,
+    companyId,
+    outcome: 'success',
+    resourceType: 'company_compliance_report',
+    resourceId: companyId,
+    ...extractRequestContext(req),
+    details: {
+      action: 'evaluator_verification_report_view',
+      companyName: company.name,
+      companyRegistrationNumber: company.registrationNumber,
+      companyCsdNumber: company.csdNumber ?? null,
+      viewedBy: user.email,
+      verificationTimestamp: new Date().toISOString(),
+    },
+  });
 
   const documents = await listDocumentsForCompany(companyId);
   

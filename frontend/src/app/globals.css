@@ -36,9 +36,9 @@
   --color-sidebar-text-active: var(--sidebar-text-active);
   --color-sidebar-active-bg:   var(--sidebar-active-bg);
 
-  --font-sans: var(--font-sans-pro), 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
-  --font-mono: var(--font-mono), 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
-  --font-serif: var(--font-serif), 'Instrument Serif', Georgia, serif;
+  --font-sans: var(--font-sans-pro, 'Inter'), 'Segoe UI', system-ui, -apple-system, sans-serif;
+  --font-mono: var(--font-mono-pro, 'JetBrains Mono'), ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-serif: var(--font-serif-pro, 'Instrument Serif'), Georgia, serif;
 }
 
 :root {

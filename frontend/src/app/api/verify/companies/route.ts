@@ -8,6 +8,8 @@ import {
   getExpiredInPast12Months, 
   isNewAccount 
 } from '@/lib/server/expiryCheckService';
+import { extractRequestContext, logSecurityEvent, SecurityEventType } from '@/lib/server/securityAudit';
+import { isAdminRole } from '@/lib/server/apiAuth';
 
 function parseToken(req: Request): string | null {
   const header = req.headers.get('authorization');
@@ -33,7 +35,7 @@ export async function GET(req: Request) {
   }
 
   const user = await getUserByToken(token);
-  if (!user || (user.role !== 'admin' && user.role !== 'evaluator')) {
+  if (!user || (!isAdminRole(user.role) && user.role !== 'evaluator')) {
     return NextResponse.json({ detail: 'Evaluator or admin only' }, { status: 403 });
   }
 
@@ -100,5 +102,23 @@ export async function GET(req: Request) {
   );
 
   items.sort((a, b) => b.score - a.score);
+
+  await logSecurityEvent({
+    type: SecurityEventType.DATA_ACCESS,
+    userId: user.id,
+    userEmail: user.email,
+    userRole: user.role,
+    outcome: 'success',
+    resourceType: 'company',
+    resourceId: q || 'all',
+    ...extractRequestContext(req),
+    details: {
+      action: 'evaluator_company_search',
+      query: q,
+      resultCount: items.length,
+      matchedCompanyIds: items.map((item) => item.id),
+    },
+  });
+
   return NextResponse.json(items);
 }

@@ -8,7 +8,7 @@ import { ErrorState } from '@/components/ui/ErrorState';
 import { CardSkeleton } from '@/components/ui/Skeleton';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { formatDate } from '@/lib/utils/formatters';
-import { FileSearch, Calendar, Building2, AlertCircle, ArrowRight, CheckCircle2, FileCheck, Shield, Clock, Target } from 'lucide-react';
+import { FileSearch, Calendar, Building2, AlertCircle, ArrowRight, CheckCircle2, FileCheck, Shield, Clock, Target, MapPin, Users } from 'lucide-react';
 import Link from 'next/link';
 import type { TenderReadinessScoreBreakdown } from '@/lib/api/types';
 
@@ -145,10 +145,23 @@ export default function TendersPage() {
                                                     <Building2 size={13} /> {t.organization}
                                                 </span>
                                                 <span className="flex items-center gap-1">
-                                                    <Calendar size={13} /> Deadline: {formatDate(t.deadline)}
+                                                    <Calendar size={13} /> Closing: {formatDate(t.deadline)}{t.closingTime ? ` at ${t.closingTime}` : ''}
+                                                </span>
+                                                <span className="flex items-center gap-1">
+                                                    <MapPin size={13} /> Required at: {t.requiredAt || t.location || 'Not specified'}
                                                 </span>
                                                 <span>{t.value}</span>
                                             </div>
+                                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-3 text-xs text-[--color-text-muted]">
+                                                <span className="flex items-center gap-1.5 rounded-md bg-[--color-surface-raised] px-2 py-1">
+                                                    <Users size={12} /> Briefing: {t.briefing?.hasBriefingSession ? `${t.briefing.date || 'Date TBC'}${t.briefing.venue ? `, ${t.briefing.venue}` : ''}` : 'Not specified'}
+                                                </span>
+                                                <span className="rounded-md bg-[--color-surface-raised] px-2 py-1">Department: {t.organization}</span>
+                                                <span className="rounded-md bg-[--color-surface-raised] px-2 py-1">Category: {t.category}</span>
+                                            </div>
+                                            {t.recommendationReason && (
+                                                <p className="mt-2 text-xs font-medium text-[--color-text-secondary]">{t.recommendationReason}</p>
+                                            )}
                                             
                                             {/* Score breakdown mini bars */}
                                             <ScoreBreakdownMini breakdown={t.scoreBreakdown} />

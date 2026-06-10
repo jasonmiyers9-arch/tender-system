@@ -43,16 +43,15 @@ const companyNavGroups: NavGroup[] = [
 
 const providerNavGroups: NavGroup[] = [
     {
-        label: 'Tender Provider Portal',
+        label: 'Evaluator Portal',
         items: [
             { label: 'Home', href: '/home', icon: <Home size={18} /> },
-            { label: 'Provider Dashboard', href: '/provider/dashboard', icon: <LayoutDashboard size={18} /> },
-            { label: 'Provider Profile', href: '/provider/profile', icon: <Building2 size={18} /> },
-            { label: 'My Tenders', href: '/provider/tenders', icon: <FileSearch size={18} /> },
-            { label: 'Upload Tender', href: '/provider/tenders/new', icon: <FileSearch size={18} /> },
-            { label: 'Tender Review', href: '/verify', icon: <ShieldCheck size={18} /> },
-            { label: 'Tender Calendar', href: '/tenders/calendar', icon: <Calendar size={18} /> },
+            { label: 'Evaluator Dashboard', href: '/provider/dashboard', icon: <LayoutDashboard size={18} /> },
+            { label: 'Evaluator Tenders', href: '/provider/tenders', icon: <FileSearch size={18} /> },
             { label: 'Applications', href: '/provider/applications', icon: <ClipboardList size={18} /> },
+            { label: 'Company Search', href: '/verify', icon: <ShieldCheck size={18} /> },
+            { label: 'Tender Calendar', href: '/tenders/calendar', icon: <Calendar size={18} /> },
+            { label: 'Evaluator Profile', href: '/provider/profile', icon: <Building2 size={18} /> },
         ],
     },
 ];
@@ -82,7 +81,7 @@ export function Sidebar() {
     const isActive = (href: string) =>
         href === '/home' ? pathname === '/home' : (pathname === href || (!['/dashboard', '/admin/dashboard', '/provider/dashboard'].includes(href) && pathname.startsWith(href)));
 
-    const navGroups = role === 'admin'
+    const navGroups = role === 'admin' || role === 'super_admin'
         ? adminNavGroups
         : role === 'evaluator'
             ? providerNavGroups

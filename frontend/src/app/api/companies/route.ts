@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getUserByToken, listAllCompanies, listCompaniesForUser } from '@/lib/server/firestoreService';
+import { isAdminRole } from '@/lib/server/apiAuth';
 
 function parseToken(req: Request): string | null {
   const header = req.headers.get('authorization');
@@ -20,7 +21,7 @@ export async function GET(req: Request) {
   }
 
   const companies =
-    user.role === 'admin'
+    isAdminRole(user.role)
       ? await listAllCompanies()
       : await listCompaniesForUser(user.id);
   return NextResponse.json({ items: companies });

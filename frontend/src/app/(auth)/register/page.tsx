@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { Shield, CheckCircle2, AlertCircle, ChevronDown, X } from 'lucide-react';
 import { auth } from '@/lib/api/auth';
 import { Input } from '@/components/ui/Input';
+import { useAppStore } from '@/store/useAppStore';
 
 const TENDER_CATEGORIES = [
   'Construction',
@@ -54,6 +55,7 @@ export default function RegisterPage() {
     const [error, setError] = useState<string | null>(null);
     const progressTimerRef = useRef<number | null>(null);
     const router = useRouter();
+    const { settoken, setCurrentUser } = useAppStore();
 
     useEffect(() => {
         return () => {
@@ -118,6 +120,13 @@ export default function RegisterPage() {
 
             window.setTimeout(() => {
                 setProgress(100);
+                if (res.token && res.user.role === 'user') {
+                    settoken(res.token);
+                    setCurrentUser(res.user);
+                    setFlowMessage('Account ready. Opening required document setup...');
+                    router.push('/onboarding');
+                    return;
+                }
                 setFlowMessage('Account ready. Redirecting to sign in...');
                 router.push('/login');
             }, 800);
@@ -216,13 +225,13 @@ export default function RegisterPage() {
                                 onChange={e => setFormData({ ...formData, role: e.target.value as 'company' | 'tender_provider' })}
                             >
                                 <option value="company">Company</option>
-                                <option value="tender_provider">Tender Provider</option>
+                                <option value="tender_provider">Evaluator</option>
                             </select>
                         </div>
 
                         <>
                             <Input
-                                label={formData.role === 'tender_provider' ? 'Organisation Name' : 'Company Name'}
+                                label={formData.role === 'tender_provider' ? 'Evaluator Organisation Name' : 'Company Name'}
                                 placeholder={formData.role === 'tender_provider' ? 'e.g. City Infrastructure Dept' : 'e.g. Acme Infra (Pty) Ltd'}
                                 required
                                 value={formData.companyName}

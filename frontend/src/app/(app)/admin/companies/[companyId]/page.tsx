@@ -1,6 +1,6 @@
 'use client';
 
-import { use, useEffect, useMemo, useState } from 'react';
+import { use, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'motion/react';
 import {
@@ -92,8 +92,7 @@ function OverviewSection({ company, onSave, saving }: {
     onSave: (payload: Partial<Company>) => void;
     saving: boolean;
 }) {
-    const [editing, setEditing] = useState(false);
-    const [form, setForm] = useState({
+    const getCompanyForm = () => ({
         name: company.name ?? '',
         registrationNumber: company.registrationNumber ?? '',
         vatNumber: company.vatNumber ?? '',
@@ -107,23 +106,8 @@ function OverviewSection({ company, onSave, saving }: {
         website: company.website ?? '',
         address: company.address ?? '',
     });
-
-    useEffect(() => {
-        setForm({
-            name: company.name ?? '',
-            registrationNumber: company.registrationNumber ?? '',
-            vatNumber: company.vatNumber ?? '',
-            industry: company.industry ?? '',
-            province: company.province ?? '',
-            bbbeeLevel: company.bbbeeLevel ?? '',
-            cidbGrade: company.cidbGrade ?? '',
-            csdNumber: company.csdNumber ?? '',
-            email: company.email ?? '',
-            phone: company.phone ?? '',
-            website: company.website ?? '',
-            address: company.address ?? '',
-        });
-    }, [company]);
+    const [editing, setEditing] = useState(false);
+    const [form, setForm] = useState(getCompanyForm);
 
     const handleSave = () => {
         onSave(form);
@@ -131,20 +115,7 @@ function OverviewSection({ company, onSave, saving }: {
     };
 
     const handleCancel = () => {
-        setForm({
-            name: company.name ?? '',
-            registrationNumber: company.registrationNumber ?? '',
-            vatNumber: company.vatNumber ?? '',
-            industry: company.industry ?? '',
-            province: company.province ?? '',
-            bbbeeLevel: company.bbbeeLevel ?? '',
-            cidbGrade: company.cidbGrade ?? '',
-            csdNumber: company.csdNumber ?? '',
-            email: company.email ?? '',
-            phone: company.phone ?? '',
-            website: company.website ?? '',
-            address: company.address ?? '',
-        });
+        setForm(getCompanyForm());
         setEditing(false);
     };
 
@@ -169,7 +140,7 @@ function OverviewSection({ company, onSave, saving }: {
                         <Button size="sm" onClick={handleSave} loading={saving}>Save</Button>
                     </div>
                 ) : (
-                    <Button variant="ghost" size="sm" leftIcon={<Edit size={13} />} onClick={() => setEditing(true)}>Edit</Button>
+                    <Button variant="ghost" size="sm" leftIcon={<Edit size={13} />} onClick={() => { setForm(getCompanyForm()); setEditing(true); }}>Edit</Button>
                 )}
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -733,7 +704,7 @@ export default function AdminCompanyDetailPage({ params }: { params: Promise<{ c
                             {resetModal.link}
                         </div>
                         <p className="text-[11px] text-[--color-text-muted]">
-                            Don't post this in public channels. Treat it like a temporary password.
+                            Don&apos;t post this in public channels. Treat it like a temporary password.
                         </p>
                     </div>
                 )}

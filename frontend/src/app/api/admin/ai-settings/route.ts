@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getUserByToken } from '@/lib/server/firestoreService';
 import { getAiSettingsPublic, upsertAiSettings } from '@/lib/server/aiSettingsService';
+import { isAdminRole } from '@/lib/server/apiAuth';
 
 function parseToken(req: Request): string | null {
   const header = req.headers.get('authorization');
@@ -13,7 +14,7 @@ async function requireAdmin(req: Request) {
   const token = parseToken(req);
   if (!token) return null;
   const user = await getUserByToken(token);
-  if (!user || user.role !== 'admin') return null;
+  if (!user || !isAdminRole(user.role)) return null;
   return user;
 }
 

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getUserByToken, updateCompanyProfile, getCompanyById } from '@/lib/server/firestoreService';
+import { getUserByToken, updateCompanyProfile, getCompanyById, getUserOnboardingStatus } from '@/lib/server/firestoreService';
 import { publishRescoreEvent } from '@/lib/server/analystEngine';
 
 function parseToken(req: Request): string | null {
@@ -22,11 +22,11 @@ export async function POST(req: Request) {
 
   const body = await req.json();
   const allowedFields = {
-    csd_number: body.csd_number ?? null,
-    bbbee_level: body.bbbee_level ?? null,
-    cidb_grade: body.cidb_grade ?? null,
-    industry_sector: body.industry_sector ?? null,
-    province: body.province ?? null,
+    csd_number: String(body.csd_number ?? '').trim() || null,
+    bbbee_level: String(body.bbbee_level ?? '').trim() || null,
+    cidb_grade: String(body.cidb_grade ?? '').trim() || null,
+    industry_sector: String(body.industry_sector ?? '').trim() || null,
+    province: String(body.province ?? '').trim() || null,
   };
 
   const company = await getCompanyById(user.activeCompanyId);
@@ -36,13 +36,25 @@ export async function POST(req: Request) {
 
   const updatedCompany = await updateCompanyProfile(user.activeCompanyId, {
     industry: allowedFields.industry_sector ?? company.industry,
-    address: allowedFields.province ? company.address : company.address,
+    province: allowedFields.province ?? company.province ?? null,
+    csdNumber: allowedFields.csd_number ?? company.csdNumber ?? null,
+    bbbeeLevel: allowedFields.bbbee_level ?? company.bbbeeLevel ?? null,
+    cidbGrade: allowedFields.cidb_grade ?? company.cidbGrade ?? null,
     registrationNumber: company.registrationNumber,
     vatNumber: company.vatNumber,
+    address: company.address,
     email: company.email,
     phone: company.phone,
     website: company.website,
   });
+  const priorityDocs = await getUserOnboardingStatus(user);
+  const profileComplete = Boolean(
+    updatedCompany.csdNumber &&
+    updatedCompany.bbbeeLevel &&
+    updatedCompany.industry &&
+    updatedCompany.province
+  );
+  const onboardingCompleted = profileComplete && priorityDocs.completed;
 
   await publishRescoreEvent({
     eventType: 'company.updated',
@@ -50,8 +62,11 @@ export async function POST(req: Request) {
     actorUserId: user.id,
     metadata: {
       updatedFields: Object.keys(allowedFields).filter((key) => allowedFields[key as keyof typeof allowedFields] !== null),
+      documentsUploaded: priorityDocs.documentsUploaded,
+      requiredDocuments: priorityDocs.requiredDocuments,
+      onboardingCompleted,
     },
   });
 
-  return NextResponse.json({ ok: true, company: updatedCompany, onboardingCompleted: false });
+  return NextResponse.json({ ok: true, company: updatedCompany, onboardingCompleted });
 }

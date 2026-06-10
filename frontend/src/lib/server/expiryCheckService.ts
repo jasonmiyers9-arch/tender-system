@@ -14,6 +14,7 @@
 import {
   listAllDocuments,
   listDocumentsForCompany,
+  createNotificationsForCompany,
   updateDocument,
   type InternalDocument,
 } from './firestoreService';
@@ -25,6 +26,7 @@ export interface ExpiryCheckResult {
   newlyExpired: ExpiredDocumentInfo[];
   expiringSoon: ExpiredDocumentInfo[];
   rescoreEventsTriggered: number;
+  notificationsCreated: number;
   errors: string[];
 }
 
@@ -62,6 +64,7 @@ export async function runExpiryCheck(dryRun = false): Promise<ExpiryCheckResult>
     newlyExpired: [],
     expiringSoon: [],
     rescoreEventsTriggered: 0,
+    notificationsCreated: 0,
     errors: [],
   };
 
@@ -98,14 +101,22 @@ export async function runExpiryCheck(dryRun = false): Promise<ExpiryCheckResult>
             try {
               // Update document status to expired
               await updateDocument(doc.id, { status: 'expired' as InternalDocument['status'] });
+              const notifications = await createNotificationsForCompany(doc.companyId, {
+                alertType: 'danger',
+                title: 'Document expired',
+                message: `${doc.name} expired on ${doc.expiryDate}. Renew it to keep tender readiness accurate.`,
+                triggerDate: result.checkedAt,
+                dedupeKey: `document-expiry:${doc.id}:expired`,
+              });
+              result.notificationsCreated += notifications.length;
             } catch (err) {
               result.errors.push(`Failed to update document ${doc.id}: ${err}`);
             }
           }
         }
       }
-      // Document expiring within 30 days
-      else if (days <= 30) {
+      // Document expiring within the spec alert milestones.
+      else if ([90, 60, 30, 7].includes(days)) {
         result.expiringSoon.push({
           documentId: doc.id,
           documentName: doc.name,
@@ -114,6 +125,21 @@ export async function runExpiryCheck(dryRun = false): Promise<ExpiryCheckResult>
           expiryDate: doc.expiryDate,
           daysOverdue: -days, // Negative to indicate days remaining
         });
+
+        if (!dryRun) {
+          try {
+            const notifications = await createNotificationsForCompany(doc.companyId, {
+              alertType: days <= 7 ? 'danger' : 'warning',
+              title: 'Document expiry approaching',
+              message: `${doc.name} expires in ${days} days on ${doc.expiryDate}.`,
+              triggerDate: result.checkedAt,
+              dedupeKey: `document-expiry:${doc.id}:${days}`,
+            });
+            result.notificationsCreated += notifications.length;
+          } catch (err) {
+            result.errors.push(`Failed to create notification for document ${doc.id}: ${err}`);
+          }
+        }
       }
     }
 

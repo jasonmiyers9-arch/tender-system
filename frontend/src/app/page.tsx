@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import type { CSSProperties } from 'react';
 import {
     Shield, FolderLock, BarChart2, FileSearch, ShieldCheck,
     ArrowRight, CheckCircle2, Building2,
@@ -41,6 +42,33 @@ const TRUST_POINTS = [
     'Document expiry alerts and audit trails',
 ];
 
+const landingStyle: CSSProperties = {
+    minHeight: '100vh',
+    background: '#EEF2F7',
+    '--bg': '#EEF2F7',
+    '--surface': '#FFFFFF',
+    '--surface-raised': '#F8FAFC',
+    '--border': '#CBD5E1',
+    '--border-strong': '#94A3B8',
+    '--text-primary': '#0F172A',
+    '--text-muted': '#475569',
+    '--text-subtle': '#94A3B8',
+    '--primary': '#4F46E5',
+    '--primary-dark': '#4338CA',
+    '--accent': '#7C3AED',
+    '--color-bg': '#EEF2F7',
+    '--color-surface': '#FFFFFF',
+    '--color-surface-raised': '#F8FAFC',
+    '--color-border': '#CBD5E1',
+    '--color-border-strong': '#94A3B8',
+    '--color-text-primary': '#0F172A',
+    '--color-text-muted': '#475569',
+    '--color-text-subtle': '#94A3B8',
+    '--color-primary': '#4F46E5',
+    '--color-primary-dark': '#4338CA',
+    '--color-accent': '#7C3AED',
+} as CSSProperties & Record<string, string>;
+
 // ─── Main landing page (always renders — no auto-redirect) ───────────────────
 export default function LandingPage() {
     const { token } = useAppStore();
@@ -51,31 +79,7 @@ export default function LandingPage() {
     return (
         <div
             className="min-h-screen flex flex-col"
-            style={{
-                background: '#EEF2F7',
-                ['--bg' as any]: '#EEF2F7',
-                ['--surface' as any]: '#FFFFFF',
-                ['--surface-raised' as any]: '#F8FAFC',
-                ['--border' as any]: '#CBD5E1',
-                ['--border-strong' as any]: '#94A3B8',
-                ['--text-primary' as any]: '#0F172A',
-                ['--text-muted' as any]: '#475569',
-                ['--text-subtle' as any]: '#94A3B8',
-                ['--primary' as any]: '#4F46E5',
-                ['--primary-dark' as any]: '#4338CA',
-                ['--accent' as any]: '#7C3AED',
-                ['--color-bg' as any]: '#EEF2F7',
-                ['--color-surface' as any]: '#FFFFFF',
-                ['--color-surface-raised' as any]: '#F8FAFC',
-                ['--color-border' as any]: '#CBD5E1',
-                ['--color-border-strong' as any]: '#94A3B8',
-                ['--color-text-primary' as any]: '#0F172A',
-                ['--color-text-muted' as any]: '#475569',
-                ['--color-text-subtle' as any]: '#94A3B8',
-                ['--color-primary' as any]: '#4F46E5',
-                ['--color-primary-dark' as any]: '#4338CA',
-                ['--color-accent' as any]: '#7C3AED',
-            }}
+            style={landingStyle}
         >
 
             {/* ── Top Nav ───────────────────────────────────────────────────── */}

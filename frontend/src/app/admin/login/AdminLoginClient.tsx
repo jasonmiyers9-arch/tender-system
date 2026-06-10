@@ -3,12 +3,18 @@
 import { Suspense, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { AlertCircle, Lock, ShieldAlert } from 'lucide-react';
+import { AlertCircle, Lock, ShieldAlert, UserCog } from 'lucide-react';
 import { Input } from '@/components/ui/Input';
 import { auth } from '@/lib/api/auth';
 import { useAppStore } from '@/store/useAppStore';
 
 type BannerConfig = { icon: React.FC<{ size: number; className?: string }>; text: string; accent: string };
+type MfaChallenge = {
+    setupRequired: boolean;
+    secret?: string;
+    otpauthUrl?: string;
+    message: string;
+};
 
 const SESSION_MESSAGES: Record<string, BannerConfig> = {
     session_expired: {
@@ -28,9 +34,16 @@ const SESSION_MESSAGES: Record<string, BannerConfig> = {
     },
 };
 
+const ADMIN_DEMO_LOGIN = {
+    email: 'mouse@tenderguard.dev',
+    password: 'Demo@1234',
+};
+
 function AdminLoginForm() {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
+    const [totpCode, setTotpCode] = useState('');
+    const [mfaChallenge, setMfaChallenge] = useState<MfaChallenge | null>(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const router = useRouter();
@@ -42,12 +55,29 @@ function AdminLoginForm() {
 
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!email || !password) return setError('Please enter both email and password.');
+        await signIn(email, password);
+    };
+
+    const signIn = async (loginEmail: string, loginPassword: string) => {
+        if (!loginEmail || !loginPassword) return setError('Please enter both email and password.');
+        if (mfaChallenge && !totpCode) return setError('Please enter your 6-digit authenticator code.');
         setError(null);
         setLoading(true);
 
         try {
-            const res = await auth.adminLogin(email, password);
+            setEmail(loginEmail);
+            setPassword(loginPassword);
+            const res = await auth.adminLogin(loginEmail, loginPassword, mfaChallenge ? totpCode : undefined);
+            if ('mfaRequired' in res) {
+                setMfaChallenge({
+                    setupRequired: res.setupRequired,
+                    secret: res.secret,
+                    otpauthUrl: res.otpauthUrl,
+                    message: res.message,
+                });
+                setTotpCode('');
+                return;
+            }
             settoken(res.token);
             setCurrentUser(res.user);
             router.push('/admin/dashboard');
@@ -55,6 +85,8 @@ function AdminLoginForm() {
             const msg = e instanceof Error ? e.message : 'Invalid credentials';
             if (msg.includes('admin_access_required')) {
                 setError('This sign-in is restricted to internal admin accounts.');
+            } else if (msg.includes('invalid_mfa_code')) {
+                setError('Invalid authenticator code.');
             } else {
                 setError(msg);
             }
@@ -121,6 +153,36 @@ function AdminLoginForm() {
                                 required
                             />
 
+                            {mfaChallenge && (
+                                <div className="space-y-3 rounded-xl border border-amber-500/25 bg-amber-500/5 p-3.5">
+                                    <p className="text-xs font-medium text-[--color-text-primary]">{mfaChallenge.message}</p>
+                                    {mfaChallenge.setupRequired && mfaChallenge.secret && (
+                                        <div className="space-y-2">
+                                            <p className="text-xs text-[--color-text-muted]">
+                                                Add this secret to an authenticator app, then enter the 6-digit code.
+                                            </p>
+                                            <p className="break-all rounded-lg bg-[--color-bg] px-3 py-2 font-mono text-xs text-[--color-text-primary]">
+                                                {mfaChallenge.secret}
+                                            </p>
+                                            {mfaChallenge.otpauthUrl && (
+                                                <a className="text-xs font-semibold text-[--color-primary] hover:underline" href={mfaChallenge.otpauthUrl}>
+                                                    Open authenticator setup
+                                                </a>
+                                            )}
+                                        </div>
+                                    )}
+                                    <Input
+                                        id="totp"
+                                        type="text"
+                                        label="Authenticator code"
+                                        placeholder="123456"
+                                        value={totpCode}
+                                        onChange={(e) => setTotpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                                        required
+                                    />
+                                </div>
+                            )}
+
                             <button
                                 type="submit"
                                 disabled={loading}
@@ -135,12 +197,30 @@ function AdminLoginForm() {
                                         <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
                                         Signing in...
                                     </>
-                                ) : 'Sign In to Admin'}
+                                ) : mfaChallenge ? 'Verify MFA & Sign In' : 'Sign In to Admin'}
                             </button>
                         </form>
 
+                        <div className="space-y-2 border-t border-[--color-border] pt-5">
+                            <p className="text-xs font-semibold uppercase tracking-wide text-[--color-text-muted]">Demo portal login</p>
+                            <button
+                                type="button"
+                                disabled={loading}
+                                onClick={() => signIn(ADMIN_DEMO_LOGIN.email, ADMIN_DEMO_LOGIN.password)}
+                                className="flex w-full items-center gap-3 rounded-xl border border-[--color-border] bg-[--color-surface-raised] px-3.5 py-3 text-left transition-colors hover:border-rose-700 disabled:cursor-not-allowed disabled:opacity-70"
+                            >
+                                <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-rose-700/10 text-rose-700">
+                                    <UserCog size={17} />
+                                </span>
+                                <span className="min-w-0 flex-1">
+                                    <span className="block text-sm font-semibold text-[--color-text-primary]">Admin Portal</span>
+                                    <span className="block truncate text-xs text-[--color-text-muted]">Platform operations, approvals, audit log</span>
+                                </span>
+                            </button>
+                        </div>
+
                         <p className="text-center text-xs text-[--color-text-muted] pt-1">
-                            Internal accounts are provisioned separately from company and provider users.
+                            Internal accounts are provisioned separately from company and evaluator users.
                         </p>
 
                         <p className="text-center text-sm text-[--color-text-muted] pt-1">

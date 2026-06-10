@@ -52,7 +52,24 @@ export function normalizeTenderCategory(raw: string): TenderCategory {
     return 'Construction';
   }
   if (lower.includes('infrastructure')) return 'Infrastructure & Civil Works';
-  if (lower.includes('computer') || lower.includes('laptop') || lower.includes('software') || lower.includes('ict')) {
+  if (
+    lower === 'it' ||
+    lower.startsWith('it ') ||
+    lower.includes(' it ') ||
+    lower.includes('computer') ||
+    lower.includes('laptop') ||
+    lower.includes('software') ||
+    lower.includes('ict') ||
+    lower.includes('information technology') ||
+    lower.includes('technology') ||
+    lower.includes('digital') ||
+    lower.includes('network') ||
+    lower.includes('server') ||
+    lower.includes('hardware') ||
+    lower.includes('data') ||
+    lower.includes('cyber') ||
+    lower.includes('system')
+  ) {
     return 'IT & Technology';
   }
   if (lower.includes('information and communication') || lower.includes('telecomm')) {

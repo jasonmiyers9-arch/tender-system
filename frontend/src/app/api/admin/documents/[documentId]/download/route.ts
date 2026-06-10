@@ -2,6 +2,19 @@ import { NextResponse } from 'next/server';
 import * as fs from 'node:fs';
 import { getDocumentById, getUserByToken } from '@/lib/server/firestoreService';
 import { isFirebaseStorageConfigured, downloadDocumentFromFirebase, isLocalStorageReference } from '@/lib/server/firebaseStorage';
+import { verifyDocumentHash } from '@/lib/server/documentIntegrity';
+import { isAdminRole } from '@/lib/server/apiAuth';
+
+function tamperResponse(expected: string | null, actual: string): NextResponse {
+  return NextResponse.json(
+    {
+      detail: 'Document integrity check failed',
+      expectedHash: expected,
+      actualHash: actual,
+    },
+    { status: 409 },
+  );
+}
 
 function parseToken(req: Request): string | null {
   const header = req.headers.get('authorization');
@@ -20,7 +33,7 @@ export async function GET(
   }
 
   const user = await getUserByToken(token);
-  if (!user || user.role !== 'admin') {
+  if (!user || !isAdminRole(user.role)) {
     return NextResponse.json({ detail: 'Admin only' }, { status: 403 });
   }
 
@@ -36,24 +49,32 @@ export async function GET(
 
   if (!isLocalStorageReference(document.fileUrl) && isFirebaseStorageConfigured()) {
     const { buffer, contentType } = await downloadDocumentFromFirebase(document.fileUrl);
-    return new Response(buffer as unknown as BodyInit, {
+    const integrity = verifyDocumentHash(document, buffer);
+    if (!integrity.ok) return tamperResponse(integrity.expected, integrity.actual);
+
+    return new Response(new Uint8Array(buffer), {
       status: 200,
       headers: {
         'Content-Type': contentType,
         'Content-Disposition': `attachment; filename="${document.name}"`,
         'Cache-Control': 'private, no-store',
+        'X-Document-SHA256': integrity.actual,
       },
     });
   }
 
   if (fs.existsSync(document.fileUrl)) {
-    const stream = fs.createReadStream(document.fileUrl);
-    return new Response(stream as unknown as BodyInit, {
+    const buffer = fs.readFileSync(document.fileUrl);
+    const integrity = verifyDocumentHash(document, buffer);
+    if (!integrity.ok) return tamperResponse(integrity.expected, integrity.actual);
+
+    return new Response(new Uint8Array(buffer), {
       status: 200,
       headers: {
         'Content-Type': document.mimeType ?? 'application/octet-stream',
         'Content-Disposition': `attachment; filename="${document.name}"`,
         'Cache-Control': 'private, no-store',
+        'X-Document-SHA256': integrity.actual,
       },
     });
   }

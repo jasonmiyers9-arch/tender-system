@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getUserByToken, updateDocument } from '@/lib/server/firestoreService';
 import { publishRescoreEvent } from '@/lib/server/analystEngine';
+import { isAdminRole } from '@/lib/server/apiAuth';
 
 function parseToken(req: Request): string | null {
   const header = req.headers.get('authorization');
@@ -19,7 +20,7 @@ export async function POST(
   }
 
   const user = await getUserByToken(token);
-  if (!user || user.role !== 'admin') {
+  if (!user || !isAdminRole(user.role)) {
     return NextResponse.json({ detail: 'Admin only' }, { status: 403 });
   }
 

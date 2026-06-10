@@ -1,17 +1,21 @@
-import type { Company, TenderDetail, TenderMatch } from '@/lib/api/types';
+import type { Company, DocumentCategory, TenderDetail, TenderMatch } from '@/lib/api/types';
+import type { CsdSupplierSummaryAnalysis } from './pdfExtractor';
 
 export interface InternalUser {
   id: string;
   email: string;
   password: string;
   fullName: string;
-  role: 'user' | 'evaluator' | 'admin';
+  role: 'user' | 'evaluator' | 'admin' | 'super_admin';
   verificationStatus: 'approved' | 'pending' | 'rejected';
   activeCompanyId: string | null;
   companyId: string | null;
   companyName?: string;
   registrationNumber?: string;
   phone?: string;
+  mfaEnabled?: boolean;
+  mfaTotpSecret?: string | null;
+  mfaEnrolledAt?: string | null;
   createdAt: string;
 }
 
@@ -44,7 +48,7 @@ export interface InternalDocument {
   id: string;
   companyId: string;
   name: string;
-  category: 'tax' | 'legal' | 'financial' | 'certification' | 'bbbee' | 'registration' | 'policy';
+  category: DocumentCategory;
   status: 'uploaded' | 'verified' | 'rejected' | 'expired';
   fileUrl: string | null;
   storagePath?: string;  // Firebase Storage path for deletion
@@ -55,6 +59,7 @@ export interface InternalDocument {
   verifiedBy: string | null;
   // Enhanced metadata for PDF processing
   fileSize?: number;
+  fileHash?: string;
   mimeType?: string;
   pageCount?: number;
   extractedText?: string;
@@ -76,6 +81,7 @@ export interface InternalDocument {
     documentType: string | null;
     confidence: number;
     keywords: string[];
+    csdSupplierSummary?: CsdSupplierSummaryAnalysis;
   };
 }
 

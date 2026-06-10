@@ -3,11 +3,13 @@ import {
     applyFirebaseEmailVerificationCode,
     confirmFirebasePasswordReset,
     getCurrentIdToken,
+    isFirebaseClientConfigured,
     registerWithEmailPassword,
     sendFirebasePasswordReset,
     signInWithEmailPassword,
     signInWithGooglePopup,
 } from '@/lib/firebaseClient';
+import { resolveApiBase } from './base';
 
 function getToken(): string | null {
     if (typeof window === 'undefined') return null;
@@ -21,15 +23,36 @@ function getToken(): string | null {
     }
 }
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? '/api';
+const API_BASE = resolveApiBase();
 
-async function loginForPortal(path: string, email: string, password: string): Promise<LoginResponse> {
-    const { idToken } = await signInWithEmailPassword(email, password);
+export type AdminMfaChallenge = {
+    mfaRequired: true;
+    setupRequired: boolean;
+    secret?: string;
+    otpauthUrl?: string;
+    message: string;
+};
+
+async function loginForPortal(
+    path: string,
+    email: string,
+    password: string,
+    totpCode?: string
+): Promise<LoginResponse | AdminMfaChallenge> {
+    const body = isFirebaseClientConfigured()
+        ? { idToken: (await signInWithEmailPassword(email, password)).idToken, totpCode }
+        : { email, password, totpCode };
     const res = await fetch(`${API_BASE}${path}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ idToken }),
+        body: JSON.stringify(body),
     });
+
+    if ((res.status === 401 || res.status === 403) && path.includes('/auth/admin/login')) {
+        const challenge = await res.json().catch(() => null);
+        if (challenge?.mfaRequired) return challenge as AdminMfaChallenge;
+        if (challenge?.detail === 'invalid_mfa_code') throw new Error('invalid_mfa_code');
+    }
 
     if (!res.ok) {
         const err = await res.json().catch(() => ({ detail: 'Login failed' }));
@@ -53,11 +76,11 @@ export const auth = {
         return res.json();
     },
     async login(email: string, password: string): Promise<LoginResponse> {
-        return loginForPortal('/auth/login', email, password);
+        return loginForPortal('/auth/login', email, password) as Promise<LoginResponse>;
     },
 
-    async adminLogin(email: string, password: string): Promise<LoginResponse> {
-        return loginForPortal('/auth/admin/login', email, password);
+    async adminLogin(email: string, password: string, totpCode?: string): Promise<LoginResponse | AdminMfaChallenge> {
+        return loginForPortal('/auth/admin/login', email, password, totpCode);
     },
 
     async googleSignIn(): Promise<LoginResponse> {
@@ -90,27 +113,36 @@ export const auth = {
         registrationNumber?: string;
         phone?: string;
         tenderCategories?: string[];
-    }): Promise<{ status: string; message: string; verifyLink?: string | null; user: AuthUser }> {
-        const { idToken } = await registerWithEmailPassword({
+    }): Promise<{ status: string; message: string; verifyLink?: string | null; user: AuthUser; token?: string }> {
+        const payload = {
+            name: data.name,
             email: data.email,
             password: data.password,
-            fullName: data.name,
-        });
+            role: data.role,
+            company_name: data.companyName,
+            registration_number: data.registrationNumber,
+            phone: data.phone,
+            tender_categories: data.tenderCategories,
+        };
 
-        const res = await fetch(`${API_BASE}/auth/register`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                idToken,
-                name: data.name,
-                email: data.email,
-                role: data.role,
-                company_name: data.companyName,
-                registration_number: data.registrationNumber,
-                phone: data.phone,
-                tender_categories: data.tenderCategories,
-            }),
-        });
+        const res = isFirebaseClientConfigured()
+            ? await (async () => {
+                const { idToken } = await registerWithEmailPassword({
+                    email: data.email,
+                    password: data.password,
+                    fullName: data.name,
+                });
+                return fetch(`${API_BASE}/auth/register`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ...payload, idToken }),
+                });
+            })()
+            : await fetch(`${API_BASE}/auth/register`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            });
 
         if (!res.ok) {
             const err = await res.json().catch(() => ({ detail: 'Registration failed' }));

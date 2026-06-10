@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { verifyIdToken } from '@/lib/server/firebaseAdmin';
 import { getOrCreateGoogleUser, getUserByEmail, mapUserToAuthUser } from '@/lib/server/firestoreService';
+import { isAdminRole } from '@/lib/server/apiAuth';
 
 export async function POST(req: Request) {
   const body = await req.json();
@@ -17,7 +18,7 @@ export async function POST(req: Request) {
     }
 
     const existing = await getUserByEmail(decoded.email);
-    if (existing?.role === 'admin') {
+    if (isAdminRole(existing?.role)) {
       return NextResponse.json({ detail: 'admin_portal_required' }, { status: 403 });
     }
 

@@ -6,6 +6,7 @@ import {
   getCompanyById,
   getUserDocumentById,
 } from '@/lib/server/firestoreService';
+import { isAdminRole } from '@/lib/server/apiAuth';
 
 function parseToken(req: Request): string | null {
   const header = req.headers.get('authorization');
@@ -30,7 +31,7 @@ export async function GET(req: Request) {
   if (!user) {
     return NextResponse.json({ detail: 'Unauthorized' }, { status: 401 });
   }
-  if (user.role !== 'evaluator' && user.role !== 'admin') {
+  if (user.role !== 'evaluator' && !isAdminRole(user.role)) {
     return NextResponse.json({ detail: 'Forbidden' }, { status: 403 });
   }
 

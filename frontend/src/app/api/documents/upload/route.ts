@@ -1,23 +1,23 @@
 import { NextResponse } from 'next/server';
 import * as path from 'node:path';
-import { createDocument, ensureUserCompanyContext, listCompaniesForUser } from '../../../../lib/server/firestoreService';
+import { createDocument, ensureUserCompanyContext, listCompaniesForUser, listDocumentsForCompany } from '../../../../lib/server/firestoreService';
 import { uploadDocumentToFirebase, isFirebaseStorageConfigured, writeLocalFallback } from '../../../../lib/server/firebaseStorage';
 import { enqueueDocumentAiProcessing } from '../../../../lib/server/documentAi';
-import { extractPDFContent, analyzeDocumentWithAI, extractExpiryDateWithAI } from '../../../../lib/server/pdfExtractor';
+import { analyzeDocumentWithAI, extractExpiryDateWithAI } from '../../../../lib/server/pdfExtractor';
 import { summarizeDocumentForKnowledgeBase } from '../../../../lib/server/documentSummary';
 import { publishRescoreEvent } from '../../../../lib/server/analystEngine';
 import { requireAuth } from '../../../../lib/server/apiAuth';
 import { rateLimit, RateLimits } from '../../../../lib/server/rateLimiter';
 import { validateFileType, sanitizeFilename } from '../../../../lib/server/mimeValidation';
 import { logFileUpload, logSuspiciousActivity } from '../../../../lib/server/securityAudit';
+import { calculateSha256 } from '../../../../lib/server/documentIntegrity';
+import { DOCUMENT_UPLOAD_CATEGORIES, type DocumentUploadCategory } from '../../../../lib/api/types';
 
 const ALLOWED_EXTENSIONS = new Set([
   '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.png', '.jpg', '.jpeg', '.txt', '.csv', '.zip',
 ]);
-const ALLOWED_CATEGORIES = new Set(['tax', 'legal', 'financial', 'certification', 'bbbee', 'registration', 'policy'] as const);
-const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50 MB
-
-type DocumentCategory = 'tax' | 'legal' | 'financial' | 'certification' | 'bbbee' | 'registration' | 'policy';
+const ALLOWED_CATEGORIES = new Set<string>(DOCUMENT_UPLOAD_CATEGORIES);
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
 
 export async function POST(req: Request) {
   // Rate limiting for file uploads
@@ -63,17 +63,18 @@ export async function POST(req: Request) {
       );
     }
 
-    const documentCategory = ALLOWED_CATEGORIES.has(category as DocumentCategory)
-      ? (category as DocumentCategory)
-      : 'tax';
+    const documentCategory = ALLOWED_CATEGORIES.has(category)
+      ? (category as DocumentUploadCategory)
+      : 'tax_clearance';
 
     const buffer = Buffer.from(await uploadedFile.arrayBuffer());
     const fileSize = buffer.length;
+    const fileHash = calculateSha256(buffer);
 
     if (fileSize > MAX_FILE_SIZE) {
       await logFileUpload(req, user!.id, activeCompanyId, filename, false, `File size exceeded: ${fileSize} bytes`);
       return NextResponse.json(
-        { detail: `File size (${(fileSize / 1024 / 1024).toFixed(1)} MB) exceeds the 50 MB limit.` },
+        { detail: `File size (${(fileSize / 1024 / 1024).toFixed(1)} MB) exceeds the 10 MB limit.` },
         { status: 413 },
       );
     }
@@ -113,7 +114,7 @@ export async function POST(req: Request) {
     if (ext === '.pdf' && runAi) {
       try {
         // Lazy-load PDF extraction to keep parsing dependencies out of build-time module evaluation.
-        const { extractPDFContent, analyzeDocumentContent, extractExpiryDate } = await import('../../../../lib/server/pdfExtractor');
+        const { extractPDFContent } = await import('../../../../lib/server/pdfExtractor');
         const pdfResult = await extractPDFContent(buffer);
         extractedText = pdfResult.text;
         pageCount = pdfResult.pageCount;
@@ -133,6 +134,7 @@ export async function POST(req: Request) {
             documentType: analysis.documentType,
             confidence: analysis.confidence,
             keywords: analysis.keywords,
+            csdSupplierSummary: analysis.csdSupplierSummary,
           };
           
           // Detect expiry date using Gemini (falls back to regex)
@@ -183,6 +185,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ detail: 'Failed to save document to storage.' }, { status: 500 });
     }
 
+    const existingDocuments = await listDocumentsForCompany(activeCompanyId);
+
     // Create document record with full metadata
     const document = await createDocument({
       companyId: activeCompanyId,
@@ -192,6 +196,7 @@ export async function POST(req: Request) {
       storagePath: persistedStoragePath,
       expiryDate: detectedExpiryDate,
       fileSize,
+      fileHash,
       mimeType,
       pageCount,
       extractedText: extractedText?.slice(0, 50000), // Limit stored text to 50KB
@@ -214,6 +219,9 @@ export async function POST(req: Request) {
         documentId: document.id,
         category: document.category,
         extractionStatus,
+        fileHash,
+        firstCompanyDocument: existingDocuments.length === 0,
+        documentsUploaded: existingDocuments.length + 1,
       },
     });
 

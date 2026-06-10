@@ -12,6 +12,7 @@ import {
 import { deleteDocumentFromStorage } from '@/lib/server/firebaseAdmin';
 import { reExtractDocumentAi } from '@/lib/server/documentAi';
 import { publishRescoreEvent } from '@/lib/server/analystEngine';
+import { isAdminRole } from '@/lib/server/apiAuth';
 
 function parseToken(req: Request): string | null {
   const header = req.headers.get('authorization');
@@ -86,7 +87,7 @@ export async function POST(
   const action = String(body.action ?? '').trim();
 
   if (action === 'verify') {
-    if (user.role !== 'admin') {
+    if (!isAdminRole(user.role)) {
       return NextResponse.json({ detail: 'Admin only' }, { status: 403 });
     }
     const updated = await verifyDocument(documentId, user.id);
@@ -105,7 +106,7 @@ export async function POST(
       return NextResponse.json({ detail: 'Document not found' }, { status: 404 });
     }
 
-    if (user.role !== 'admin') {
+    if (!isAdminRole(user.role)) {
       let activeCompanyId = user.activeCompanyId;
       if (!activeCompanyId) {
         const companies = await listCompaniesForUser(user.id);
@@ -179,7 +180,7 @@ export async function PUT(
     if (body.name !== undefined) allowedUpdates.name = body.name;
     if (body.category !== undefined) allowedUpdates.category = body.category;
     if (body.expiryDate !== undefined) allowedUpdates.expiryDate = body.expiryDate;
-    if (body.verified !== undefined && user.role === 'admin') {
+    if (body.verified !== undefined && isAdminRole(user.role)) {
       allowedUpdates.verified = body.verified;
     }
 

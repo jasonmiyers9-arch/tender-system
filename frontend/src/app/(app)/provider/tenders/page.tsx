@@ -42,7 +42,7 @@ export default function MyTendersPage() {
         return (
             <div className="space-y-6 max-w-7xl mx-auto">
                 <PageHeader
-                    title="My Tenders"
+                    title="Evaluator Tenders"
                     subtitle="Tenders you have created and their approval status."
                     icon={<FileText size={22} />}
                     iconColor="#7C3AED"
@@ -59,7 +59,7 @@ export default function MyTendersPage() {
     return (
         <div className="space-y-6 max-w-7xl mx-auto">
             <PageHeader
-                title="My Tenders"
+                title="Evaluator Tenders"
                 subtitle="Tenders you have created and their approval status."
                 icon={<FileText size={22} />}
                 iconColor="#7C3AED"

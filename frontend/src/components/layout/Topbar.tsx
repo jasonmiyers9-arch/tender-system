@@ -15,9 +15,14 @@ import { dropdown, T } from '@/lib/motion';
 
 const roleLabels: Record<string, string> = {
     admin: 'Administrator',
-    evaluator: 'Tender Provider',
+    super_admin: 'Super Admin',
+    evaluator: 'Evaluator',
     user: 'Company User',
 };
+
+function isAdminRole(role: string | null | undefined): boolean {
+    return role === 'admin' || role === 'super_admin';
+}
 
 export function Topbar() {
     const { currentUser, logout } = useAppStore();
@@ -28,7 +33,7 @@ export function Topbar() {
     const handleLogout = async () => {
         await signOutFirebase();
         logout();
-        router.push(currentUser?.role === 'admin' ? '/admin/login' : '/login');
+        router.push(isAdminRole(currentUser?.role) ? '/admin/login' : '/login');
     };
 
     const unreadCount = unreadQuery.data?.length ?? 0;
@@ -119,7 +124,7 @@ export function Topbar() {
                                     <div className="px-4 py-3 border-b border-[--color-border]">
                                         <p className="text-sm font-semibold text-[--color-text-primary]">{currentUser?.name}</p>
                                         <p className="text-xs text-[--color-text-muted] truncate">{currentUser?.email}</p>
-                                        <Badge variant={currentUser?.role === 'admin' ? 'danger' : currentUser?.role === 'evaluator' ? 'accent' : 'default'} size="sm" className="mt-1.5">
+                                        <Badge variant={isAdminRole(currentUser?.role) ? 'danger' : currentUser?.role === 'evaluator' ? 'accent' : 'default'} size="sm" className="mt-1.5">
                                             {roleLabels[currentUser?.role ?? 'user']}
                                         </Badge>
                                     </div>

@@ -7,7 +7,8 @@
  * Logs are structured for easy ingestion into SIEM systems.
  */
 
-import { getFirestore, isFirestoreAvailable, requireFirestore } from './firebaseAdmin';
+import { createHash } from 'node:crypto';
+import { isFirestoreAvailable, requireFirestore } from './firebaseAdmin';
 
 /**
  * Security event types for categorization
@@ -113,6 +114,10 @@ export interface SecurityEvent {
   sessionId?: string | null;
   /** Request ID for tracing */
   requestId?: string | null;
+  /** Previous audit entry hash for append-only chain verification */
+  previousHash?: string | null;
+  /** SHA-256 hash of this audit entry */
+  entryHash?: string;
 }
 
 // In-memory buffer for batch writes
@@ -124,6 +129,38 @@ let flushTimer: NodeJS.Timeout | null = null;
 // Local fallback log file
 const localLogs: SecurityEvent[] = [];
 const MAX_LOCAL_LOGS = 1000;
+
+function canonicalize(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map(canonicalize);
+  }
+  if (value && typeof value === 'object') {
+    return Object.keys(value as Record<string, unknown>)
+      .sort()
+      .reduce<Record<string, unknown>>((acc, key) => {
+        if (key === 'entryHash') return acc;
+        acc[key] = canonicalize((value as Record<string, unknown>)[key]);
+        return acc;
+      }, {});
+  }
+  return value;
+}
+
+function hashAuditEntry(event: SecurityEvent): string {
+  return createHash('sha256')
+    .update(JSON.stringify(canonicalize(event)))
+    .digest('hex');
+}
+
+async function getLatestAuditHash(collection: FirebaseFirestore.CollectionReference): Promise<string | null> {
+  const snapshot = await collection
+    .orderBy('timestamp', 'desc')
+    .limit(1)
+    .get();
+
+  const latest = snapshot.docs[0]?.data() as SecurityEvent | undefined;
+  return latest?.entryHash ?? null;
+}
 
 /**
  * Extract client information from request
@@ -231,13 +268,20 @@ async function flushEventBuffer(): Promise<void> {
     const firestore = requireFirestore();
     const batch = firestore.batch();
     const collection = firestore.collection('security_audit_logs');
+    const auditLogCollection = firestore.collection('audit_log');
+    let previousHash = await getLatestAuditHash(collection);
     
     for (const event of eventsToFlush) {
       const docRef = collection.doc();
-      batch.set(docRef, {
+      const auditEvent: SecurityEvent = {
         ...event,
         id: docRef.id,
-      });
+        previousHash,
+      };
+      auditEvent.entryHash = hashAuditEntry(auditEvent);
+      previousHash = auditEvent.entryHash;
+      batch.set(docRef, auditEvent);
+      batch.set(auditLogCollection.doc(docRef.id), auditEvent);
     }
     
     await batch.commit();
@@ -520,7 +564,7 @@ export async function queryAuditLogs(options: {
   }
   
   const firestore = requireFirestore();
-  let query = firestore.collection('security_audit_logs')
+  let query = firestore.collection('audit_log')
     .orderBy('timestamp', 'desc') as FirebaseFirestore.Query<FirebaseFirestore.DocumentData>;
   
   if (options.startDate) {

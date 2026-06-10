@@ -22,7 +22,14 @@ export default function OnboardingPage() {
     });
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const [status, setStatus] = useState<null | { onboardingCompleted: boolean; checks: Record<string, boolean>; completionPercent: number; documentsUploaded: number; requiredDocuments: number }>(null);
+    const [status, setStatus] = useState<null | {
+        onboardingCompleted: boolean;
+        checks: Record<string, boolean>;
+        completionPercent: number;
+        documentsUploaded: number;
+        requiredDocuments: number;
+        priorityDocuments?: Array<{ category: string; label: string; uploaded: boolean }>;
+    }>(null);
 
     useEffect(() => {
         let cancelled = false;
@@ -33,7 +40,7 @@ export default function OnboardingPage() {
                 setStatus(s);
                 if (s.onboardingCompleted) {
                     if (currentUser) setCurrentUser({ ...currentUser, onboardingCompleted: true });
-                    router.push('/dashboard');
+                    router.push('/home');
                 }
             }).catch(() => undefined);
         };
@@ -54,7 +61,9 @@ export default function OnboardingPage() {
             { label: 'B-BBEE Level captured', done: !!status.checks?.bbbee_level },
             { label: 'Industry Sector captured', done: !!status.checks?.industry_sector },
             { label: 'Province captured', done: !!status.checks?.province },
-            { label: `At least ${status.requiredDocuments} documents uploaded`, done: !!status.checks?.minimum_documents_uploaded },
+            { label: 'B-BBEE certificate uploaded', done: !!status.checks?.bbbee_certificate },
+            { label: 'SARS TCS Pin uploaded', done: !!status.checks?.sars_pin },
+            { label: 'CIPC registration certificate uploaded', done: !!status.checks?.cipc_registration },
         ];
     }, [status]);
 
@@ -70,7 +79,7 @@ export default function OnboardingPage() {
                 setCurrentUser({ ...currentUser, onboardingCompleted: !!result.onboardingCompleted });
             }
             if (result.onboardingCompleted) {
-                router.push('/dashboard');
+                router.push('/home');
             } else {
                 router.push('/vault?onboarding=1');
             }
@@ -85,7 +94,7 @@ export default function OnboardingPage() {
         <div className="max-w-3xl mx-auto space-y-6">
             <PageHeader
                 title="Company Setup"
-                subtitle="Complete onboarding to unlock your full tender readiness workflow."
+                subtitle="Complete your profile and upload the three priority documents before entering the workspace."
                 icon={<Building2 size={22} />}
             />
 
@@ -117,7 +126,7 @@ export default function OnboardingPage() {
                         />
                     </div>
                     <p className="text-xs text-[--color-text-muted] mb-3">
-                        Documents uploaded: {status.documentsUploaded}/{status.requiredDocuments}
+                        Priority documents uploaded: {status.documentsUploaded}/{status.requiredDocuments}
                     </p>
                     <ul className="space-y-2">
                         {checklist.map((item) => (
@@ -159,7 +168,7 @@ export default function OnboardingPage() {
                                 Next: Upload priority documents
                             </p>
                             <p className="text-xs text-[--color-text-muted] mt-0.5">
-                                B-BBEE certificate, SARS TCS Pin, and CIPC registration certificate.
+                                Required before workspace access: B-BBEE certificate, SARS TCS Pin, and CIPC registration certificate.
                             </p>
                             <Button
                                 type="button"

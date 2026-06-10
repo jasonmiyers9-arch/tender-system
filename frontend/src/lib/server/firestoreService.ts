@@ -1,8 +1,13 @@
-import type { AuthUser, Company, TenderDetail, TenderMatch, TenderReadiness, TenderReadinessScoreBreakdown } from '@/lib/api/types';
+import { DOCUMENT_CATEGORY_GROUPS } from '@/lib/api/types';
+import type { AuthUser, Company, DocumentCategory, TenderDetail, TenderMatch, TenderReadiness, TenderReadinessScoreBreakdown } from '@/lib/api/types';
 import { getFirestore, isFirestoreAvailable, verifyIdToken } from './firebaseAdmin';
+import { existsSync } from 'node:fs';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import path from 'node:path';
 import { DEFAULT_COMPANIES, DEFAULT_TENDERS, DEFAULT_USERS, DEFAULT_APPLICATIONS, DEFAULT_DOCUMENTS, InternalCompany, InternalTender, InternalUser, InternalApplication, InternalDocument } from './mockData';
 import { calculateTenderReadinessScore, type CompanyProfileFields, type DocumentWithAnalysis } from './complianceScoring';
 import { getExpiredInPast12Months, isNewAccount } from './expiryCheckService';
+import { sendNotificationDeliveries } from './notificationDelivery';
 
 // Re-export internal types for use by other services
 export type { InternalDocument, InternalCompany, InternalTender, InternalUser };
@@ -14,6 +19,7 @@ const APPLICATIONS_COLLECTION = 'applications';
 const DOCUMENTS_COLLECTION = 'documents';
 const ANALYST_RUNS_COLLECTION = 'analyst_runs';
 const ANALYST_EVENTS_COLLECTION = 'analyst_events';
+const NOTIFICATIONS_COLLECTION = 'notifications';
 const SHOULD_SEED_FIRESTORE_DEMO_DATA = process.env.ENABLE_FIRESTORE_DEMO_SEED === 'true';
 
 function createId() {
@@ -38,6 +44,51 @@ function stripUndefined<T>(value: T): T {
   return value;
 }
 
+const LOCAL_AUTH_DB_PATH = path.join(process.cwd(), 'storage', 'local-auth-db.json');
+
+async function hydrateLocalAuthUsers(): Promise<void> {
+  if (isFirestoreAvailable()) return;
+  try {
+    if (!existsSync(LOCAL_AUTH_DB_PATH)) return;
+    const raw = await readFile(LOCAL_AUTH_DB_PATH, 'utf8');
+    const parsed = JSON.parse(raw) as { users?: InternalUser[]; companies?: InternalCompany[] };
+    if (Array.isArray(parsed.users)) {
+      const byId = new Map(MEMORY_DB.users.map((user) => [user.id, user]));
+      for (const user of parsed.users) {
+        if (user && typeof user.id === 'string') {
+          byId.set(user.id, user);
+        }
+      }
+      MEMORY_DB.users = [...byId.values()];
+    }
+    if (Array.isArray(parsed.companies)) {
+      const byId = new Map(MEMORY_DB.companies.map((company) => [company.id, company]));
+      for (const company of parsed.companies) {
+        if (company && typeof company.id === 'string') {
+          byId.set(company.id, company);
+        }
+      }
+      MEMORY_DB.companies = [...byId.values()];
+    }
+  } catch {
+    // Best-effort local persistence only.
+  }
+}
+
+async function persistLocalAuthUsers(): Promise<void> {
+  if (isFirestoreAvailable()) return;
+  try {
+    await mkdir(path.dirname(LOCAL_AUTH_DB_PATH), { recursive: true });
+    await writeFile(
+      LOCAL_AUTH_DB_PATH,
+      JSON.stringify({ users: MEMORY_DB.users, companies: MEMORY_DB.companies }, null, 2),
+      'utf8',
+    );
+  } catch {
+    // Best-effort local persistence only.
+  }
+}
+
 function mapUserToAuthUser(user: InternalUser): AuthUser {
   return {
     id: user.id,
@@ -45,7 +96,65 @@ function mapUserToAuthUser(user: InternalUser): AuthUser {
     email: user.email,
     role: user.role,
     verificationStatus: user.verificationStatus,
-    onboardingCompleted: true,
+    onboardingCompleted: user.role !== 'user',
+  };
+}
+
+const PRIORITY_ONBOARDING_DOCUMENTS = [
+  'bbbee_certificate',
+  'sars_pin',
+  'cipc_registration',
+] as const;
+
+async function getUserOnboardingStatus(user: InternalUser): Promise<{
+  completed: boolean;
+  checks: Record<string, boolean>;
+  documentsUploaded: number;
+  requiredDocuments: number;
+}> {
+  if (user.role !== 'user') {
+    return {
+      completed: true,
+      checks: {},
+      documentsUploaded: 0,
+      requiredDocuments: 0,
+    };
+  }
+
+  const companyId = user.activeCompanyId ?? user.companyId;
+  if (!companyId) {
+    return {
+      completed: false,
+      checks: {
+        bbbee_certificate: false,
+        sars_pin: false,
+        cipc_registration: false,
+      },
+      documentsUploaded: 0,
+      requiredDocuments: PRIORITY_ONBOARDING_DOCUMENTS.length,
+    };
+  }
+
+  const documents = await listDocumentsForCompany(companyId);
+  const uploadedCategories = new Set(documents.map((doc) => doc.category));
+  const checks = Object.fromEntries(
+    PRIORITY_ONBOARDING_DOCUMENTS.map((category) => [category, uploadedCategories.has(category)])
+  ) as Record<string, boolean>;
+
+  return {
+    completed: Object.values(checks).every(Boolean),
+    checks,
+    documentsUploaded: Object.values(checks).filter(Boolean).length,
+    requiredDocuments: PRIORITY_ONBOARDING_DOCUMENTS.length,
+  };
+}
+
+async function mapUserToAuthUserWithOnboarding(user: InternalUser): Promise<AuthUser> {
+  const authUser = mapUserToAuthUser(user);
+  const onboarding = await getUserOnboardingStatus(user);
+  return {
+    ...authUser,
+    onboardingCompleted: onboarding.completed,
   };
 }
 
@@ -62,6 +171,11 @@ function mapCompanyToPublic(company: InternalCompany): Company {
     website: company.website,
     industry: company.industry,
     incorporatedDate: company.incorporatedDate,
+    csdNumber: company.csdNumber ?? null,
+    bbbeeLevel: company.bbbeeLevel ?? null,
+    cidbGrade: company.cidbGrade ?? null,
+    province: company.province ?? null,
+    tenderCategories: company.tenderCategories ?? [],
   };
 }
 
@@ -84,6 +198,7 @@ function buildCompanyFromUser(user: InternalUser): Company | null {
     website: '',
     industry: '',
     incorporatedDate: user.createdAt.slice(0, 10),
+    tenderCategories: [],
   };
 }
 
@@ -192,8 +307,8 @@ async function buildReadinessWithCompany(
   
   // Derive missing categories from gaps
   const requiredCats = tender.required_categories ?? tender.recommendedDocuments ?? [];
-  const docCategories: Set<string> = new Set(documents.map(d => d.category));
-  const missingCategories = requiredCats.filter(cat => !docCategories.has(cat));
+  const docCategories: Set<string> = new Set(documents.map(d => DOCUMENT_CATEGORY_GROUPS[d.category] ?? d.category));
+  const missingCategories = requiredCats.filter((cat) => !docCategories.has(DOCUMENT_CATEGORY_GROUPS[cat as DocumentCategory] ?? cat));
   
   // Build checklist based on gaps
   const checklist: Array<{ item: string; status: 'passed' | 'failed' | 'missing' }> = readinessScore.missingForBidReady.map(gap => ({
@@ -203,7 +318,7 @@ async function buildReadinessWithCompany(
   
   // Add passed items for valid categories
   for (const cat of requiredCats) {
-    const doc = documents.find(d => d.category === cat);
+    const doc = documents.find((d) => (DOCUMENT_CATEGORY_GROUPS[d.category] ?? d.category) === (DOCUMENT_CATEGORY_GROUPS[cat as DocumentCategory] ?? cat));
     if (doc && doc.status === 'verified') {
       checklist.unshift({
         item: `${cat.toUpperCase()} document verified`,
@@ -281,6 +396,25 @@ export interface AnalystEventRecord {
   createdAt: string;
 }
 
+export interface NotificationRecord {
+  id: string;
+  companyId: string;
+  userId: string | null;
+  alertType: 'info' | 'warning' | 'danger';
+  title: string;
+  message: string;
+  isRead: boolean;
+  triggerDate: string;
+  createdAt: string;
+  dedupeKey: string;
+  delivery?: {
+    email: 'pending' | 'sent' | 'skipped' | 'failed';
+    sms: 'pending' | 'sent' | 'skipped' | 'failed';
+    errors: string[];
+    attemptedAt: string | null;
+  };
+}
+
 async function ensureFirestoreSeed() {
   if (!isFirestoreAvailable()) return;
   if (!SHOULD_SEED_FIRESTORE_DEMO_DATA) return;
@@ -308,11 +442,12 @@ async function getUserDocumentById(userId: string): Promise<InternalUser | null>
     return snapshot.exists ? (snapshot.data() as InternalUser) : null;
   }
 
+  await hydrateLocalAuthUsers();
   const user = MEMORY_DB.users.find((item) => item.id === userId);
   return user ?? null;
 }
 
-async function getUserByToken(token: string): Promise<InternalUser | null> {
+export async function getUserByToken(token: string): Promise<InternalUser | null> {
   if (!token) return null;
   try {
     const decoded = await verifyIdToken(token);
@@ -322,7 +457,7 @@ async function getUserByToken(token: string): Promise<InternalUser | null> {
   }
 }
 
-async function getUserByEmail(email: string): Promise<InternalUser | null> {
+export async function getUserByEmail(email: string): Promise<InternalUser | null> {
   if (isFirestoreAvailable()) {
     await ensureFirestoreSeed();
     const db = getFirestore()!;
@@ -330,6 +465,7 @@ async function getUserByEmail(email: string): Promise<InternalUser | null> {
     return snapshot.empty ? null : (snapshot.docs[0].data() as InternalUser);
   }
 
+  await hydrateLocalAuthUsers();
   return MEMORY_DB.users.find((item) => item.email.toLowerCase() === email.toLowerCase()) ?? null;
 }
 
@@ -353,7 +489,7 @@ async function createUser(payload: {
   }
 
   const userId = payload.uid ?? createId();
-  const userRole = payload.role === 'admin' ? 'admin' : payload.role === 'tender_provider' ? 'evaluator' : 'user';
+  const userRole = payload.role === 'super_admin' ? 'super_admin' : payload.role === 'admin' ? 'admin' : payload.role === 'tender_provider' ? 'evaluator' : 'user';
   const companyId = payload.companyName ? createId() : null;
 
   const userRecord: InternalUser = {
@@ -411,6 +547,7 @@ async function createUser(payload: {
       };
       MEMORY_DB.companies.push(companyRecord);
     }
+    await persistLocalAuthUsers();
   }
 
   return mapUserToAuthUser(userRecord);
@@ -443,6 +580,7 @@ async function getOrCreateGoogleUser(payload: {
     await db.collection(USERS_COLLECTION).doc(userRecord.id).set(userRecord);
   } else {
     MEMORY_DB.users.push(userRecord);
+    await persistLocalAuthUsers();
   }
 
   return userRecord;
@@ -462,8 +600,58 @@ async function updateUserName(userId: string, name: string): Promise<AuthUser> {
   if (isFirestoreAvailable()) {
     const db = getFirestore()!;
     await db.collection(USERS_COLLECTION).doc(userId).update({ fullName: name });
+  } else {
+    await persistLocalAuthUsers();
   }
   return mapUserToAuthUser(user);
+}
+
+async function setUserTotpSecret(userId: string, secret: string): Promise<InternalUser> {
+  const user = await getUserDocumentById(userId);
+  if (!user) throw new Error('User not found');
+
+  user.mfaTotpSecret = secret;
+  user.mfaEnabled = false;
+  user.mfaEnrolledAt = null;
+
+  if (isFirestoreAvailable()) {
+    const db = getFirestore()!;
+    await db.collection(USERS_COLLECTION).doc(userId).set(
+      {
+        mfaTotpSecret: secret,
+        mfaEnabled: false,
+        mfaEnrolledAt: null,
+      },
+      { merge: true }
+    );
+  } else {
+    await persistLocalAuthUsers();
+  }
+
+  return user;
+}
+
+async function enableUserMfa(userId: string): Promise<InternalUser> {
+  const user = await getUserDocumentById(userId);
+  if (!user) throw new Error('User not found');
+
+  user.mfaEnabled = true;
+  user.mfaEnrolledAt = new Date().toISOString();
+
+  if (isFirestoreAvailable()) {
+    const db = getFirestore()!;
+    await db.collection(USERS_COLLECTION).doc(userId).set(
+      {
+        mfaEnabled: true,
+        mfaEnrolledAt: user.mfaEnrolledAt,
+      },
+      { merge: true }
+    );
+  } else {
+    await persistLocalAuthUsers();
+  }
+
+  return user;
 }
 
 async function ensureFirebaseUser(payload: {
@@ -489,6 +677,7 @@ async function ensureFirebaseUser(payload: {
         await db.collection(USERS_COLLECTION).doc(payload.uid).set(updates, { merge: true });
       } else {
         Object.assign(existing, updates);
+        await persistLocalAuthUsers();
       }
       Object.assign(existing, updates);
     }
@@ -547,6 +736,7 @@ async function getCompanyById(companyId: string): Promise<Company | null> {
     return null;
   }
 
+  await hydrateLocalAuthUsers();
   const company = MEMORY_DB.companies.find((item) => item.id === companyId);
   if (company) {
     return mapCompanyToPublic(company);
@@ -650,6 +840,7 @@ async function updateCompanyProfile(companyId: string, payload: Partial<Company>
   if (payload.bbbeeLevel !== undefined) updatedFields.bbbeeLevel = payload.bbbeeLevel;
   if (payload.cidbGrade !== undefined) updatedFields.cidbGrade = payload.cidbGrade;
   if (payload.csdNumber !== undefined) updatedFields.csdNumber = payload.csdNumber;
+  if (payload.tenderCategories !== undefined) updatedFields.tenderCategories = payload.tenderCategories;
 
   if (isFirestoreAvailable()) {
     const db = getFirestore()!;
@@ -663,6 +854,7 @@ async function updateCompanyProfile(companyId: string, payload: Partial<Company>
   const company = MEMORY_DB.companies.find((item) => item.id === companyId);
   if (!company) throw new Error('Company not found');
   Object.assign(company, updatedFields);
+  await persistLocalAuthUsers();
   return mapCompanyToPublic(company);
 }
 
@@ -970,11 +1162,12 @@ async function getDocumentById(documentId: string): Promise<InternalDocument | n
 async function createDocument(payload: {
   companyId: string;
   name: string;
-  category: 'tax' | 'legal' | 'financial' | 'certification' | 'bbbee' | 'registration' | 'policy';
+    category: DocumentCategory;
   fileUrl: string;
   storagePath?: string;
   expiryDate?: string | null;
   fileSize?: number;
+  fileHash?: string;
   mimeType?: string;
   pageCount?: number;
   extractedText?: string;
@@ -999,6 +1192,7 @@ async function createDocument(payload: {
     verifiedAt: null,
     verifiedBy: null,
     fileSize: payload.fileSize,
+    fileHash: payload.fileHash,
     mimeType: payload.mimeType,
     pageCount: payload.pageCount,
     extractedText: payload.extractedText,
@@ -1024,7 +1218,7 @@ async function updateDocument(
   documentId: string,
   updates: Partial<Pick<InternalDocument, 
     'name' | 'category' | 'status' | 'expiryDate' | 'verified' | 'fileSize' | 
-    'mimeType' | 'pageCount' | 'extractedText' | 'extractionStatus' | 'extractionError' | 'aiSummary' | 'aiSummaryModel' | 'aiSummaryUpdatedAt' | 'documentAnalysis'
+    'fileHash' | 'mimeType' | 'pageCount' | 'extractedText' | 'extractionStatus' | 'extractionError' | 'aiSummary' | 'aiSummaryModel' | 'aiSummaryUpdatedAt' | 'documentAnalysis'
   >>
 ): Promise<InternalDocument> {
   const doc = await getDocumentById(documentId);
@@ -1110,6 +1304,8 @@ async function setUserVerificationStatus(userId: string, status: InternalUser['v
   if (isFirestoreAvailable()) {
     const db = getFirestore()!;
     await db.collection(USERS_COLLECTION).doc(userId).update({ verificationStatus: status });
+  } else {
+    await persistLocalAuthUsers();
   }
 
   return user;
@@ -1160,6 +1356,173 @@ async function listAllDocuments(): Promise<InternalDocument[]> {
     return snapshot.docs.map((doc) => doc.data() as InternalDocument);
   }
   return MEMORY_DB.documents;
+}
+
+async function listNotificationsForUser(userId: string, unreadOnly = false, limit = 20): Promise<NotificationRecord[]> {
+  const companies = await listCompaniesForUser(userId);
+  const companyIds = companies.map((company) => company.id);
+
+  let notifications: NotificationRecord[] = [];
+
+  if (isFirestoreAvailable()) {
+    const db = getFirestore()!;
+    const directSnapshot = await db.collection(NOTIFICATIONS_COLLECTION).where('userId', '==', userId).get();
+    notifications.push(...directSnapshot.docs.map((doc) => doc.data() as NotificationRecord));
+
+    for (let i = 0; i < companyIds.length; i += 30) {
+      const chunk = companyIds.slice(i, i + 30);
+      if (chunk.length === 0) continue;
+      const snapshot = await db.collection(NOTIFICATIONS_COLLECTION).where('companyId', 'in', chunk).get();
+      notifications.push(...snapshot.docs.map((doc) => doc.data() as NotificationRecord));
+    }
+  } else {
+    const companySet = new Set(companyIds);
+    notifications = MEMORY_DB.notifications.filter((item) => item.userId === userId || companySet.has(item.companyId));
+  }
+
+  const seen = new Set<string>();
+  return notifications
+    .filter((item) => {
+      if (seen.has(item.id)) return false;
+      seen.add(item.id);
+      return !unreadOnly || !item.isRead;
+    })
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    .slice(0, limit);
+}
+
+async function createNotification(payload: Omit<NotificationRecord, 'id' | 'createdAt' | 'isRead'>): Promise<{ notification: NotificationRecord; created: boolean }> {
+  const now = new Date().toISOString();
+
+  if (isFirestoreAvailable()) {
+    const db = getFirestore()!;
+    const existing = await db
+      .collection(NOTIFICATIONS_COLLECTION)
+      .where('dedupeKey', '==', payload.dedupeKey)
+      .limit(1)
+      .get();
+    if (!existing.empty) {
+      return { notification: existing.docs[0].data() as NotificationRecord, created: false };
+    }
+
+    const notification: NotificationRecord = {
+      id: createId(),
+      createdAt: now,
+      isRead: false,
+      delivery: {
+        email: 'pending',
+        sms: 'pending',
+        errors: [],
+        attemptedAt: null,
+      },
+      ...payload,
+    };
+    await db.collection(NOTIFICATIONS_COLLECTION).doc(notification.id).set(stripUndefined(notification));
+    return { notification, created: true };
+  }
+
+  const existing = MEMORY_DB.notifications.find((item) => item.dedupeKey === payload.dedupeKey);
+  if (existing) return { notification: existing, created: false };
+
+  const notification: NotificationRecord = {
+    id: createId(),
+    createdAt: now,
+    isRead: false,
+    delivery: {
+      email: 'pending',
+      sms: 'pending',
+      errors: [],
+      attemptedAt: null,
+    },
+    ...payload,
+  };
+  MEMORY_DB.notifications.unshift(notification);
+  return { notification, created: true };
+}
+
+async function createNotificationsForCompany(
+  companyId: string,
+  payload: Omit<NotificationRecord, 'id' | 'createdAt' | 'isRead' | 'companyId' | 'userId'>
+): Promise<NotificationRecord[]> {
+  const members = await listCompanyMembers(companyId);
+  const recipients = members.length > 0
+    ? members
+    : (await listAllUsers()).filter((user) => user.companyId === companyId || user.activeCompanyId === companyId);
+
+  const notifications: NotificationRecord[] = [];
+  for (const member of recipients) {
+    const { notification, created } = await createNotification({
+      ...payload,
+      companyId,
+      userId: member.id,
+      dedupeKey: `${payload.dedupeKey}:user:${member.id}`,
+    });
+
+    if (created) {
+      await dispatchNotification(notification, member);
+    }
+
+    notifications.push(notification);
+  }
+
+  return notifications;
+}
+
+async function dispatchNotification(notification: NotificationRecord, recipient: InternalUser): Promise<void> {
+  const results = await sendNotificationDeliveries(notification, recipient);
+  const email = results.find((result) => result.channel === 'email');
+  const sms = results.find((result) => result.channel === 'sms');
+  const delivery: NonNullable<NotificationRecord['delivery']> = {
+    email: email?.status ?? 'skipped',
+    sms: sms?.status ?? 'skipped',
+    errors: results
+      .filter((result) => result.status === 'failed')
+      .map((result) => `${result.channel}:${result.recipient}:${result.reason ?? 'failed'}`),
+    attemptedAt: new Date().toISOString(),
+  };
+
+  notification.delivery = delivery;
+  if (isFirestoreAvailable()) {
+    const db = getFirestore()!;
+    await db.collection(NOTIFICATIONS_COLLECTION).doc(notification.id).set({ delivery }, { merge: true });
+  }
+}
+
+async function markNotificationRead(notificationId: string, userId: string): Promise<boolean> {
+  const notification = await getNotificationForUser(notificationId, userId);
+  if (!notification) return false;
+
+  notification.isRead = true;
+  if (isFirestoreAvailable()) {
+    const db = getFirestore()!;
+    await db.collection(NOTIFICATIONS_COLLECTION).doc(notificationId).set({ isRead: true }, { merge: true });
+  }
+  return true;
+}
+
+async function markAllNotificationsRead(userId: string): Promise<number> {
+  const notifications = await listNotificationsForUser(userId, true, 500);
+
+  if (isFirestoreAvailable()) {
+    const db = getFirestore()!;
+    const batch = db.batch();
+    for (const notification of notifications) {
+      notification.isRead = true;
+      batch.set(db.collection(NOTIFICATIONS_COLLECTION).doc(notification.id), { isRead: true }, { merge: true });
+    }
+    await batch.commit();
+  } else {
+    for (const notification of notifications) {
+      notification.isRead = true;
+    }
+  }
+
+  return notifications.length;
+}
+
+async function getNotificationForUser(notificationId: string, userId: string): Promise<NotificationRecord | null> {
+  const notifications = await listNotificationsForUser(userId, false, 500);
+  return notifications.find((item) => item.id === notificationId) ?? null;
 }
 
 async function setDocumentStatus(documentId: string, status: InternalDocument['status'], verifiedBy?: string | null): Promise<InternalDocument> {
@@ -1261,6 +1624,7 @@ type _MemDB = {
   documents: InternalDocument[];
   analystRuns: AnalystRunRecord[];
   analystEvents: AnalystEventRecord[];
+  notifications: NotificationRecord[];
 };
 
 declare global {
@@ -1277,6 +1641,7 @@ if (!globalThis.__tenderguard_memory_db) {
     documents: DEFAULT_DOCUMENTS,
     analystRuns: [],
     analystEvents: [],
+    notifications: [],
   };
 }
 
@@ -1284,12 +1649,12 @@ const MEMORY_DB = globalThis.__tenderguard_memory_db;
 
 export {
   getUserDocumentById,
-  getUserByToken,
-  getUserByEmail,
   createUser,
   getOrCreateGoogleUser,
   authenticateUser,
   updateUserName,
+  setUserTotpSecret,
+  enableUserMfa,
   ensureFirebaseUser,
   listCompaniesForUser,
   listAllCompanies,
@@ -1323,5 +1688,12 @@ export {
   createAnalystRun,
   listAnalystRunsForCompany,
   createAnalystEvent,
+  listNotificationsForUser,
+  createNotification,
+  createNotificationsForCompany,
+  markNotificationRead,
+  markAllNotificationsRead,
   mapUserToAuthUser,
+  mapUserToAuthUserWithOnboarding,
+  getUserOnboardingStatus,
 };

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getUserByToken, getCompanyById } from '@/lib/server/firestoreService';
+import { getUserByToken, getCompanyById, getUserOnboardingStatus } from '@/lib/server/firestoreService';
 
 function parseToken(req: Request): string | null {
   const header = req.headers.get('authorization');
@@ -25,26 +25,32 @@ export async function GET(req: Request) {
   }
 
   const profileChecks = {
-    csd_number: Boolean(company.registrationNumber),
-    bbbee_level: Boolean(company.vatNumber),
+    csd_number: Boolean(company.csdNumber),
+    bbbee_level: Boolean(company.bbbeeLevel),
     industry_sector: Boolean(company.industry),
-    province: Boolean(company.address),
+    province: Boolean(company.province),
   };
-  const documentsUploaded = 0;
-  const docsOk = documentsUploaded >= 3;
-  const completed = Object.values(profileChecks).every(Boolean) && docsOk;
+  const priorityDocs = await getUserOnboardingStatus(user);
   const checks = {
     ...profileChecks,
-    minimum_documents_uploaded: docsOk,
+    bbbee_certificate: priorityDocs.checks.bbbee_certificate,
+    sars_pin: priorityDocs.checks.sars_pin,
+    cipc_registration: priorityDocs.checks.cipc_registration,
   };
+  const completed = Object.values(checks).every(Boolean);
   const doneCount = Object.values(checks).filter(Boolean).length;
 
   return NextResponse.json({
     onboardingCompleted: completed,
     companyId: company.id,
     checks,
-    documentsUploaded,
-    requiredDocuments: 3,
+    documentsUploaded: priorityDocs.documentsUploaded,
+    requiredDocuments: priorityDocs.requiredDocuments,
+    priorityDocuments: [
+      { category: 'bbbee_certificate', label: 'B-BBEE certificate', uploaded: priorityDocs.checks.bbbee_certificate },
+      { category: 'sars_pin', label: 'SARS TCS Pin', uploaded: priorityDocs.checks.sars_pin },
+      { category: 'cipc_registration', label: 'CIPC registration certificate', uploaded: priorityDocs.checks.cipc_registration },
+    ],
     completionPercent: Math.floor((doneCount / Object.keys(checks).length) * 100),
   });
 }

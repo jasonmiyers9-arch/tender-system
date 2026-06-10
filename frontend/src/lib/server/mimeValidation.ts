@@ -406,7 +406,7 @@ export function validateUpload(
   buffer: Buffer,
   filename: string,
   declaredMimeType: string,
-  maxSize: number = 50 * 1024 * 1024 // 50MB default
+  maxSize: number = 10 * 1024 * 1024 // 10MB default
 ): ValidationResult & { sanitizedFilename: string; sizeValid: boolean } {
   const ext = '.' + (filename.split('.').pop() || '').toLowerCase();
   

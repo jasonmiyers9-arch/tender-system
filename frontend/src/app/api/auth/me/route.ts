@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getUserByToken, mapUserToAuthUser, updateUserName } from '@/lib/server/firestoreService';
+import { getUserByToken, mapUserToAuthUserWithOnboarding, updateUserName } from '@/lib/server/firestoreService';
 
 function parseToken(req: Request): string | null {
   const header = req.headers.get('authorization');
@@ -19,7 +19,7 @@ export async function GET(req: Request) {
     return NextResponse.json({ detail: 'Unauthorized' }, { status: 401 });
   }
 
-  return NextResponse.json(mapUserToAuthUser(user));
+  return NextResponse.json(await mapUserToAuthUserWithOnboarding(user));
 }
 
 export async function PATCH(req: Request) {

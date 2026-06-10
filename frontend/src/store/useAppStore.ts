@@ -1,7 +1,7 @@
 ﻿import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
-export type UserRole = 'user' | 'evaluator' | 'admin';
+export type UserRole = 'user' | 'evaluator' | 'admin' | 'super_admin';
 
 interface AppState {
     // Auth

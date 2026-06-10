@@ -172,10 +172,10 @@ export default function AdminActivityPage() {
     const [rangeFilter, setRangeFilter] = useState<RangeKey>('all');
     const [actionFilter, setActionFilter] = useState<ActionKey>('all');
 
-    const entries = data?.entries ?? [];
+    const entries = useMemo(() => data?.entries ?? [], [data?.entries]);
     const total = data?.total ?? entries.length;
 
-    const now = Date.now();
+    const [now] = useState(() => Date.now());
     const startOfToday = useMemo(() => {
         const d = new Date();
         return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();

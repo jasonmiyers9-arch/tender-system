@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/Badge';
 import { CardSkeleton } from '@/components/ui/Skeleton';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { formatDate } from '@/lib/utils/formatters';
-import { Calendar, Building2, CheckCircle2, AlertCircle, ArrowRight } from 'lucide-react';
+import { Calendar, Building2, CheckCircle2, AlertCircle, ArrowRight, Clock, MapPin, Users } from 'lucide-react';
 
 export default function TenderDetailPage({ params }: { params: Promise<{ tenderId: string }> }) {
     const { tenderId } = use(params);
@@ -34,7 +34,7 @@ export default function TenderDetailPage({ params }: { params: Promise<{ tenderI
                     <h1 className="text-2xl font-bold text-[--color-text-primary]">{tender.title}</h1>
                     <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-sm text-[--color-text-muted]">
                         <span className="flex items-center gap-1"><Building2 size={13} />{tender.organization}</span>
-                        <span className="flex items-center gap-1"><Calendar size={13} />Deadline: {formatDate(tender.deadline)}</span>
+                        <span className="flex items-center gap-1"><Calendar size={13} />Closing: {formatDate(tender.deadline)}{tender.closingTime ? ` at ${tender.closingTime}` : ''}</span>
                         <span>{tender.value}</span>
                     </div>
                 </div>
@@ -42,6 +42,38 @@ export default function TenderDetailPage({ params }: { params: Promise<{ tenderI
                     Apply Now
                 </Button>
             </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+                <Card padding="sm">
+                    <p className="text-[10px] uppercase font-semibold text-[--color-text-muted] mb-1">Briefing Meeting</p>
+                    <p className="text-sm font-medium text-[--color-text-primary] flex items-center gap-2">
+                        <Users size={14} /> {tender.briefing?.hasBriefingSession ? `${tender.briefing.date || 'Date TBC'}${tender.briefing.venue ? `, ${tender.briefing.venue}` : ''}` : 'Not specified'}
+                    </p>
+                </Card>
+                <Card padding="sm">
+                    <p className="text-[10px] uppercase font-semibold text-[--color-text-muted] mb-1">Tender Closing Date</p>
+                    <p className="text-sm font-medium text-[--color-text-primary] flex items-center gap-2">
+                        <Clock size={14} /> {formatDate(tender.deadline)}{tender.closingTime ? ` at ${tender.closingTime}` : ''}
+                    </p>
+                </Card>
+                <Card padding="sm">
+                    <p className="text-[10px] uppercase font-semibold text-[--color-text-muted] mb-1">Required At</p>
+                    <p className="text-sm font-medium text-[--color-text-primary] flex items-center gap-2">
+                        <MapPin size={14} /> {tender.requiredAt || tender.location || 'Not specified'}
+                    </p>
+                </Card>
+                <Card padding="sm">
+                    <p className="text-[10px] uppercase font-semibold text-[--color-text-muted] mb-1">Department / Category</p>
+                    <p className="text-sm font-medium text-[--color-text-primary]">{tender.organization}</p>
+                    <p className="text-xs text-[--color-text-muted] mt-1">{tender.category}</p>
+                </Card>
+            </div>
+
+            {tender.recommendationReason && (
+                <Card padding="sm">
+                    <p className="text-sm font-medium text-[--color-text-primary]">{tender.recommendationReason}</p>
+                </Card>
+            )}
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className="lg:col-span-2 space-y-4">

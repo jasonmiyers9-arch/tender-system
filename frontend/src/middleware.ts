@@ -86,9 +86,13 @@ export function middleware(request: NextRequest) {
   
   // Content Security Policy with nonce
   // Note: 'strict-dynamic' allows scripts loaded by nonce-verified scripts
+  const scriptSrc = process.env.NODE_ENV === 'development'
+    ? `script-src 'self' 'unsafe-inline' 'unsafe-eval' https://apis.google.com https://*.firebaseapp.com`
+    : `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' https://apis.google.com https://*.firebaseapp.com`;
+
   const csp = [
     `default-src 'self'`,
-    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' https://apis.google.com https://*.firebaseapp.com`,
+    scriptSrc,
     `style-src 'self' 'unsafe-inline' https://fonts.googleapis.com`, // unsafe-inline needed for CSS-in-JS
     `img-src 'self' data: https: blob:`,
     `font-src 'self' data: https://fonts.gstatic.com`,

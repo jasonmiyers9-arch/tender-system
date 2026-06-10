@@ -2,9 +2,41 @@
 // TenderGuard Pro — Shared API Types
 // ─────────────────────────────────────────────
 
-export type UserRole = 'user' | 'evaluator' | 'admin';
+export type UserRole = 'user' | 'evaluator' | 'admin' | 'super_admin';
 export type DocumentStatus = 'uploaded' | 'verified' | 'rejected' | 'expired';
-export type DocumentCategory =
+export const DOCUMENT_UPLOAD_CATEGORIES = [
+    'tax_clearance',
+    'sars_pin',
+    'vat_certificate',
+    'cipc_registration',
+    'company_profile',
+    'csd_supplier_summary',
+    'director_ids',
+    'shareholder_register',
+    'bbbee_certificate',
+    'bbbee_affidavit',
+    'cidb_certificate',
+    'nhbrc_certificate',
+    'letter_good_standing',
+    'coida_certificate',
+    'public_liability_insurance',
+    'professional_indemnity',
+    'financial_statements',
+    'bank_statement',
+    'bank_confirmation',
+    'municipal_account',
+    'proof_of_address',
+    'lease_agreement',
+    'health_safety_plan',
+    'quality_management_policy',
+    'environmental_policy',
+    'iso_certificate',
+    'poa_authority',
+    'joint_venture_agreement',
+    'other_compliance',
+] as const;
+export type DocumentUploadCategory = typeof DOCUMENT_UPLOAD_CATEGORIES[number];
+export type LegacyDocumentCategory =
     | 'tax'
     | 'legal'
     | 'financial'
@@ -12,6 +44,46 @@ export type DocumentCategory =
     | 'bbbee'
     | 'registration'
     | 'policy';
+export type DocumentCategory = DocumentUploadCategory | LegacyDocumentCategory;
+
+export const DOCUMENT_CATEGORY_GROUPS: Record<DocumentCategory, LegacyDocumentCategory> = {
+    tax_clearance: 'tax',
+    sars_pin: 'tax',
+    vat_certificate: 'tax',
+    cipc_registration: 'registration',
+    company_profile: 'registration',
+    csd_supplier_summary: 'registration',
+    director_ids: 'registration',
+    shareholder_register: 'registration',
+    bbbee_certificate: 'bbbee',
+    bbbee_affidavit: 'bbbee',
+    cidb_certificate: 'certification',
+    nhbrc_certificate: 'certification',
+    letter_good_standing: 'certification',
+    coida_certificate: 'certification',
+    public_liability_insurance: 'legal',
+    professional_indemnity: 'legal',
+    financial_statements: 'financial',
+    bank_statement: 'financial',
+    bank_confirmation: 'financial',
+    municipal_account: 'legal',
+    proof_of_address: 'registration',
+    lease_agreement: 'legal',
+    health_safety_plan: 'policy',
+    quality_management_policy: 'policy',
+    environmental_policy: 'policy',
+    iso_certificate: 'certification',
+    poa_authority: 'legal',
+    joint_venture_agreement: 'legal',
+    other_compliance: 'certification',
+    tax: 'tax',
+    legal: 'legal',
+    financial: 'financial',
+    certification: 'certification',
+    bbbee: 'bbbee',
+    registration: 'registration',
+    policy: 'policy',
+};
 export type ScoreBand = 'tender-ready' | 'partially-ready' | 'high-risk';
 export type RenewalBucket = 'due-90' | 'due-60' | 'due-30' | 'due-7' | 'expired';
 
@@ -152,6 +224,29 @@ export interface TenderMatch {
     category: string;
     location: string;
     description?: string;
+    advertised?: string;
+    closingTime?: string;
+    requiredAt?: string;
+    sourceUrl?: string;
+    sourceSite?: string;
+    tenderNumber?: string;
+    tenderType?: string;
+    province?: string;
+    specialConditions?: string;
+    briefing?: {
+        hasBriefingSession: boolean;
+        isCompulsory: boolean;
+        date: string;
+        venue: string;
+    };
+    contact?: {
+        contactPerson: string;
+        email: string;
+        telephone: string;
+        fax: string;
+    };
+    isScraped?: boolean;
+    recommendationReason?: string;
     requirements?: string[];
     eligibilityCriteria?: string[];
     recommendedDocuments?: string[];
@@ -244,6 +339,9 @@ export interface CompanySearchResult {
     id: string;
     name: string;
     registrationNumber: string;
+    csdNumber?: string | null;
+    industry?: string | null;
+    province?: string | null;
     score: number;
     band: ScoreBand;
     lastUpdated: string;

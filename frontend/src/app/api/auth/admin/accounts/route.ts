@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { listAllCompanies, listAllUsers } from '@/lib/server/firestoreService';
-import { requireAdmin } from '@/lib/server/apiAuth';
+import { isAdminRole, requireAdmin } from '@/lib/server/apiAuth';
 
 export async function GET(req: Request) {
   const { error } = await requireAdmin(req);
@@ -12,7 +12,7 @@ export async function GET(req: Request) {
 
   const now = Date.now();
   const items = (await listAllUsers())
-    .filter((u) => u.role !== 'admin')
+    .filter((u) => !isAdminRole(u.role))
     .filter((u) => (statusParam ? u.verificationStatus === statusParam : true))
     .map((u) => {
       const createdAtMs = new Date(u.createdAt).getTime();

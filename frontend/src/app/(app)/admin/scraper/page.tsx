@@ -169,7 +169,12 @@ export default function ScraperPage() {
             });
             if (!res.ok) throw new Error('Scraping failed');
             const data = await res.json();
-            showMessage('success', `Scraped ${data.results?.reduce((s: number, r: ScrapeResult) => s + r.newTenders, 0) ?? 0} new tenders from ${data.results?.length ?? 0} sources`);
+            const errors = (data.results ?? []).flatMap((result: ScrapeResult) => result.errors ?? []);
+            if (errors.length) {
+                showMessage('error', errors.slice(0, 3).join(' | '));
+            } else {
+                showMessage('success', `Scraped ${data.results?.reduce((s: number, r: ScrapeResult) => s + r.newTenders, 0) ?? 0} new tenders from ${data.results?.length ?? 0} sources`);
+            }
             await fetchStatus();
             await fetchTenders();
         } catch (err) {
@@ -188,7 +193,11 @@ export default function ScraperPage() {
             });
             if (!res.ok) throw new Error(`Scraping ${sourceName} failed`);
             const data = await res.json();
-            showMessage('success', `${sourceName}: ${data.result?.newTenders ?? 0} new tenders`);
+            if (data.result?.errors?.length) {
+                showMessage('error', data.result.errors.slice(0, 3).join(' | '));
+            } else {
+                showMessage('success', `${sourceName}: ${data.result?.newTenders ?? 0} new tenders`);
+            }
             await fetchStatus();
             await fetchTenders();
         } catch (err) {

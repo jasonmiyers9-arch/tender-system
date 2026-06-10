@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { listCompaniesForUser, setActiveCompany } from '@/lib/server/firestoreService';
-import { requireAuth } from '@/lib/server/apiAuth';
+import { isAdminRole, requireAuth } from '@/lib/server/apiAuth';
 
 export async function POST(req: Request) {
   const { user, error } = await requireAuth(req);
@@ -14,7 +14,7 @@ export async function POST(req: Request) {
 
   // Ownership check: user can only switch to companies they belong to
   const userCompanies = await listCompaniesForUser(user!.id);
-  const allowed = userCompanies.some(c => c.id === companyId) || user!.role === 'admin';
+  const allowed = userCompanies.some(c => c.id === companyId) || isAdminRole(user!.role);
   if (!allowed) {
     return NextResponse.json({ detail: 'Forbidden: not a member of this company' }, { status: 403 });
   }

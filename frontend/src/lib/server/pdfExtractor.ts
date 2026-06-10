@@ -107,6 +107,27 @@ export interface DocumentAnalysis {
   documentType: string | null;
   confidence: number;
   keywords: string[];
+  csdSupplierSummary?: CsdSupplierSummaryAnalysis;
+}
+
+export interface CsdSupplierSummaryAnalysis {
+  isCsdSupplierSummary: boolean;
+  supplierNumber: string | null;
+  legalName: string | null;
+  tradingName: string | null;
+  registrationNumber: string | null;
+  taxNumber: string | null;
+  vatNumber: string | null;
+  bbbeeLevel: string | null;
+  cidbGrade: string | null;
+  province: string | null;
+  municipality: string | null;
+  bankAccountVerified: boolean | null;
+  taxCompliant: boolean | null;
+  active: boolean | null;
+  fieldsComplete: number;
+  fieldsTotal: number;
+  completenessScore: number;
 }
 
 function cleanText(text: string | null | undefined): string {
@@ -314,7 +335,83 @@ const DOCUMENT_TYPE_KEYWORDS: Record<string, string[]> = {
   certification: ['iso', 'certificate', 'accreditation', 'compliance certificate', 'quality management'],
   insurance: ['insurance', 'indemnity', 'liability', 'cover note', 'policy'],
   cidb: ['cidb', 'construction industry', 'grading', 'contractor registration'],
+  csd: ['central supplier database', 'csd supplier', 'supplier summary', 'supplier number', 'maaa'],
 };
+
+function getLineValue(text: string, labels: string[]): string | null {
+  const labelPattern = labels.map(label => label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+  const match = text.match(new RegExp(`(?:${labelPattern})\\s*[:\\-]?\\s*([^\\n\\r]{2,120})`, 'i'));
+  if (!match?.[1]) return null;
+  const value = match[1]
+    .replace(/\s{2,}.*/, '')
+    .replace(/\b(?:registration number|tax number|vat number|supplier number)\b.*$/i, '')
+    .trim();
+  return value || null;
+}
+
+function getBooleanValue(text: string, labels: string[]): boolean | null {
+  const raw = getLineValue(text, labels);
+  if (!raw) return null;
+  if (/\b(?:yes|verified|valid|compliant|active|true)\b/i.test(raw)) return true;
+  if (/\b(?:no|not verified|invalid|non-compliant|inactive|false)\b/i.test(raw)) return false;
+  return null;
+}
+
+function parseCsdSupplierSummary(text: string): CsdSupplierSummaryAnalysis {
+  const supplierNumber = text.match(/\bMAAA\d{6,}\b/i)?.[0]?.toUpperCase() ?? null;
+  const isCsdSupplierSummary = Boolean(
+    supplierNumber
+    || /central supplier database/i.test(text)
+    || /csd\s+supplier\s+summary/i.test(text)
+    || (/supplier\s+number/i.test(text) && /\bCSD\b/i.test(text))
+  );
+
+  const registrationNumber = text.match(SA_PATTERNS.companyRegistration)?.[0] ?? null;
+  const vatNumber = text.match(SA_PATTERNS.vatNumber)?.[0] ?? null;
+  const bbbeeLevel = text.match(SA_PATTERNS.bbbeeLevel)?.[0]?.trim() ?? null;
+  const cidbGrade = text.match(SA_PATTERNS.cidbGrade)?.[0]?.trim() ?? null;
+  const taxNumber = getLineValue(text, ['Income Tax Number', 'Tax Number', 'Tax Reference Number']);
+
+  const summary: Omit<CsdSupplierSummaryAnalysis, 'fieldsComplete' | 'fieldsTotal' | 'completenessScore'> = {
+    isCsdSupplierSummary,
+    supplierNumber,
+    legalName: getLineValue(text, ['Legal Name', 'Supplier Legal Name', 'Enterprise Name', 'Registered Name']),
+    tradingName: getLineValue(text, ['Trading Name', 'Trade Name']),
+    registrationNumber,
+    taxNumber,
+    vatNumber,
+    bbbeeLevel,
+    cidbGrade,
+    province: getLineValue(text, ['Province', 'Physical Province']),
+    municipality: getLineValue(text, ['Municipality', 'Local Municipality']),
+    bankAccountVerified: getBooleanValue(text, ['Bank Account Verified', 'Bank Verification Status', 'Banking Details Verified']),
+    taxCompliant: getBooleanValue(text, ['Tax Compliant', 'Tax Compliance Status', 'SARS Tax Status']),
+    active: getBooleanValue(text, ['Supplier Status', 'CSD Status', 'Active']),
+  };
+
+  const scoredFields: Array<keyof typeof summary> = [
+    'supplierNumber',
+    'legalName',
+    'registrationNumber',
+    'taxNumber',
+    'vatNumber',
+    'bbbeeLevel',
+    'province',
+    'municipality',
+    'bankAccountVerified',
+    'taxCompliant',
+    'active',
+  ];
+  const fieldsComplete = scoredFields.filter((field) => summary[field] !== null && summary[field] !== '').length;
+  const fieldsTotal = scoredFields.length;
+
+  return {
+    ...summary,
+    fieldsComplete,
+    fieldsTotal,
+    completenessScore: isCsdSupplierSummary ? Math.round((fieldsComplete / fieldsTotal) * 100) : 0,
+  };
+}
 
 /**
  * Extract text and metadata from a PDF buffer.
@@ -382,6 +479,7 @@ export async function extractPDFContent(buffer: Buffer): Promise<PDFExtractResul
 export function analyzeDocumentContent(text: string, pageCount: number): DocumentAnalysis {
   const normalizedText = text.toLowerCase();
   const words = text.split(/\s+/).filter(Boolean);
+  const csdSupplierSummary = parseCsdSupplierSummary(text);
 
   // Extract patterns
   const detectedDates = text.match(SA_PATTERNS.dates) ?? [];
@@ -402,6 +500,11 @@ export function analyzeDocumentContent(text: string, pageCount: number): Documen
     }
   }
 
+  if (csdSupplierSummary.isCsdSupplierSummary) {
+    documentType = 'csd';
+    maxScore = Math.max(maxScore, 3);
+  }
+
   // Extract keywords (common compliance-related terms)
   const complianceKeywords = [
     'compliant', 'valid', 'verified', 'approved', 'certified', 'registered',
@@ -409,6 +512,9 @@ export function analyzeDocumentContent(text: string, pageCount: number): Documen
     'qualification', 'eligibility', 'requirement', 'declaration',
   ];
   const keywords = complianceKeywords.filter((kw) => normalizedText.includes(kw));
+  if (csdSupplierSummary.isCsdSupplierSummary && !keywords.includes('csd supplier summary')) {
+    keywords.push('csd supplier summary');
+  }
 
   // Calculate confidence based on detected patterns
   const signalCount = [
@@ -418,9 +524,10 @@ export function analyzeDocumentContent(text: string, pageCount: number): Documen
     detectedDates.length > 0,
     keywords.length > 2,
     documentType !== null,
+    csdSupplierSummary.isCsdSupplierSummary,
   ].filter(Boolean).length;
 
-  const confidence = Math.min(signalCount / 6, 1);
+  const confidence = Math.min(signalCount / 7, 1);
 
   return {
     extractedText: text,
@@ -438,6 +545,7 @@ export function analyzeDocumentContent(text: string, pageCount: number): Documen
     documentType,
     confidence,
     keywords,
+    csdSupplierSummary: csdSupplierSummary.isCsdSupplierSummary ? csdSupplierSummary : undefined,
   };
 }
 
@@ -520,7 +628,7 @@ export function isValidComplianceDocument(analysis: DocumentAnalysis): boolean {
 const _GEMINI_DOC_PROMPT = `You are analyzing a South African government compliance document.
 Analyze the following extracted text and return ONLY a valid JSON object with no markdown formatting:
 {
-  "documentType": one of ["tax","bbbee","registration","legal","financial","certification","insurance","cidb"] or null,
+  "documentType": one of ["tax","bbbee","registration","legal","financial","certification","insurance","cidb","csd"] or null,
   "confidence": number between 0 and 1,
   "hasSignature": boolean,
   "hasDate": boolean,

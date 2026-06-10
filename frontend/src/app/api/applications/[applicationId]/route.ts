@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getApplicationById, submitApplication } from '@/lib/server/firestoreService';
-import { requireAuth, resolveCompanyContext } from '@/lib/server/apiAuth';
+import { isAdminRole, requireAuth, resolveCompanyContext } from '@/lib/server/apiAuth';
 
 export async function GET(
   req: Request,
@@ -17,7 +17,7 @@ export async function GET(
 
   // Ownership check: user must belong to the company that owns the application
   const companyId = await resolveCompanyContext(user!.id, user!.activeCompanyId);
-  if (application.companyId && application.companyId !== companyId && user!.role !== 'admin') {
+  if (application.companyId && application.companyId !== companyId && !isAdminRole(user!.role)) {
     return NextResponse.json({ detail: 'Application not found' }, { status: 404 });
   }
 
