@@ -10,7 +10,7 @@ import { getExpiredInPast12Months, isNewAccount } from './expiryCheckService';
 import { sendNotificationDeliveries } from './notificationDelivery';
 
 // Re-export internal types for use by other services
-export type { InternalDocument, InternalCompany, InternalTender, InternalUser };
+export type { InternalDocument, InternalCompany, InternalTender, InternalUser, InternalApplication };
 
 const USERS_COLLECTION = 'users';
 const COMPANIES_COLLECTION = 'companies';
@@ -22,6 +22,8 @@ const ANALYST_EVENTS_COLLECTION = 'analyst_events';
 const NOTIFICATIONS_COLLECTION = 'notifications';
 const TENDER_MATCHES_COLLECTION = 'tender_matches';
 const SCORE_HISTORY_COLLECTION = 'score_history';
+const SAVED_SEARCHES_COLLECTION = 'saved_searches';
+const SCHEDULED_JOB_RUNS_COLLECTION = 'scheduled_job_runs';
 const SHOULD_SEED_FIRESTORE_DEMO_DATA = process.env.ENABLE_FIRESTORE_DEMO_SEED === 'true';
 
 function createId() {
@@ -128,6 +130,10 @@ async function getUserOnboardingStatus(user: InternalUser): Promise<{
     return {
       completed: false,
       checks: {
+        csd_number: false,
+        bbbee_level: false,
+        industry_sector: false,
+        province: false,
         bbbee_certificate: false,
         sars_pin: false,
         cipc_registration: false,
@@ -137,16 +143,29 @@ async function getUserOnboardingStatus(user: InternalUser): Promise<{
     };
   }
 
-  const documents = await listDocumentsForCompany(companyId);
+  const [company, documents] = await Promise.all([
+    getCompanyById(companyId),
+    listDocumentsForCompany(companyId),
+  ]);
+  const profileChecks = {
+    csd_number: Boolean(company?.csdNumber),
+    bbbee_level: Boolean(company?.bbbeeLevel),
+    industry_sector: Boolean(company?.industry),
+    province: Boolean(company?.province),
+  };
   const uploadedCategories = new Set(documents.map((doc) => doc.category));
-  const checks = Object.fromEntries(
+  const documentChecks = Object.fromEntries(
     PRIORITY_ONBOARDING_DOCUMENTS.map((category) => [category, uploadedCategories.has(category)])
   ) as Record<string, boolean>;
+  const checks = {
+    ...profileChecks,
+    ...documentChecks,
+  };
 
   return {
     completed: Object.values(checks).every(Boolean),
     checks,
-    documentsUploaded: Object.values(checks).filter(Boolean).length,
+    documentsUploaded: Object.values(documentChecks).filter(Boolean).length,
     requiredDocuments: PRIORITY_ONBOARDING_DOCUMENTS.length,
   };
 }
@@ -224,6 +243,18 @@ function mapTenderToMatch(tender: InternalTender): TenderMatch {
     createdBy: tender.createdBy,
     status: tender.status ?? 'draft',
     createdAt: tender.createdAt ?? new Date().toISOString(),
+    advertised: tender.advertised,
+    closingTime: tender.closingTime,
+    sourceUrl: tender.sourceUrl,
+    sourceSite: tender.sourceSite,
+    tenderNumber: tender.tenderNumber,
+    tenderType: tender.tenderType,
+    province: tender.province,
+    specialConditions: tender.specialConditions,
+    briefing: tender.briefing,
+    contact: tender.contact,
+    requiredAt: tender.location,
+    isScraped: Boolean(tender.sourceSite || tender.sourceUrl),
   };
 }
 
@@ -449,6 +480,41 @@ export interface ScoreHistoryRecord {
   expiringDocuments: string[];
   snapshotDate: string;
   createdAt: string;
+}
+
+export interface SavedTenderSearchRecord {
+  id: string;
+  userId: string;
+  companyId: string | null;
+  name: string;
+  filters: {
+    q?: string;
+    province?: string;
+    category?: string;
+    buyer?: string;
+    tenderType?: string;
+    briefing?: 'any' | 'true' | 'compulsory';
+    closingWithin?: number;
+    minValue?: number;
+    maxValue?: number;
+    minScore?: number;
+  };
+  frequency: 'daily' | 'weekly' | 'paused';
+  enabled: boolean;
+  lastDeliveredAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ScheduledJobRunRecord {
+  id: string;
+  job: string;
+  ok: boolean;
+  status: 'success' | 'partial' | 'failed';
+  checkedAt: string;
+  recordedAt: string;
+  errors: string[];
+  metrics: Record<string, number | string | boolean | null>;
 }
 
 async function ensureFirestoreSeed() {
@@ -927,6 +993,8 @@ async function createTender(payload: {
   tenderType?: string;
   province?: string;
   specialConditions?: string;
+  briefing?: TenderMatch['briefing'];
+  contact?: TenderMatch['contact'];
 }): Promise<InternalTender> {
   const tenderId = createId();
   const normalizedDeadline = payload.deadline.replace(/\//g, '-');
@@ -957,6 +1025,8 @@ async function createTender(payload: {
     tenderType: payload.tenderType,
     province: payload.province,
     specialConditions: payload.specialConditions,
+    briefing: payload.briefing,
+    contact: payload.contact,
     createdAt: new Date().toISOString(),
   };
 
@@ -1054,6 +1124,16 @@ async function updateTender(
     'eligibilityCriteria' |
     'required_categories' |
     'recommendedDocuments' |
+    'advertised' |
+    'closingTime' |
+    'sourceUrl' |
+    'sourceSite' |
+    'tenderNumber' |
+    'tenderType' |
+    'province' |
+    'specialConditions' |
+    'briefing' |
+    'contact' |
     'status'
   >>,
 ): Promise<InternalTender> {
@@ -1071,6 +1151,16 @@ async function updateTender(
   if (payload.description !== undefined) updates.description = payload.description;
   if (payload.requirements !== undefined) updates.requirements = payload.requirements;
   if (payload.eligibilityCriteria !== undefined) updates.eligibilityCriteria = payload.eligibilityCriteria;
+  if (payload.advertised !== undefined) updates.advertised = payload.advertised;
+  if (payload.closingTime !== undefined) updates.closingTime = payload.closingTime;
+  if (payload.sourceUrl !== undefined) updates.sourceUrl = payload.sourceUrl;
+  if (payload.sourceSite !== undefined) updates.sourceSite = payload.sourceSite;
+  if (payload.tenderNumber !== undefined) updates.tenderNumber = payload.tenderNumber;
+  if (payload.tenderType !== undefined) updates.tenderType = payload.tenderType;
+  if (payload.province !== undefined) updates.province = payload.province;
+  if (payload.specialConditions !== undefined) updates.specialConditions = payload.specialConditions;
+  if (payload.briefing !== undefined) updates.briefing = payload.briefing;
+  if (payload.contact !== undefined) updates.contact = payload.contact;
 
   if (payload.required_categories !== undefined) {
     updates.required_categories = payload.required_categories;
@@ -1188,6 +1278,35 @@ async function submitApplication(applicationId: string): Promise<InternalApplica
     await db.collection(APPLICATIONS_COLLECTION).doc(applicationId).update({
       status: 'submitted',
       submittedAt: app.submittedAt,
+    });
+  }
+
+  return app;
+}
+
+async function reviewApplication(
+  applicationId: string,
+  payload: {
+    status: 'approved' | 'rejected';
+    reviewedBy: string;
+    rejectionReason?: string | null;
+  },
+): Promise<InternalApplication> {
+  const app = await getApplicationById(applicationId);
+  if (!app) throw new Error('Application not found');
+
+  app.status = payload.status;
+  app.reviewedAt = new Date().toISOString();
+  app.reviewedBy = payload.reviewedBy;
+  app.rejectionReason = payload.status === 'rejected' ? payload.rejectionReason ?? null : null;
+
+  if (isFirestoreAvailable()) {
+    const db = getFirestore()!;
+    await db.collection(APPLICATIONS_COLLECTION).doc(applicationId).update({
+      status: app.status,
+      reviewedAt: app.reviewedAt,
+      reviewedBy: app.reviewedBy,
+      rejectionReason: app.rejectionReason,
     });
   }
 
@@ -1495,7 +1614,8 @@ async function createNotification(payload: Omit<NotificationRecord, 'id' | 'crea
 
 async function createNotificationsForCompany(
   companyId: string,
-  payload: Omit<NotificationRecord, 'id' | 'createdAt' | 'isRead' | 'companyId' | 'userId'>
+  payload: Omit<NotificationRecord, 'id' | 'createdAt' | 'isRead' | 'companyId' | 'userId'>,
+  options?: { deliver?: boolean },
 ): Promise<NotificationRecord[]> {
   const members = await listCompanyMembers(companyId);
   const recipients = members.length > 0
@@ -1511,7 +1631,7 @@ async function createNotificationsForCompany(
       dedupeKey: `${payload.dedupeKey}:user:${member.id}`,
     });
 
-    if (created) {
+    if (created && options?.deliver !== false) {
       await dispatchNotification(notification, member);
     }
 
@@ -1726,6 +1846,116 @@ async function createScoreHistoryRecord(
   return record;
 }
 
+async function listSavedTenderSearches(userId: string): Promise<SavedTenderSearchRecord[]> {
+  if (isFirestoreAvailable()) {
+    const db = getFirestore()!;
+    const snapshot = await db.collection(SAVED_SEARCHES_COLLECTION).where('userId', '==', userId).get();
+    return snapshot.docs
+      .map((document) => document.data() as SavedTenderSearchRecord)
+      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  }
+  return MEMORY_DB.savedSearches
+    .filter((search) => search.userId === userId)
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+}
+
+async function createSavedTenderSearch(
+  payload: Pick<SavedTenderSearchRecord, 'userId' | 'companyId' | 'name' | 'filters' | 'frequency'>,
+): Promise<SavedTenderSearchRecord> {
+  const now = new Date().toISOString();
+  const record: SavedTenderSearchRecord = {
+    id: createId(),
+    ...payload,
+    enabled: payload.frequency !== 'paused',
+    lastDeliveredAt: null,
+    createdAt: now,
+    updatedAt: now,
+  };
+  if (isFirestoreAvailable()) {
+    const db = getFirestore()!;
+    await db.collection(SAVED_SEARCHES_COLLECTION).doc(record.id).set(stripUndefined(record));
+  } else {
+    MEMORY_DB.savedSearches.unshift(record);
+  }
+  return record;
+}
+
+async function deleteSavedTenderSearch(id: string, userId: string): Promise<boolean> {
+  if (isFirestoreAvailable()) {
+    const db = getFirestore()!;
+    const reference = db.collection(SAVED_SEARCHES_COLLECTION).doc(id);
+    const snapshot = await reference.get();
+    if (!snapshot.exists || (snapshot.data() as SavedTenderSearchRecord).userId !== userId) return false;
+    await reference.delete();
+    return true;
+  }
+  const index = MEMORY_DB.savedSearches.findIndex((search) => search.id === id && search.userId === userId);
+  if (index < 0) return false;
+  MEMORY_DB.savedSearches.splice(index, 1);
+  return true;
+}
+
+async function markSavedTenderSearchDelivered(id: string, deliveredAt: string): Promise<void> {
+  if (isFirestoreAvailable()) {
+    const db = getFirestore()!;
+    await db.collection(SAVED_SEARCHES_COLLECTION).doc(id).set({ lastDeliveredAt: deliveredAt, updatedAt: deliveredAt }, { merge: true });
+    return;
+  }
+  const search = MEMORY_DB.savedSearches.find((item) => item.id === id);
+  if (search) {
+    search.lastDeliveredAt = deliveredAt;
+    search.updatedAt = deliveredAt;
+  }
+}
+
+async function recordScheduledJobRun(result: {
+  job: string;
+  ok: boolean;
+  checkedAt?: string;
+  errors?: string[];
+  [key: string]: unknown;
+}): Promise<ScheduledJobRunRecord> {
+  const recordedAt = new Date().toISOString();
+  const errors = Array.isArray(result.errors) ? result.errors.map(String).slice(0, 50) : [];
+  const metrics: ScheduledJobRunRecord['metrics'] = {};
+  for (const [key, value] of Object.entries(result)) {
+    if (['job', 'ok', 'checkedAt', 'errors', 'scrapeResults'].includes(key)) continue;
+    if (typeof value === 'number' || typeof value === 'string' || typeof value === 'boolean' || value === null) {
+      metrics[key] = value;
+    }
+  }
+  if (Array.isArray(result.scrapeResults)) metrics.sourcesChecked = result.scrapeResults.length;
+  const record: ScheduledJobRunRecord = {
+    id: `${result.job}_${recordedAt.replace(/[^0-9]/g, '')}_${createId().slice(0, 6)}`,
+    job: result.job,
+    ok: result.ok,
+    status: result.ok ? 'success' : errors.length ? 'failed' : 'partial',
+    checkedAt: result.checkedAt || recordedAt,
+    recordedAt,
+    errors,
+    metrics,
+  };
+  if (isFirestoreAvailable()) {
+    const db = getFirestore()!;
+    await db.collection(SCHEDULED_JOB_RUNS_COLLECTION).doc(record.id).set(stripUndefined(record));
+  } else {
+    MEMORY_DB.scheduledJobRuns.unshift(record);
+    MEMORY_DB.scheduledJobRuns.splice(100);
+  }
+  return record;
+}
+
+async function listScheduledJobRuns(limit = 20): Promise<ScheduledJobRunRecord[]> {
+  if (isFirestoreAvailable()) {
+    const db = getFirestore()!;
+    const snapshot = await db.collection(SCHEDULED_JOB_RUNS_COLLECTION).orderBy('recordedAt', 'desc').limit(limit).get();
+    return snapshot.docs.map((document) => document.data() as ScheduledJobRunRecord);
+  }
+  return [...MEMORY_DB.scheduledJobRuns]
+    .sort((a, b) => b.recordedAt.localeCompare(a.recordedAt))
+    .slice(0, limit);
+}
+
 // In Next.js dev mode each route compiles into its own module scope, so a
 // plain `const` resets on every hot-reload.  Pinning to `globalThis` makes
 // it a true process-level singleton, so registered users and uploaded
@@ -1741,10 +1971,11 @@ type _MemDB = {
   notifications: NotificationRecord[];
   tenderMatches: TenderMatchRecord[];
   scoreHistory: ScoreHistoryRecord[];
+  savedSearches: SavedTenderSearchRecord[];
+  scheduledJobRuns: ScheduledJobRunRecord[];
 };
 
 declare global {
-  // eslint-disable-next-line no-var
   var __tenderguard_memory_db: _MemDB | undefined;
 }
 
@@ -1760,8 +1991,14 @@ if (!globalThis.__tenderguard_memory_db) {
     notifications: [],
     tenderMatches: [],
     scoreHistory: [],
+    savedSearches: [],
+    scheduledJobRuns: [],
   };
 }
+
+// Additive migrations for an existing dev-mode singleton after hot reloads.
+globalThis.__tenderguard_memory_db.savedSearches ??= [];
+globalThis.__tenderguard_memory_db.scheduledJobRuns ??= [];
 
 const MEMORY_DB = globalThis.__tenderguard_memory_db;
 
@@ -1792,6 +2029,7 @@ export {
   getApplicationById,
   createApplication,
   submitApplication,
+  reviewApplication,
   listDocumentsForCompany,
   listAllDocuments,
   getDocumentById,
@@ -1808,6 +2046,12 @@ export {
   createAnalystEvent,
   upsertTenderMatch,
   createScoreHistoryRecord,
+  listSavedTenderSearches,
+  createSavedTenderSearch,
+  deleteSavedTenderSearch,
+  markSavedTenderSearchDelivered,
+  recordScheduledJobRun,
+  listScheduledJobRuns,
   listNotificationsForUser,
   createNotification,
   createNotificationsForCompany,

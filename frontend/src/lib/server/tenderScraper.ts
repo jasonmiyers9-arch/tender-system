@@ -8,6 +8,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { normalizeTenderCategory } from './tenderCategories';
 import { extractPDFContent } from './pdfExtractor';
+import { enrichScrapedTender } from './tenderEnrichment';
 
 // ─── Types ────────────────────────────────────
 
@@ -400,6 +401,157 @@ function createEmptyScrapedTender(): ScrapedTender {
   };
 }
 
+interface OcdsReleasePackage {
+  releases?: OcdsRelease[];
+  links?: { next?: string };
+}
+
+interface OcdsRelease {
+  ocid: string;
+  id: string;
+  date: string;
+  buyer?: { name?: string };
+  tender?: {
+    id?: string;
+    title?: string;
+    status?: string;
+    category?: string;
+    province?: string;
+    deliveryLocation?: string;
+    specialConditions?: string;
+    mainProcurementCategory?: string;
+    description?: string;
+    value?: { amount?: number; currency?: string };
+    documents?: Array<{
+      title?: string;
+      description?: string;
+      url?: string;
+      datePublished?: string;
+    }>;
+    tenderPeriod?: { startDate?: string; endDate?: string };
+    procuringEntity?: { name?: string };
+    procurementMethodDetails?: string;
+    briefingSession?: { isSession?: boolean; compulsory?: boolean; date?: string; venue?: string };
+    contactPerson?: { name?: string; email?: string; telephoneNumber?: string };
+  };
+}
+
+async function fetchJson<T>(url: string): Promise<T> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 45_000);
+  try {
+    const response = await fetch(url, {
+      signal: controller.signal,
+      headers: {
+        'User-Agent': 'TenderGuard-Pro/1.0 (+https://tenderguard.co.za)',
+        Accept: 'application/json',
+      },
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}: ${await response.text()}`);
+    return await response.json() as T;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function safeOcdsDate(value?: string): string {
+  if (!value || /^0001-01-01/.test(value)) return '';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value : date.toISOString();
+}
+
+/** National Treasury's official OCDS feed is the primary eTenders source. */
+async function scrapeOcdsReleases(config: ScraperConfig, options?: ScrapeOptions): Promise<ScrapedTender[]> {
+  const tenders: ScrapedTender[] = [];
+  const maxPages = Math.max(1, Math.min(options?.maxPages ?? 3, 20));
+  const pageSize = 100;
+  const dateTo = new Date();
+  const dateFrom = new Date(dateTo.getTime() - 30 * 86_400_000);
+  const targetCategories = options?.categories ? new Set(options.categories) : null;
+
+  let nextUrl = new URL('/api/OCDSReleases', config.baseUrl);
+  nextUrl.searchParams.set('PageNumber', '1');
+  nextUrl.searchParams.set('PageSize', String(pageSize));
+  nextUrl.searchParams.set('dateFrom', dateFrom.toISOString().slice(0, 10));
+  nextUrl.searchParams.set('dateTo', dateTo.toISOString().slice(0, 10));
+
+  for (let page = 1; page <= maxPages && nextUrl; page++) {
+    const payload = await fetchJson<OcdsReleasePackage>(nextUrl.toString());
+    for (const release of payload.releases ?? []) {
+      const source = release.tender;
+      if (!source?.title || source.status === 'cancelled' || source.status === 'complete') continue;
+
+      const normalizedCategory = categorizeTender(
+        source.category || source.mainProcurementCategory || 'Other',
+        source.title,
+        source.description || '',
+      );
+      if (targetCategories && !targetCategories.has(normalizedCategory)) continue;
+
+      const tender = createEmptyScrapedTender();
+      tender.title = source.title.trim().substring(0, 300);
+      tender.description = source.description?.trim() || tender.title;
+      tender.organization = source.procuringEntity?.name || release.buyer?.name || 'National Treasury OCDS';
+      tender.organOfState = tender.organization;
+      tender.rawCategory = source.category || source.mainProcurementCategory || 'Other';
+      tender.category = normalizedCategory;
+      tender.tenderNumber = source.id || release.ocid;
+      tender.referenceNumber = tender.tenderNumber;
+      tender.tenderType = source.procurementMethodDetails || source.mainProcurementCategory || '';
+      tender.province = source.province || '';
+      tender.location = source.deliveryLocation || source.province || 'South Africa';
+      tender.deliveryLocation = source.deliveryLocation || '';
+      tender.specialConditions = source.specialConditions || '';
+      tender.advertised = safeOcdsDate(source.tenderPeriod?.startDate || release.date).slice(0, 10);
+      tender.datePublished = tender.advertised;
+      tender.deadline = safeOcdsDate(source.tenderPeriod?.endDate).slice(0, 10);
+      tender.closingDate = tender.deadline;
+      tender.closingTime = safeOcdsDate(source.tenderPeriod?.endDate).slice(11, 16);
+      const amount = source.value?.amount ?? 0;
+      tender.value = amount > 0
+        ? new Intl.NumberFormat('en-ZA', { style: 'currency', currency: source.value?.currency || 'ZAR', maximumFractionDigits: 0 }).format(amount)
+        : 'Contact for details';
+      tender.sourceSite = 'National Treasury OCDS';
+      tender.sourceUrl = `${config.baseUrl}/api/OCDSReleases/release/${encodeURIComponent(release.ocid)}`;
+      tender.contact = {
+        contactPerson: source.contactPerson?.name || '',
+        email: source.contactPerson?.email || '',
+        telephone: source.contactPerson?.telephoneNumber || '',
+        fax: '',
+      };
+      tender.briefing = {
+        hasBriefingSession: Boolean(source.briefingSession?.isSession),
+        isCompulsory: Boolean(source.briefingSession?.compulsory),
+        date: safeOcdsDate(source.briefingSession?.date),
+        venue: source.briefingSession?.venue && source.briefingSession.venue !== 'N/A' ? source.briefingSession.venue : '',
+      };
+      tender.documents = (source.documents ?? [])
+        .filter((document) => Boolean(document.url))
+        .map((document) => ({
+          filename: document.title || document.description || 'tender-document.pdf',
+          url: document.url!,
+          dateUploaded: safeOcdsDate(document.datePublished),
+          extractedText: '',
+          extractionStatus: 'pending' as const,
+          pageCount: 0,
+        }));
+      tender.detailScraped = true;
+      tender.fullText = buildFullText(tender);
+      tenders.push(tender);
+    }
+
+    if (!payload.links?.next) break;
+    nextUrl = new URL(payload.links.next);
+  }
+
+  if (options?.extractPdfs !== false) await extractPdfsForTenders(tenders);
+  for (const tender of tenders) {
+    enrichScrapedTender(tender);
+    tender.fullText = buildFullText(tender);
+  }
+  return tenders;
+}
+
 // ─── eTenders.gov.za Scraper (Enhanced) ───────
 
 /**
@@ -479,7 +631,7 @@ function parseETenderDetailRow(
   tender.detailScraped = true;
 }
 
-async function scrapeETenders(config: ScraperConfig, options?: ScrapeOptions): Promise<ScrapedTender[]> {
+export async function scrapeETenders(config: ScraperConfig, options?: ScrapeOptions): Promise<ScrapedTender[]> {
   const tenders: ScrapedTender[] = [];
   const maxPages = options?.maxPages ?? 10;
   const shouldExtractPdfs = options?.extractPdfs !== false;
@@ -608,7 +760,9 @@ async function extractPdfsForTenders(tenders: ScrapedTender[]): Promise<{ extrac
       await new Promise(resolve => setTimeout(resolve, 500));
     }
 
-    // Rebuild full text with PDF content included
+    // Rebuild and structure fields with PDF content included.
+    tender.fullText = buildFullText(tender);
+    enrichScrapedTender(tender);
     tender.fullText = buildFullText(tender);
   }
 
@@ -807,10 +961,10 @@ export async function scrapeGenericUrl(url: string): Promise<ScrapedTender[]> {
 
 const scraperConfigs: ScraperConfig[] = [
   {
-    name: 'eTenders.gov.za',
+    name: 'National Treasury OCDS',
     enabled: true,
-    baseUrl: 'https://www.etenders.gov.za',
-    scrapeFunction: scrapeETenders,
+    baseUrl: 'https://ocds-api.etenders.gov.za',
+    scrapeFunction: scrapeOcdsReleases,
   },
   {
     name: 'TenderBulletins.co.za',

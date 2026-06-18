@@ -100,13 +100,27 @@ function RenewalCard({ item }: { item: RenewalItem }) {
                     </div>
                     
                     <div className="flex items-center gap-2 flex-shrink-0">
-                        <Link href={`/vault?docId=${item.documentId}`}>
-                            <Button variant="secondary" size="sm">
-                                <Upload size={14} className="mr-1" />
-                                Replace
-                            </Button>
-                        </Link>
+                        <Badge variant={item.urgency === 'expired' ? 'danger' : item.urgency === 'critical' ? 'warning' : 'default'} size="sm">
+                            {item.urgency === 'expired' ? 'Expired' : 'Expiring Soon'}
+                        </Badge>
                     </div>
+                </div>
+
+                <div className="mt-4 flex flex-wrap gap-2">
+                    <Link href="/knowledge">
+                        <Button variant="outline" size="sm">
+                            View renewal guide
+                        </Button>
+                    </Link>
+                    <Link href={`/vault?docId=${item.documentId}`}>
+                        <Button variant="secondary" size="sm">
+                            <Upload size={14} className="mr-1" />
+                            Upload new document
+                        </Button>
+                    </Link>
+                    <Button variant="ghost" size="sm">
+                        Request managed renewal
+                    </Button>
                 </div>
 
                 {/* Affected Tenders */}
@@ -208,8 +222,8 @@ export default function RenewalsPage() {
         return (
             <div className="space-y-6 max-w-4xl mx-auto">
                 <PageHeader
-                    title="Document Renewals"
-                    subtitle="Track and manage document renewals before they expire"
+                    title="Renewal Workflows"
+                    subtitle="Auto-triggered compliance tasks"
                     icon={<RefreshCw size={22} />}
                     iconColor="#059669"
                 />
@@ -233,8 +247,8 @@ export default function RenewalsPage() {
     return (
         <div className="space-y-6 max-w-4xl mx-auto">
             <PageHeader
-                title="Document Renewals"
-                subtitle="Track and manage document renewals before they expire"
+                title="Renewal Workflows"
+                subtitle="Auto-triggered compliance tasks"
                 icon={<RefreshCw size={22} />}
                 iconColor="#D97706"
             />

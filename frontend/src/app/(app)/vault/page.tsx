@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useMemo, useState, useRef } from 'react';
 import { useVaultDocuments, useUploadDocument } from '@/lib/hooks/useVault';
 import { useScore } from '@/lib/hooks/useScore';
 import { Table } from '@/components/ui/Table';
@@ -154,10 +154,24 @@ const CATEGORY_COLORS: Record<string, { bg: string; text: string; border: string
 };
 
 const ALL_CATEGORIES: DocumentUploadCategory[] = [...DOCUMENT_UPLOAD_CATEGORIES];
+const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
+const MAX_UPLOAD_MB = MAX_UPLOAD_BYTES / 1024 / 1024;
 const PRIORITY_ONBOARDING_CATEGORIES: DocumentUploadCategory[] = [
     'bbbee_certificate',
     'sars_pin',
     'cipc_registration',
+];
+
+type VaultFilterGroup = 'all' | 'company' | 'tax' | 'government' | 'industry' | 'labour' | 'compliance';
+
+const FILTER_GROUPS: Array<{ value: VaultFilterGroup; label: string; categories: DocumentUploadCategory[] }> = [
+    { value: 'all', label: 'All', categories: [...DOCUMENT_UPLOAD_CATEGORIES] },
+    { value: 'company', label: 'Company', categories: ['cipc_registration', 'company_profile', 'shareholder_register', 'director_ids', 'proof_of_address', 'lease_agreement'] },
+    { value: 'tax', label: 'Tax', categories: ['tax_clearance', 'sars_pin', 'vat_certificate'] },
+    { value: 'government', label: 'Government', categories: ['csd_supplier_summary', 'municipal_account', 'letter_good_standing', 'coida_certificate', 'nhbrc_certificate'] },
+    { value: 'industry', label: 'Industry', categories: ['financial_statements', 'bank_statement', 'bank_confirmation', 'iso_certificate'] },
+    { value: 'labour', label: 'Labour', categories: ['health_safety_plan', 'quality_management_policy', 'environmental_policy', 'public_liability_insurance', 'professional_indemnity'] },
+    { value: 'compliance', label: 'Compliance', categories: ['bbbee_certificate', 'bbbee_affidavit', 'cidb_certificate', 'poa_authority', 'joint_venture_agreement', 'other_compliance'] },
 ];
 
 const statusOptions = [
@@ -289,12 +303,14 @@ function UploadModal({
     open: boolean;
     onClose: () => void;
     initialCategory: DocumentUploadCategory | null;
-    onUpload: (data: { name: string; category: DocumentUploadCategory; file: File }) => void;
+    onUpload: (data: { name: string; category: DocumentUploadCategory; file: File }) => Promise<void> | void;
     isLoading: boolean;
 }) {
     const [name, setName] = useState('');
     const [category, setCategory] = useState<DocumentUploadCategory>(initialCategory ?? 'tax_clearance');
     const [file, setFile] = useState<File | null>(null);
+    const [fileError, setFileError] = useState<string | null>(null);
+    const [uploadError, setUploadError] = useState<string | null>(null);
     const [issueDate, setIssueDate] = useState('');
     const [expiryDate, setExpiryDate] = useState('');
     const fileRef = useRef<HTMLInputElement>(null);
@@ -302,9 +318,32 @@ function UploadModal({
     const meta = CATEGORY_META[category];
     const color = CATEGORY_COLORS[DOCUMENT_CATEGORY_GROUPS[category]];
 
-    const handleSubmit = () => {
+    const handleSubmit = async () => {
         if (!file) return;
-        onUpload({ name: name || file.name, category, file });
+        setUploadError(null);
+        if (file.size > MAX_UPLOAD_BYTES) {
+            setFileError(`File is too large. Maximum upload size is ${MAX_UPLOAD_MB} MB.`);
+            return;
+        }
+        try {
+            await onUpload({ name: name || file.name, category, file });
+        } catch (error) {
+            setUploadError(error instanceof Error ? error.message : 'Upload failed. Please try again.');
+        }
+    };
+
+    const handleFileChange = (selected: File | null) => {
+        setFile(selected);
+        setUploadError(null);
+        if (!selected) {
+            setFileError(null);
+            return;
+        }
+        if (selected.size > MAX_UPLOAD_BYTES) {
+            setFileError(`File is too large. Maximum upload size is ${MAX_UPLOAD_MB} MB.`);
+            return;
+        }
+        setFileError(null);
     };
 
     return (
@@ -319,7 +358,7 @@ function UploadModal({
                     <Button
                         onClick={handleSubmit}
                         loading={isLoading}
-                        disabled={!file}
+                        disabled={!file || Boolean(fileError)}
                         leftIcon={<Upload size={15} />}
                     >
                         Upload
@@ -382,13 +421,13 @@ function UploadModal({
                         <>
                             <p className="text-sm font-semibold" style={{ color: color.text }}>{file.name}</p>
                             <p className="text-xs text-[--color-text-muted]">
-                                {(file.size / 1024).toFixed(0)} KB · Click to change
+                                {(file.size / 1024 / 1024).toFixed(2)} MB · Click to change
                             </p>
                         </>
                     ) : (
                         <>
                             <p className="text-sm font-medium text-[--color-text-primary]">Click to select a file</p>
-                            <p className="text-xs text-[--color-text-muted]">PDF, DOC, JPG, PNG up to 10MB</p>
+                            <p className="text-xs text-[--color-text-muted]">PDF, DOC, JPG, PNG up to {MAX_UPLOAD_MB}MB</p>
                         </>
                     )}
                     <input
@@ -396,9 +435,19 @@ function UploadModal({
                         type="file"
                         className="hidden"
                         accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.xls,.xlsx,.txt"
-                        onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+                        onChange={(e) => handleFileChange(e.target.files?.[0] ?? null)}
                     />
                 </label>
+                {fileError && (
+                    <div className="rounded-xl border border-red-500/20 bg-red-500/5 px-4 py-3 text-sm text-[--color-danger]">
+                        {fileError}
+                    </div>
+                )}
+                {uploadError && (
+                    <div className="rounded-xl border border-red-500/20 bg-red-500/5 px-4 py-3 text-sm text-[--color-danger]">
+                        {uploadError}
+                    </div>
+                )}
             </div>
         </Modal>
     );
@@ -410,6 +459,7 @@ export default function VaultPage() {
     const searchParams = useSearchParams();
     const [statusFilter, setStatusFilter] = useState<DocumentStatus | ''>('');
     const [categoryFilter, setCategoryFilter] = useState<DocumentCategory | ''>('');
+    const [groupFilter, setGroupFilter] = useState<VaultFilterGroup>('all');
     const [uploadOpen, setUploadOpen] = useState(false);
     const [uploadCategory, setUploadCategory] = useState<DocumentUploadCategory | null>(null);
 
@@ -434,6 +484,10 @@ export default function VaultPage() {
     });
     const uploadMutation = useUploadDocument();
     const firstDocumentUploaded = allDocs.length === 1;
+    const visibleCategories = useMemo(() => {
+        const group = FILTER_GROUPS.find((item) => item.value === groupFilter) ?? FILTER_GROUPS[0];
+        return group.categories;
+    }, [groupFilter]);
 
     const openUpload = (cat: DocumentUploadCategory | null = null) => {
         setUploadCategory(cat);
@@ -512,7 +566,7 @@ export default function VaultPage() {
         <div className="space-y-6 max-w-7xl mx-auto">
             <PageHeader
                 title="Compliance Vault"
-                subtitle="Manage all compliance documents for your entity"
+                subtitle={`${countVerified} valid · ${countExpiringSoon} expiring · ${countExpired} expired`}
                 icon={<FolderLock size={22} />}
                 actions={
                     <Button leftIcon={<Plus size={16} />} onClick={() => openUpload(null)}>
@@ -520,6 +574,26 @@ export default function VaultPage() {
                     </Button>
                 }
             />
+
+            <div className="flex items-center gap-2 overflow-x-auto pb-1">
+                {FILTER_GROUPS.map((group) => {
+                    const active = groupFilter === group.value;
+                    return (
+                        <button
+                            key={group.value}
+                            type="button"
+                            onClick={() => setGroupFilter(group.value)}
+                            className={`whitespace-nowrap rounded-full border px-4 py-2 text-xs font-semibold transition-all ${
+                                active
+                                    ? 'border-teal-500 bg-teal-500/10 text-teal-700'
+                                    : 'border-[--color-border] bg-[--color-surface] text-[--color-text-muted] hover:text-[--color-text-primary]'
+                            }`}
+                        >
+                            {group.label}
+                        </button>
+                    );
+                })}
+            </div>
 
             {/* Stats */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -655,7 +729,7 @@ export default function VaultPage() {
                 </div>
                 {allDocsQuery.isLoading ? (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {ALL_CATEGORIES.map((c) => (
+                        {visibleCategories.map((c) => (
                             <div key={c} className="rounded-2xl border border-[--color-border] bg-[--color-surface] overflow-hidden">
                                 <div className="flex items-center gap-3 p-4 pb-3">
                                     <Skeleton className="w-10 h-10 rounded-xl" />
@@ -673,17 +747,28 @@ export default function VaultPage() {
                         ))}
                     </div>
                 ) : (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {ALL_CATEGORIES.map((cat) => (
-                            <CategoryCard
-                                key={cat}
-                                category={cat}
-                                docs={docsByCategory(cat)}
-                                onUpload={openUpload}
-                                onRowClick={(doc) => router.push(`/vault/${doc.id}`)}
-                            />
-                        ))}
-                    </div>
+                    visibleCategories.length === 0 ? (
+                        <Card className="py-12 text-center">
+                            <FileText size={28} className="mx-auto mb-3 text-[--color-text-muted]" />
+                            <p className="text-sm font-semibold text-[--color-text-primary]">No documents in this category yet</p>
+                            <p className="mt-1 text-xs text-[--color-text-muted]">Upload a document to populate this section.</p>
+                            <Button className="mt-4" leftIcon={<CloudUpload size={14} />} onClick={() => openUpload(null)}>
+                                Upload Document
+                            </Button>
+                        </Card>
+                    ) : (
+                        <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))' }}>
+                            {visibleCategories.map((cat) => (
+                                <CategoryCard
+                                    key={cat}
+                                    category={cat}
+                                    docs={docsByCategory(cat)}
+                                    onUpload={openUpload}
+                                    onRowClick={(doc) => router.push(`/vault/${doc.id}`)}
+                                />
+                            ))}
+                        </div>
+                    )
                 )}
             </div>
 

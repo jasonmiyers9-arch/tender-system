@@ -16,7 +16,7 @@ import { dropdown, T } from '@/lib/motion';
 const roleLabels: Record<string, string> = {
     admin: 'Administrator',
     super_admin: 'Super Admin',
-    evaluator: 'Evaluator',
+    evaluator: 'Tender Provider',
     user: 'Company User',
 };
 

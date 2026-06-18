@@ -9,7 +9,7 @@ import { existsSync } from 'node:fs';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { chatWithOpenRouter } from './openRouterClient';
 
 type PdfJsModule = {
   getDocument: (src: { data: Uint8Array; disableWorker?: boolean; useWorkerFetch?: boolean; isEvalSupported?: boolean; useSystemFonts?: boolean }) => {
@@ -625,7 +625,7 @@ export function isValidComplianceDocument(analysis: DocumentAnalysis): boolean {
   return true;
 }
 
-const _GEMINI_DOC_PROMPT = `You are analyzing a South African government compliance document.
+const DOCUMENT_ANALYSIS_PROMPT = `You are analyzing a South African government compliance document.
 Analyze the following extracted text and return ONLY a valid JSON object with no markdown formatting:
 {
   "documentType": one of ["tax","bbbee","registration","legal","financial","certification","insurance","cidb","csd"] or null,
@@ -647,9 +647,9 @@ Document text (first 8000 chars):
 `;
 
 /**
- * Analyse document content using Gemini 1.5 Flash.
+ * Analyse document content using the configured OpenRouter model.
  * Always runs the regex baseline first; AI result enriches it.
- * If Gemini fails for any reason, returns the regex baseline silently.
+ * If the AI call fails for any reason, returns the regex baseline silently.
  */
 export async function analyzeDocumentWithAI(
   text: string,
@@ -657,15 +657,31 @@ export async function analyzeDocumentWithAI(
 ): Promise<DocumentAnalysis> {
   const baseline = analyzeDocumentContent(text, pageCount);
 
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey || !text.trim()) return baseline;
+  if (!text.trim()) return baseline;
+
+  const result = await chatWithOpenRouter({
+    temperature: 0.1,
+    maxTokens: 700,
+    messages: [
+      {
+        role: 'system',
+        content:
+          'You extract structured facts from South African compliance documents. Return only valid JSON. No markdown.',
+      },
+      {
+        role: 'user',
+        content: DOCUMENT_ANALYSIS_PROMPT + text.slice(0, 8000),
+      },
+    ],
+  });
+
+  if (!result.ok) return baseline;
 
   try {
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
-    const result = await model.generateContent(_GEMINI_DOC_PROMPT + text.slice(0, 8000));
-    const raw = result.response.text().trim()
-      .replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '').trim();
+    const raw = result.content
+      .replace(/^```(?:json)?\n?/, '')
+      .replace(/\n?```$/, '')
+      .trim();
     const ai = JSON.parse(raw);
 
     return {
@@ -683,31 +699,39 @@ export async function analyzeDocumentWithAI(
       keywords:              ai.keywords?.length       ? ai.keywords        : baseline.keywords,
     };
   } catch (err) {
-    console.warn('Gemini document analysis failed — using regex baseline:', err);
+    console.warn('OpenRouter document analysis failed; using regex baseline:', err);
     return baseline;
   }
 }
 
 /**
- * Extract expiry date using Gemini. Falls back to regex if AI unavailable or fails.
+ * Extract expiry date using the configured OpenRouter model. Falls back to regex if AI unavailable or fails.
  */
 export async function extractExpiryDateWithAI(text: string): Promise<string | null> {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey || !text.trim()) return extractExpiryDate(text);
+  if (!text.trim()) return extractExpiryDate(text);
 
-  try {
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
-    const result = await model.generateContent(
-      'Extract only the expiry date or validity end date from this South African compliance document. ' +
-      'Return ONLY an ISO date string in "YYYY-MM-DD" format, or the exact word null if not found. ' +
-      'No other text, no markdown.\n\n' +
-      text.slice(0, 4000)
-    );
-    const raw = result.response.text().trim();
-    if (raw === 'null' || !/^\d{4}-\d{2}-\d{2}$/.test(raw)) return extractExpiryDate(text);
-    return raw;
-  } catch {
+  const result = await chatWithOpenRouter({
+    temperature: 0,
+    maxTokens: 20,
+    messages: [
+      {
+        role: 'system',
+        content: 'Return only an ISO date string in YYYY-MM-DD format, or the exact word null.',
+      },
+      {
+        role: 'user',
+        content:
+          'Extract only the expiry date or validity end date from this South African compliance document. No other text, no markdown.\n\n' +
+          text.slice(0, 4000),
+      },
+    ],
+  });
+
+  if (!result.ok) {
     return extractExpiryDate(text);
   }
+
+  const raw = result.content.trim();
+  if (raw === 'null' || !/^\d{4}-\d{2}-\d{2}$/.test(raw)) return extractExpiryDate(text);
+  return raw;
 }

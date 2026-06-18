@@ -159,7 +159,7 @@ export default function ProviderApplicationsPage() {
             <div className="space-y-6 max-w-7xl mx-auto">
                 <PageHeader
                     title="Applications"
-                    subtitle="Review and approve company applications for your tenders."
+                    subtitle="Review supplier applications submitted to your tenders."
                     icon={<ClipboardList size={22} />}
                     iconColor="#F59E0B"
                 />
@@ -179,7 +179,7 @@ export default function ProviderApplicationsPage() {
             <div className="space-y-6 max-w-7xl mx-auto">
                 <PageHeader
                     title="Applications"
-                    subtitle="Review and approve company applications for your tenders."
+                    subtitle="Review supplier applications submitted to your tenders."
                     icon={<ClipboardList size={22} />}
                     iconColor="#F59E0B"
                     actions={
@@ -205,7 +205,7 @@ export default function ProviderApplicationsPage() {
                         <EmptyState
                             icon={<ClipboardList size={28} />}
                             title="No applications"
-                            description={filter === 'all' ? 'No companies have applied to your tenders yet.' : `No ${filter} applications.`}
+                            description={filter === 'all' ? 'No suppliers have applied to your tenders yet.' : `No ${filter} applications.`}
                         />
                     </Card>
                 ) : (

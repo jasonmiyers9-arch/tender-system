@@ -54,6 +54,16 @@ interface ScrapeResult {
     categoriesScraped: string[];
 }
 
+interface AutomationRun {
+    id: string;
+    job: string;
+    status: 'success' | 'partial' | 'failed';
+    ok: boolean;
+    checkedAt: string;
+    errors: string[];
+    metrics: Record<string, number | string | boolean | null>;
+}
+
 interface ScrapedTender {
     title: string;
     organization: string;
@@ -89,6 +99,7 @@ interface ScraperStatus {
     customSources: CustomSource[];
     totalScrapedTenders: number;
     history: ScrapeResult[];
+    automationRuns: AutomationRun[];
     categories: string[];
 }
 
@@ -173,7 +184,10 @@ export default function ScraperPage() {
             if (errors.length) {
                 showMessage('error', errors.slice(0, 3).join(' | '));
             } else {
-                showMessage('success', `Scraped ${data.results?.reduce((s: number, r: ScrapeResult) => s + r.newTenders, 0) ?? 0} new tenders from ${data.results?.length ?? 0} sources`);
+                showMessage(
+                    'success',
+                    `Scraped ${data.results?.reduce((s: number, r: ScrapeResult) => s + r.newTenders, 0) ?? 0} new tenders from ${data.results?.length ?? 0} sources. Imported ${data.importedTenders ?? 0}; matched ${data.matchResult?.matchesCreated ?? 0} company recommendations.`
+                );
             }
             await fetchStatus();
             await fetchTenders();
@@ -196,7 +210,10 @@ export default function ScraperPage() {
             if (data.result?.errors?.length) {
                 showMessage('error', data.result.errors.slice(0, 3).join(' | '));
             } else {
-                showMessage('success', `${sourceName}: ${data.result?.newTenders ?? 0} new tenders`);
+                showMessage(
+                    'success',
+                    `${sourceName}: ${data.result?.newTenders ?? 0} new tenders. Imported ${data.importedTenders ?? 0}; matched ${data.matchResult?.matchesCreated ?? 0} company recommendations.`
+                );
             }
             await fetchStatus();
             await fetchTenders();
@@ -475,6 +492,31 @@ export default function ScraperPage() {
                     ))}
                 </div>
             </Card>
+
+            {status?.automationRuns && status.automationRuns.length > 0 && (
+                <Card>
+                    <h3 className="text-base font-semibold text-[--color-text-primary] mb-3">Automation Runs</h3>
+                    <div className="space-y-2">
+                        {status.automationRuns.slice(0, 10).map((run) => (
+                            <div key={run.id} className="flex flex-col gap-2 rounded-lg border border-[--color-border] bg-[--color-surface-alt] p-3 sm:flex-row sm:items-center sm:justify-between">
+                                <div className="flex items-center gap-3">
+                                    {run.ok ? <CheckCircle2 size={16} className="text-emerald-500" /> : <AlertCircle size={16} className="text-red-500" />}
+                                    <div>
+                                        <p className="text-sm font-medium text-[--color-text-primary]">{run.job.replaceAll('_', ' ')}</p>
+                                        <p className="text-xs text-[--color-text-muted]">{new Date(run.checkedAt).toLocaleString('en-ZA')}</p>
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-3 text-xs text-[--color-text-muted]">
+                                    {typeof run.metrics.durationMs === 'number' && <span>{(run.metrics.durationMs / 1000).toFixed(1)}s</span>}
+                                    {typeof run.metrics.importedTenders === 'number' && <span>{run.metrics.importedTenders} imported</span>}
+                                    {run.errors.length > 0 && <span className="font-medium text-red-600">{run.errors.length} errors</span>}
+                                    <Badge variant={run.ok ? 'success' : 'danger'}>{run.status}</Badge>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </Card>
+            )}
 
             {/* Scrape History */}
             {status?.history && status.history.length > 0 && (

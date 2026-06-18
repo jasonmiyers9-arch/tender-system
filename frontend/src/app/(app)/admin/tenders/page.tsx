@@ -51,7 +51,7 @@ function deadlineLabel(deadline: string): { text: string; expired: boolean; soon
 
 function sourceLabel(t: TenderMatch): string {
     if (!t.createdBy) return 'Scraped';
-    return 'Evaluator';
+    return 'Tender Provider';
 }
 
 function effectiveStatus(t: TenderMatch): string {

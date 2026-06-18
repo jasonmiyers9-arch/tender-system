@@ -84,6 +84,16 @@ export async function PATCH(req: Request) {
   }
 
   try {
+    if (payload.csd_number !== undefined && payload.csdNumber === undefined) {
+      payload.csdNumber = payload.csd_number;
+    }
+    if (payload.bbbee_level !== undefined && payload.bbbeeLevel === undefined) {
+      payload.bbbeeLevel = payload.bbbee_level;
+    }
+    if (payload.cidb_grade !== undefined && payload.cidbGrade === undefined) {
+      payload.cidbGrade = payload.cidb_grade;
+    }
+
     const company = await updateCompanyProfile(companyId, payload);
     return NextResponse.json(company);
   } catch (error) {

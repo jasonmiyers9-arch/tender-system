@@ -42,6 +42,49 @@ function scrapedTenderId(tender: ScrapedTender): string {
   return `scraped-${createHash('sha256').update(raw).digest('hex').slice(0, 24)}`;
 }
 
+function numericTenderValue(value: string): number | null {
+  const normalized = value.replace(/,/g, '').match(/\d+(?:\.\d+)?/);
+  if (!normalized) return null;
+  const amount = Number(normalized[0]);
+  return Number.isFinite(amount) ? amount : null;
+}
+
+function applyDiscoveryFilters(items: TenderMatch[], params: URLSearchParams): TenderMatch[] {
+  const query = params.get('q')?.trim().toLowerCase() || '';
+  const province = params.get('province')?.trim().toLowerCase() || '';
+  const category = params.get('category')?.trim().toLowerCase() || '';
+  const buyer = params.get('buyer')?.trim().toLowerCase() || '';
+  const tenderType = params.get('tenderType')?.trim().toLowerCase() || '';
+  const briefing = params.get('briefing');
+  const closingWithin = Number(params.get('closingWithin'));
+  const minValue = Number(params.get('minValue'));
+  const maxValue = Number(params.get('maxValue'));
+  const now = Date.now();
+
+  return items.filter((item) => {
+    if (query) {
+      const haystack = [item.title, item.description, item.organization, item.tenderNumber, item.category, item.province, item.location]
+        .filter(Boolean).join(' ').toLowerCase();
+      if (!haystack.includes(query)) return false;
+    }
+    if (province && (item.province || item.location || '').toLowerCase() !== province) return false;
+    if (category && item.category.toLowerCase() !== category) return false;
+    if (buyer && !item.organization.toLowerCase().includes(buyer)) return false;
+    if (tenderType && !(item.tenderType || '').toLowerCase().includes(tenderType)) return false;
+    if (briefing === 'true' && !item.briefing?.hasBriefingSession) return false;
+    if (briefing === 'compulsory' && !item.briefing?.isCompulsory) return false;
+    if (Number.isFinite(closingWithin) && closingWithin > 0) {
+      const deadline = new Date(item.deadline).getTime();
+      const days = Math.ceil((deadline - now) / 86_400_000);
+      if (!Number.isFinite(deadline) || days < 0 || days > closingWithin) return false;
+    }
+    const value = numericTenderValue(item.value);
+    if (Number.isFinite(minValue) && minValue > 0 && (value === null || value < minValue)) return false;
+    if (Number.isFinite(maxValue) && maxValue > 0 && (value === null || value > maxValue)) return false;
+    return true;
+  });
+}
+
 function inferRequiredCategoriesFromScrapedTender(tender: ScrapedTender): TenderRequirements {
   const text = [
     tender.category,
@@ -154,7 +197,12 @@ export async function GET(req: Request) {
   const scrapedMatches = getScrapedTenders()
     .filter((tender) => categoryMatches(tender.category, companyCategories, tender.fullText || tender.description || tender.title))
     .map((tender) => mapScrapedTenderToMatch(tender, companyCategories));
-  const allItems = [...scrapedMatches, ...items];
+  const deduplicated = new Map<string, TenderMatch>();
+  for (const item of [...scrapedMatches, ...items]) {
+    const key = `${item.sourceSite || item.organization}|${item.tenderNumber || item.title}|${item.deadline}`.toLowerCase();
+    deduplicated.set(key, item);
+  }
+  const allItems = applyDiscoveryFilters([...deduplicated.values()], url.searchParams);
   
   // If company context available, enrich with readiness scores
   if (companyId) {

@@ -1,4 +1,5 @@
-import admin from 'firebase-admin';
+import { cert, getApps, initializeApp, type App } from 'firebase-admin/app';
+import { getStorage } from 'firebase-admin/storage';
 import { mkdirSync, writeFileSync, existsSync, rmSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -26,8 +27,8 @@ function normalizePrivateKey(key?: string): string | null {
 }
 
 function initializeFirebaseAdmin() {
-  if (admin.apps.length) {
-    return admin;
+  if (getApps().length) {
+    return getApps()[0];
   }
 
   const privateKey = normalizePrivateKey(rawPrivateKey);
@@ -35,8 +36,8 @@ function initializeFirebaseAdmin() {
     throw new Error('Firebase admin storage is not configured. Set FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY, and FIREBASE_STORAGE_BUCKET.');
   }
 
-  admin.initializeApp({
-    credential: admin.credential.cert({
+  return initializeApp({
+    credential: cert({
       projectId,
       clientEmail,
       privateKey,
@@ -44,12 +45,11 @@ function initializeFirebaseAdmin() {
     storageBucket,
   });
 
-  return admin;
 }
 
 function getBucket() {
   const adminApp = initializeFirebaseAdmin();
-  return adminApp.storage().bucket(storageBucket);
+  return getStorage(adminApp as App).bucket(storageBucket);
 }
 
 export function isFirebaseStorageConfigured() {

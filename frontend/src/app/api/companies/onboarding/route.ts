@@ -1,5 +1,12 @@
 import { NextResponse } from 'next/server';
-import { getUserByToken, updateCompanyProfile, getCompanyById, getUserOnboardingStatus } from '@/lib/server/firestoreService';
+import {
+  ensureUserCompanyContext,
+  getCompanyById,
+  getUserByToken,
+  getUserOnboardingStatus,
+  listCompaniesForUser,
+  updateCompanyProfile,
+} from '@/lib/server/firestoreService';
 import { publishRescoreEvent } from '@/lib/server/analystEngine';
 
 function parseToken(req: Request): string | null {
@@ -16,8 +23,21 @@ export async function POST(req: Request) {
   }
 
   const user = await getUserByToken(token);
-  if (!user || !user.activeCompanyId) {
+  if (!user) {
     return NextResponse.json({ detail: 'Unauthorized' }, { status: 401 });
+  }
+
+  let companyId = user.activeCompanyId ?? null;
+  if (!companyId) {
+    const companies = await listCompaniesForUser(user.id);
+    companyId = companies[0]?.id ?? null;
+  }
+  if (!companyId) {
+    const ensured = await ensureUserCompanyContext(user.id);
+    companyId = ensured?.id ?? null;
+  }
+  if (!companyId) {
+    return NextResponse.json({ detail: 'Company context required' }, { status: 400 });
   }
 
   const body = await req.json();
@@ -29,12 +49,12 @@ export async function POST(req: Request) {
     province: String(body.province ?? '').trim() || null,
   };
 
-  const company = await getCompanyById(user.activeCompanyId);
+  const company = await getCompanyById(companyId);
   if (!company) {
     return NextResponse.json({ detail: 'Company not found' }, { status: 404 });
   }
 
-  const updatedCompany = await updateCompanyProfile(user.activeCompanyId, {
+  const updatedCompany = await updateCompanyProfile(companyId, {
     industry: allowedFields.industry_sector ?? company.industry,
     province: allowedFields.province ?? company.province ?? null,
     csdNumber: allowedFields.csd_number ?? company.csdNumber ?? null,
@@ -47,7 +67,7 @@ export async function POST(req: Request) {
     phone: company.phone,
     website: company.website,
   });
-  const priorityDocs = await getUserOnboardingStatus(user);
+  const priorityDocs = await getUserOnboardingStatus({ ...user, activeCompanyId: companyId, companyId });
   const profileComplete = Boolean(
     updatedCompany.csdNumber &&
     updatedCompany.bbbeeLevel &&
@@ -58,7 +78,7 @@ export async function POST(req: Request) {
 
   await publishRescoreEvent({
     eventType: 'company.updated',
-    companyId: user.activeCompanyId,
+    companyId,
     actorUserId: user.id,
     metadata: {
       updatedFields: Object.keys(allowedFields).filter((key) => allowedFields[key as keyof typeof allowedFields] !== null),

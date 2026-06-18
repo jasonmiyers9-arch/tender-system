@@ -225,13 +225,13 @@ export default function RegisterPage() {
                                 onChange={e => setFormData({ ...formData, role: e.target.value as 'company' | 'tender_provider' })}
                             >
                                 <option value="company">Company</option>
-                                <option value="tender_provider">Evaluator</option>
+                                <option value="tender_provider">Tender Provider</option>
                             </select>
                         </div>
 
                         <>
                             <Input
-                                label={formData.role === 'tender_provider' ? 'Evaluator Organisation Name' : 'Company Name'}
+                                label={formData.role === 'tender_provider' ? 'Provider Organisation Name' : 'Company Name'}
                                 placeholder={formData.role === 'tender_provider' ? 'e.g. City Infrastructure Dept' : 'e.g. Acme Infra (Pty) Ltd'}
                                 required
                                 value={formData.companyName}

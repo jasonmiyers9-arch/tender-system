@@ -209,6 +209,20 @@ The root `netlify.toml` configures:
 
 Set environment variables in the Netlify dashboard (same keys as `.env.local`).
 
+### Scheduled automation
+
+Netlify scheduled functions are included under `frontend/netlify/functions/`. Netlify evaluates schedules in UTC:
+
+| Job | UTC | SAST |
+|-----|-----|------|
+| Tender ingestion | 03:00 daily | 05:00 daily |
+| Tender matching | 03:30 daily | 05:30 daily |
+| Expiry checks | 04:00 daily | 06:00 daily |
+| Tender alerts/digests | 05:00 daily | 07:00 daily |
+| Score snapshots | 21:59 daily | 23:59 daily |
+
+Set `CRON_SECRET` and Firebase Admin credentials before publishing. Verify each function in **Netlify → Functions** using **Run now** after the first production deploy.
+
 ---
 
 ## Troubleshooting

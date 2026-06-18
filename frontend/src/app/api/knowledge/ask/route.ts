@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getUserByToken, listCompaniesForUser, getDocumentById, ensureUserCompanyContext } from '@/lib/server/firestoreService';
-import { getOpenRouterRuntimeConfig } from '@/lib/server/aiSettingsService';
+import { chatWithOpenRouter } from '@/lib/server/openRouterClient';
 
 function parseToken(req: Request): string | null {
   const header = req.headers.get('authorization');
@@ -8,8 +8,6 @@ function parseToken(req: Request): string | null {
   const [type, token] = header.split(' ');
   return type.toLowerCase() === 'bearer' ? token : null;
 }
-
-const FALLBACK_MODEL = 'openai/gpt-oss-120b:free';
 
 function localAnswer(question: string, extractedText: string | null | undefined): string {
   const source = (extractedText ?? '').trim();
@@ -79,79 +77,43 @@ export async function POST(req: Request) {
   const extractedText = document.extractedText?.trim() || '';
   const summary = document.aiSummary?.trim() || '';
 
-  const runtime = await getOpenRouterRuntimeConfig();
-  const apiKey = runtime.apiKey;
-  const model = FALLBACK_MODEL;
+  const contextText = [
+    summary ? `AI Summary:\n${summary}` : '',
+    extractedText ? `Extracted Text:\n${extractedText.slice(0, 24000)}` : '',
+  ]
+    .filter(Boolean)
+    .join('\n\n');
 
-  if (!apiKey) {
-    return NextResponse.json({
-      answer: localAnswer(question, extractedText),
-      model: 'local-fallback',
-      source: 'fallback',
-    });
-  }
-
-  try {
-    const contextText = [
-      summary ? `AI Summary:\n${summary}` : '',
-      extractedText ? `Extracted Text:\n${extractedText.slice(0, 24000)}` : '',
-    ]
-      .filter(Boolean)
-      .join('\n\n');
-
-    const completion = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
+  const completion = await chatWithOpenRouter({
+    temperature: 0.2,
+    maxTokens: 700,
+    messages: [
+      {
+        role: 'system',
+        content:
+          'You are a compliance document assistant. Answer strictly from the provided document context. If context is insufficient, say so clearly.',
       },
-      body: JSON.stringify({
-        model,
-        temperature: 0.2,
-        max_tokens: 700,
-        messages: [
-          {
-            role: 'system',
-            content:
-              'You are a compliance document assistant. Answer strictly from the provided document context. If context is insufficient, say so clearly.',
-          },
-          {
-            role: 'user',
-            content: `Question: ${question}\n\nDocument context:\n${contextText || 'No extracted context available.'}`,
-          },
-        ],
-      }),
-    });
+      {
+        role: 'user',
+        content: `Question: ${question}\n\nDocument context:\n${contextText || 'No extracted context available.'}`,
+      },
+    ],
+  });
 
-    if (!completion.ok) {
-      throw new Error(`OpenRouter request failed (${completion.status})`);
-    }
-
-    const json = (await completion.json()) as {
-      choices?: Array<{ message?: { content?: string } }>;
-      model?: string;
-    };
-
-    const answer = json.choices?.[0]?.message?.content?.trim();
-    if (!answer) {
-      return NextResponse.json({
-        answer: localAnswer(question, extractedText),
-        model: 'local-fallback',
-        source: 'fallback',
-      });
-    }
-
+  if (completion.ok) {
     return NextResponse.json({
-      answer,
-      model: json.model ?? model,
+      answer: completion.content,
+      model: completion.model,
       source: 'openrouter',
     });
-  } catch (error) {
-    console.warn('Knowledge ask fallback:', error);
-    return NextResponse.json({
-      answer: localAnswer(question, extractedText),
-      model: 'local-fallback',
-      source: 'fallback',
-    });
   }
+
+  if (completion.reason !== 'no_api_key') {
+    console.warn('Knowledge ask fallback:', completion);
+  }
+  return NextResponse.json({
+    answer: localAnswer(question, extractedText),
+    model: 'local-fallback',
+    source: 'fallback',
+  });
 }

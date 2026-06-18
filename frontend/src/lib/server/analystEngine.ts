@@ -1,4 +1,4 @@
-import { getOpenRouterRuntimeConfig } from './aiSettingsService';
+import { chatWithOpenRouter } from './openRouterClient';
 import {
   calculateTenderMatchScore,
   generateComplianceProfile,
@@ -18,8 +18,6 @@ import { TENDER_ANALYST_SYSTEM_PROMPT, ANALYST_PROMPT_VERSION } from './aiPrompt
 import type { TenderDetail, TenderMatch } from '@/lib/api/types';
 
 const MAX_ABS_SCORE_DELTA = 10;
-const FALLBACK_MODEL = 'openai/gpt-oss-120b:free';
-
 type LlmAdjustmentPayload = {
   delta: number;
   confidence: number;
@@ -93,22 +91,6 @@ export async function applyHybridScoreAdjustment(input: {
   tenderContext: { id: string; title: string; description?: string; requirements?: string[]; eligibilityCriteria?: string[] };
 }): Promise<HybridAdjustmentResult> {
   const deterministicScore = input.deterministic.matchScore;
-  const runtime = await getOpenRouterRuntimeConfig();
-  const apiKey = runtime.apiKey;
-  const model = runtime.model || FALLBACK_MODEL;
-
-  if (!apiKey) {
-    return {
-      adjustedScore: deterministicScore,
-      llmDeltaApplied: 0,
-      confidenceScore: input.deterministic.confidenceScore,
-      reasonCodes: ['no_api_key', 'deterministic_fallback'],
-      analystSummary: input.deterministic.recommendation,
-      model: 'deterministic-fallback',
-      promptVersion: ANALYST_PROMPT_VERSION,
-      source: 'deterministic',
-    };
-  }
 
   const payload = {
     deterministicScore,
@@ -136,89 +118,69 @@ export async function applyHybridScoreAdjustment(input: {
     },
   };
 
-  try {
-    const completion = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
+  const completion = await chatWithOpenRouter({
+    temperature: 0.1,
+    maxTokens: 350,
+    messages: [
+      {
+        role: 'system',
+        content: TENDER_ANALYST_SYSTEM_PROMPT,
       },
-      body: JSON.stringify({
-        model,
-        temperature: 0.1,
-        max_tokens: 350,
-        messages: [
-          {
-            role: 'system',
-            content: TENDER_ANALYST_SYSTEM_PROMPT,
-          },
-          {
-            role: 'user',
-            content: JSON.stringify(payload),
-          },
-        ],
-      }),
-    });
+      {
+        role: 'user',
+        content: JSON.stringify(payload),
+      },
+    ],
+  });
 
-    if (!completion.ok) {
-      return {
-        adjustedScore: deterministicScore,
-        llmDeltaApplied: 0,
-        confidenceScore: input.deterministic.confidenceScore,
-        reasonCodes: ['llm_unavailable', 'deterministic_fallback'],
-        analystSummary: input.deterministic.recommendation,
-        model,
-        promptVersion: ANALYST_PROMPT_VERSION,
-        source: 'deterministic',
-      };
-    }
-
-    const json = (await completion.json()) as { choices?: Array<{ message?: { content?: string } }> };
-    const content = json.choices?.[0]?.message?.content?.trim() ?? '';
-    const parsed = parseAdjustmentResponse(content);
-
-    if (!parsed) {
-      return {
-        adjustedScore: deterministicScore,
-        llmDeltaApplied: 0,
-        confidenceScore: input.deterministic.confidenceScore,
-        reasonCodes: ['llm_response_invalid', 'deterministic_fallback'],
-        analystSummary: input.deterministic.recommendation,
-        model,
-        promptVersion: ANALYST_PROMPT_VERSION,
-        source: 'deterministic',
-      };
-    }
-
-    const cappedDelta = clamp(parsed.delta, -MAX_ABS_SCORE_DELTA, MAX_ABS_SCORE_DELTA);
-    const adjustedScore = clamp(Math.round(deterministicScore + cappedDelta), 0, 100);
-    const reasonCodes: HybridAdjustmentReasonCode[] = ['llm_adjustment_applied'];
-    if (cappedDelta !== parsed.delta) {
-      reasonCodes.push('llm_adjustment_capped');
-    }
-
-    return {
-      adjustedScore,
-      llmDeltaApplied: cappedDelta,
-      confidenceScore: Math.round((input.deterministic.confidenceScore * 0.7) + (parsed.confidence * 0.3)),
-      reasonCodes,
-      analystSummary: parsed.summary || input.deterministic.recommendation,
-      model,
-      promptVersion: ANALYST_PROMPT_VERSION,
-      source: 'hybrid',
-    };
-  } catch {
+  if (!completion.ok) {
     return {
       adjustedScore: deterministicScore,
       llmDeltaApplied: 0,
       confidenceScore: input.deterministic.confidenceScore,
-      reasonCodes: ['llm_exception', 'deterministic_fallback'],
+      reasonCodes: [
+        completion.reason === 'no_api_key' ? 'no_api_key' : 'llm_unavailable',
+        'deterministic_fallback',
+      ],
       analystSummary: input.deterministic.recommendation,
-      model,
+      model: completion.reason === 'no_api_key' ? 'deterministic-fallback' : completion.model,
       promptVersion: ANALYST_PROMPT_VERSION,
       source: 'deterministic',
     };
   }
+
+  const parsed = parseAdjustmentResponse(completion.content);
+
+  if (!parsed) {
+    return {
+      adjustedScore: deterministicScore,
+      llmDeltaApplied: 0,
+      confidenceScore: input.deterministic.confidenceScore,
+      reasonCodes: ['llm_response_invalid', 'deterministic_fallback'],
+      analystSummary: input.deterministic.recommendation,
+      model: completion.model,
+      promptVersion: ANALYST_PROMPT_VERSION,
+      source: 'deterministic',
+    };
+  }
+
+  const cappedDelta = clamp(parsed.delta, -MAX_ABS_SCORE_DELTA, MAX_ABS_SCORE_DELTA);
+  const adjustedScore = clamp(Math.round(deterministicScore + cappedDelta), 0, 100);
+  const reasonCodes: HybridAdjustmentReasonCode[] = ['llm_adjustment_applied'];
+  if (cappedDelta !== parsed.delta) {
+    reasonCodes.push('llm_adjustment_capped');
+  }
+
+  return {
+    adjustedScore,
+    llmDeltaApplied: cappedDelta,
+    confidenceScore: Math.round((input.deterministic.confidenceScore * 0.7) + (parsed.confidence * 0.3)),
+    reasonCodes,
+    analystSummary: parsed.summary || input.deterministic.recommendation,
+    model: completion.model,
+    promptVersion: ANALYST_PROMPT_VERSION,
+    source: 'hybrid',
+  };
 }
 
 function mapSeverityToPriorityScore(action: PriorityAction): number {

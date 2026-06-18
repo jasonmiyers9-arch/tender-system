@@ -1,5 +1,7 @@
-import admin from 'firebase-admin';
-import type { Firestore } from 'firebase-admin/firestore';
+import { cert, getApps, initializeApp } from 'firebase-admin/app';
+import { getAuth } from 'firebase-admin/auth';
+import { getFirestore as getAdminFirestore, type Firestore } from 'firebase-admin/firestore';
+import { getStorage as getAdminStorage } from 'firebase-admin/storage';
 import type { Bucket } from '@google-cloud/storage';
 
 const projectId = process.env.FIREBASE_PROJECT_ID;
@@ -13,20 +15,18 @@ let initialized = false;
 
 if (projectId && clientEmail && privateKey) {
   try {
-    if (!admin.apps.length) {
-      admin.initializeApp({
-        credential: admin.credential.cert({
+    const app = getApps()[0] ?? initializeApp({
+        credential: cert({
           projectId,
           clientEmail,
           privateKey,
         }),
         storageBucket: storageBucket,
       });
-    }
-    firestore = admin.firestore();
+    firestore = getAdminFirestore(app);
     firestore.settings({ ignoreUndefinedProperties: true });
     if (storageBucket) {
-      bucket = admin.storage().bucket();
+      bucket = getAdminStorage(app).bucket();
     }
     initialized = true;
   } catch (error) {
@@ -54,7 +54,7 @@ export function isStorageAvailable() {
 }
 
 export function isFirebaseAdminConfigured() {
-  return initialized && admin.apps.length > 0;
+  return initialized && getApps().length > 0;
 }
 
 export function requireFirestore() {
@@ -134,7 +134,7 @@ export async function verifyIdToken(idToken: string) {
   if (!isFirebaseAdminConfigured()) {
     throw new Error('Firebase Admin is not configured for token verification.');
   }
-  return admin.auth().verifyIdToken(idToken);
+  return getAuth().verifyIdToken(idToken);
 }
 
 export async function createEmailPasswordUser(payload: {
@@ -146,7 +146,7 @@ export async function createEmailPasswordUser(payload: {
     throw new Error('Firebase Admin is not configured for user provisioning.');
   }
 
-  return admin.auth().createUser({
+  return getAuth().createUser({
     email: payload.email,
     password: payload.password,
     displayName: payload.displayName,
@@ -158,19 +158,19 @@ export async function deleteAuthUser(uid: string) {
     throw new Error('Firebase Admin is not configured for user provisioning.');
   }
 
-  await admin.auth().deleteUser(uid);
+  await getAuth().deleteUser(uid);
 }
 
 export async function generatePasswordResetLink(email: string): Promise<string> {
   if (!isFirebaseAdminConfigured()) {
     throw new Error('Firebase Admin is not configured for password reset.');
   }
-  return admin.auth().generatePasswordResetLink(email);
+  return getAuth().generatePasswordResetLink(email);
 }
 
 export async function generateEmailVerificationLink(email: string): Promise<string> {
   if (!isFirebaseAdminConfigured()) {
     throw new Error('Firebase Admin is not configured for email verification.');
   }
-  return admin.auth().generateEmailVerificationLink(email);
+  return getAuth().generateEmailVerificationLink(email);
 }

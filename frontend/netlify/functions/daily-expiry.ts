@@ -1,23 +1,8 @@
-export const config = {
-  schedule: '0 4 * * *',
-};
-
-function siteUrl(): string {
-  const url = process.env.URL || process.env.DEPLOY_PRIME_URL || process.env.SITE_URL;
-  if (!url) throw new Error('URL, DEPLOY_PRIME_URL, or SITE_URL must be set');
-  return url.replace(/\/$/, '');
-}
+import type { Config } from '@netlify/functions';
+import { invokeCronRoute } from './_shared/invoke-cron';
 
 export default async function handler() {
-  const response = await fetch(`${siteUrl()}/api/cron/expiry`, {
-    method: 'POST',
-    headers: {
-      'x-cron-secret': process.env.CRON_SECRET || '',
-    },
-  });
-
-  return new Response(await response.text(), {
-    status: response.status,
-    headers: { 'content-type': response.headers.get('content-type') || 'application/json' },
-  });
+  return invokeCronRoute('/api/cron/expiry');
 }
+
+export const config: Config = { schedule: '0 4 * * *' };

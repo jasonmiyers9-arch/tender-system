@@ -15,6 +15,8 @@ import {
 } from '@/lib/server/tenderScraper';
 import type { ScrapeOptions } from '@/lib/server/tenderScraper';
 import { TENDER_CATEGORIES } from '@/lib/server/tenderCategories';
+import { importAndMatchScrapedTenders, importScrapedTenders } from '@/lib/server/scheduledJobs';
+import { listScheduledJobRuns } from '@/lib/server/firestoreService';
 
 function getManualScrapeOptions(body: Record<string, unknown>): ScrapeOptions {
   const deep = body.deep === true;
@@ -34,7 +36,7 @@ function getManualScrapeOptions(body: Record<string, unknown>): ScrapeOptions {
 
 // GET /api/tenders/scrape — Get scraper status, history, and scraped tenders
 export async function GET(req: Request) {
-  const { user, error } = await requireRole(req, ['admin', 'evaluator']);
+  const { error } = await requireRole(req, ['admin', 'evaluator']);
   if (error) return error;
 
   const url = new URL(req.url);
@@ -83,13 +85,14 @@ export async function GET(req: Request) {
     customSources: getCustomSources(),
     totalScrapedTenders: getScrapedTenderCount(),
     history: getScrapeHistory().slice(0, 20),
+    automationRuns: await listScheduledJobRuns(20),
     categories: TENDER_CATEGORIES,
   });
 }
 
 // POST /api/tenders/scrape — Trigger scraping or manage sources
 export async function POST(req: Request) {
-  const { user, error } = await requireRole(req, ['admin']);
+  const { error } = await requireRole(req, ['admin']);
   if (error) return error;
 
   try {
@@ -101,10 +104,14 @@ export async function POST(req: Request) {
         const options = getManualScrapeOptions(body);
         const results = await runScrapeAll(options);
         const hasErrors = results.some((result) => result.errors.length > 0);
+        const recommendationResult = await importScrapedTenders();
         return NextResponse.json({
           message: 'Scraping completed',
           results,
           totalScrapedTenders: getScrapedTenderCount(),
+          importedTenders: recommendationResult.importedTenderIds.length,
+          skippedDuplicates: recommendationResult.skippedDuplicates,
+          matchResult: null,
         }, { status: hasErrors ? 207 : 200 });
       }
 
@@ -114,10 +121,14 @@ export async function POST(req: Request) {
           return NextResponse.json({ detail: 'sourceName is required' }, { status: 400 });
         }
         const result = await runScrapeSingle(sourceName, getManualScrapeOptions(body));
+        const recommendationResult = await importScrapedTenders();
         return NextResponse.json({
           message: `Scraped ${sourceName}`,
           result,
           totalScrapedTenders: getScrapedTenderCount(),
+          importedTenders: recommendationResult.importedTenderIds.length,
+          skippedDuplicates: recommendationResult.skippedDuplicates,
+          matchResult: null,
         }, { status: result.errors.length ? 207 : 200 });
       }
 
@@ -133,10 +144,14 @@ export async function POST(req: Request) {
           return NextResponse.json({ detail: 'Invalid URL format' }, { status: 400 });
         }
         const tenders = await scrapeGenericUrl(url);
+        const recommendationResult = await importScrapedTenders();
         return NextResponse.json({
           message: `Scraped ${url}`,
           tenders,
           count: tenders.length,
+          importedTenders: recommendationResult.importedTenderIds.length,
+          skippedDuplicates: recommendationResult.skippedDuplicates,
+          matchResult: null,
         });
       }
 
@@ -180,43 +195,16 @@ export async function POST(req: Request) {
       }
 
       case 'import-to-system': {
-        // Import scraped tenders as system tenders in the database
-        // This converts scraped tenders into actual TenderMatch entries
-        const tenderIds = body.tenderIds as string[] | undefined;
-        const scraped = getScrapedTenders();
-        const toImport = tenderIds
-          ? scraped.filter((_, i) => tenderIds.includes(String(i)))
-          : scraped;
-
-        // We return the formatted data - the admin UI will call POST /api/tenders for each
-        const formatted = toImport.map(t => ({
-          title: t.title,
-          organization: t.organization || t.organOfState,
-          deadline: t.deadline,
-          value: t.value,
-          category: t.category,
-          location: t.location,
-          description: t.description,
-          requirements: t.requirements,
-          eligibilityCriteria: t.eligibilityCriteria,
-          required_categories: [],
-          status: 'published' as const,
-          referenceNumber: t.referenceNumber || t.tenderNumber,
-          sourceUrl: t.sourceUrl,
-          sourceSite: t.sourceSite,
-          province: t.province,
-          tenderNumber: t.tenderNumber,
-          tenderType: t.tenderType,
-          contact: t.contact,
-          briefing: t.briefing,
-          documents: t.documents,
-          fullText: t.fullText,
-        }));
+        const recommendationResult = await importAndMatchScrapedTenders();
+        const matchErrors = recommendationResult.matchResult.errors ?? [];
 
         return NextResponse.json({
-          message: `${formatted.length} tenders ready for import`,
-          tenders: formatted,
-        });
+          message: `${recommendationResult.importedTenderIds.length} tenders imported and matched to companies`,
+          importedTenders: recommendationResult.importedTenderIds.length,
+          importedTenderIds: recommendationResult.importedTenderIds,
+          skippedDuplicates: recommendationResult.skippedDuplicates,
+          matchResult: recommendationResult.matchResult,
+        }, { status: matchErrors.length ? 207 : 200 });
       }
 
       default:

@@ -3,8 +3,8 @@
 import { useEffect, useMemo, useState, Fragment } from 'react';
 import { motion } from 'motion/react';
 import {
-    Activity, AlertCircle, AlertTriangle, Bell, CheckCircle2, ChevronDown,
-    Download, Filter, Gauge, Globe, Heart, Key, RefreshCw, Shield, Sparkles, Zap,
+    AlertCircle, Bell, CheckCircle2, ChevronDown,
+    Download, Filter, Globe, Heart, Key, RefreshCw, Shield, Sparkles, Zap,
 } from 'lucide-react';
 import { useAppStore } from '@/store/useAppStore';
 import { admin } from '@/lib/api/admin';
@@ -204,7 +204,7 @@ export default function AdminMonitorPage() {
     const [levelFilter, setLevelFilter] = useState<LevelKey>('all');
 
     const [openRouterKey, setOpenRouterKey] = useState('');
-    const [openRouterModel, setOpenRouterModel] = useState('openai/gpt-4o-mini');
+    const [openRouterModel, setOpenRouterModel] = useState('openai/gpt-oss-120b:free');
     const [aiSource, setAiSource] = useState<'admin' | 'env' | 'none'>('none');
     const [maskedKey, setMaskedKey] = useState<string | null>(null);
     const [savingAi, setSavingAi] = useState(false);
@@ -225,7 +225,7 @@ export default function AdminMonitorPage() {
                 const ai = await admin.getAiSettings();
                 setStatus(sJson);
                 setEvents(eJson.items ?? []);
-                setOpenRouterModel(ai.openRouterModel || 'openai/gpt-4o-mini');
+                setOpenRouterModel(ai.openRouterModel || 'openai/gpt-oss-120b:free');
                 setAiSource(ai.source);
                 setMaskedKey(ai.openRouterKeyMasked);
                 setLastUpdatedAt(Date.now());
@@ -636,7 +636,7 @@ export default function AdminMonitorPage() {
                             />
                             <Input
                                 label="Model"
-                                placeholder="openai/gpt-4o-mini"
+                                placeholder="openai/gpt-oss-120b:free"
                                 value={openRouterModel}
                                 onChange={(e) => setOpenRouterModel(e.target.value)}
                             />

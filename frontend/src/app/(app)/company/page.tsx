@@ -11,6 +11,13 @@ import { CardSkeleton } from '@/components/ui/Skeleton';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { Building2, Save, ShieldCheck } from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { SCM_SECTORS } from '@/lib/scmIntelligence';
+import { SA_PROVINCE_OPTIONS } from '@/lib/saProvinces';
+
+const sectorOptions = [
+    { value: '', label: 'Select one of the 28 SCM sectors...' },
+    ...SCM_SECTORS.map((sector) => ({ value: sector.name, label: `${sector.code} - ${sector.name}` })),
+];
 
 export default function CompanyProfilePage() {
     const { data: company, isLoading, isError, refetch } = useActiveCompany();
@@ -111,7 +118,13 @@ export default function CompanyProfilePage() {
                     <Input label="Company Name" value={form.name} onChange={(e) => setField('name', e.target.value)} />
                     <Input label="CIPC Registration Number" value={form.registrationNumber} onChange={(e) => setField('registrationNumber', e.target.value)} />
                     <Input label="VAT Number" value={form.vatNumber} onChange={(e) => setField('vatNumber', e.target.value)} />
-                    <Input label="Industry" value={form.industry} onChange={(e) => setField('industry', e.target.value)} />
+                    <Select
+                        label="Industry"
+                        value={form.industry}
+                        onChange={(e) => setField('industry', e.target.value)}
+                        options={sectorOptions}
+                        hint="Used to calculate the sector-specific readiness checklist."
+                    />
                     <Input label="Incorporation Date" type="date" value={form.incorporatedDate} onChange={(e) => setField('incorporatedDate', e.target.value)} />
                 </div>
             </Card>
@@ -185,18 +198,7 @@ export default function CompanyProfilePage() {
                         label="Province"
                         value={form.province}
                         onChange={(e) => setField('province', e.target.value)}
-                        options={[
-                            { value: '', label: 'Select province…' },
-                            { value: 'Eastern Cape', label: 'Eastern Cape' },
-                            { value: 'Free State', label: 'Free State' },
-                            { value: 'Gauteng', label: 'Gauteng' },
-                            { value: 'KwaZulu-Natal', label: 'KwaZulu-Natal' },
-                            { value: 'Limpopo', label: 'Limpopo' },
-                            { value: 'Mpumalanga', label: 'Mpumalanga' },
-                            { value: 'Northern Cape', label: 'Northern Cape' },
-                            { value: 'North West', label: 'North West' },
-                            { value: 'Western Cape', label: 'Western Cape' },
-                        ]}
+                        options={SA_PROVINCE_OPTIONS}
                     />
                 </div>
             </Card>

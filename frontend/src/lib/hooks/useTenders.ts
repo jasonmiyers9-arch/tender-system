@@ -38,6 +38,21 @@ export function useTenderCalendar() {
     });
 }
 
+export function useSavedTenderSearches() {
+    return useQuery({
+        queryKey: ['tender-saved-searches'],
+        queryFn: () => tenders.listSavedSearches(),
+    });
+}
+
+export function useSaveTenderSearch() {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: tenders.saveSearch,
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['tender-saved-searches'] }),
+    });
+}
+
 export function useCreateTender() {
     const qc = useQueryClient();
     return useMutation({

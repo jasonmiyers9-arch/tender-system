@@ -4,11 +4,19 @@ import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
+import { Select } from '@/components/ui/Select';
 import { Button } from '@/components/ui/Button';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { companies } from '@/lib/api/companies';
 import { useAppStore } from '@/store/useAppStore';
+import { SCM_SECTORS } from '@/lib/scmIntelligence';
+import { SA_PROVINCE_OPTIONS } from '@/lib/saProvinces';
 import { Building2, CheckCircle2, Circle, AlertCircle, ArrowRight, FolderLock } from 'lucide-react';
+
+const sectorOptions = [
+    { value: '', label: 'Select one of the 28 SCM sectors...' },
+    ...SCM_SECTORS.map((sector) => ({ value: sector.name, label: `${sector.code} - ${sector.name}` })),
+];
 
 export default function OnboardingPage() {
     const router = useRouter();
@@ -22,6 +30,7 @@ export default function OnboardingPage() {
     });
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [profileLoaded, setProfileLoaded] = useState(false);
     const [status, setStatus] = useState<null | {
         onboardingCompleted: boolean;
         checks: Record<string, boolean>;
@@ -33,6 +42,20 @@ export default function OnboardingPage() {
 
     useEffect(() => {
         let cancelled = false;
+
+        companies.getActive().then((company) => {
+            if (cancelled || !company) return;
+            setForm({
+                csd_number: company.csdNumber || '',
+                bbbee_level: company.bbbeeLevel || '',
+                cidb_grade: company.cidbGrade || '',
+                industry_sector: company.industry || '',
+                province: company.province || '',
+            });
+            setProfileLoaded(true);
+        }).catch(() => {
+            if (!cancelled) setProfileLoaded(true);
+        });
 
         const loadStatus = () => {
             companies.onboardingStatus().then((s) => {
@@ -155,11 +178,26 @@ export default function OnboardingPage() {
                         </div>
                     )}
 
-                    <Input label="CSD Number" required value={form.csd_number} onChange={(e) => setForm({ ...form, csd_number: e.target.value })} />
-                    <Input label="B-BBEE Level" required value={form.bbbee_level} onChange={(e) => setForm({ ...form, bbbee_level: e.target.value })} />
-                    <Input label="CIDB Grade (if applicable)" value={form.cidb_grade} onChange={(e) => setForm({ ...form, cidb_grade: e.target.value })} />
-                    <Input label="Industry Sector" required value={form.industry_sector} onChange={(e) => setForm({ ...form, industry_sector: e.target.value })} />
-                    <Input label="Province" required value={form.province} onChange={(e) => setForm({ ...form, province: e.target.value })} />
+                    <Input label="CSD Number" required disabled={!profileLoaded} value={form.csd_number} onChange={(e) => setForm({ ...form, csd_number: e.target.value })} />
+                    <Input label="B-BBEE Level" required disabled={!profileLoaded} value={form.bbbee_level} onChange={(e) => setForm({ ...form, bbbee_level: e.target.value })} />
+                    <Input label="CIDB Grade (if applicable)" disabled={!profileLoaded} value={form.cidb_grade} onChange={(e) => setForm({ ...form, cidb_grade: e.target.value })} />
+                    <Select
+                        label="Industry Sector"
+                        required
+                        disabled={!profileLoaded}
+                        value={form.industry_sector}
+                        onChange={(e) => setForm({ ...form, industry_sector: e.target.value })}
+                        options={sectorOptions}
+                        hint="This drives the sector-specific readiness checklist and tender matching logic."
+                    />
+                    <Select
+                        label="Province"
+                        required
+                        disabled={!profileLoaded}
+                        value={form.province}
+                        onChange={(e) => setForm({ ...form, province: e.target.value })}
+                        options={SA_PROVINCE_OPTIONS}
+                    />
 
                     <div className="flex items-start gap-3 p-4 rounded-xl border border-amber-500/20 bg-amber-500/5">
                         <FolderLock size={16} className="text-[--color-warning] flex-shrink-0 mt-0.5" />

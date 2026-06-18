@@ -18,6 +18,7 @@ const ALLOWED_EXTENSIONS = new Set([
 ]);
 const ALLOWED_CATEGORIES = new Set<string>(DOCUMENT_UPLOAD_CATEGORIES);
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
+const MAX_FILE_SIZE_MB = MAX_FILE_SIZE / 1024 / 1024;
 
 export async function POST(req: Request) {
   // Rate limiting for file uploads
@@ -43,7 +44,16 @@ export async function POST(req: Request) {
       return NextResponse.json({ detail: 'Company context required' }, { status: 400 });
     }
 
-    const formData = await req.formData();
+    let formData: FormData;
+    try {
+      formData = await req.formData();
+    } catch (formError) {
+      console.warn('Document upload form parsing failed:', formError);
+      return NextResponse.json(
+        { detail: `File upload is too large or malformed. Maximum file size is ${MAX_FILE_SIZE_MB} MB.` },
+        { status: 413 },
+      );
+    }
     const file = formData.get('file');
     const category = String(formData.get('category') || '').trim();
     const runAi = String(formData.get('run_ai') ?? 'true').toLowerCase() !== 'false';
@@ -74,7 +84,7 @@ export async function POST(req: Request) {
     if (fileSize > MAX_FILE_SIZE) {
       await logFileUpload(req, user!.id, activeCompanyId, filename, false, `File size exceeded: ${fileSize} bytes`);
       return NextResponse.json(
-        { detail: `File size (${(fileSize / 1024 / 1024).toFixed(1)} MB) exceeds the 10 MB limit.` },
+        { detail: `File size (${(fileSize / 1024 / 1024).toFixed(1)} MB) exceeds the ${MAX_FILE_SIZE_MB} MB limit.` },
         { status: 413 },
       );
     }
@@ -137,7 +147,7 @@ export async function POST(req: Request) {
             csdSupplierSummary: analysis.csdSupplierSummary,
           };
           
-          // Detect expiry date using Gemini (falls back to regex)
+          // Detect expiry date using the configured AI provider, falling back to regex.
           detectedExpiryDate = await extractExpiryDateWithAI(extractedText);
 
           const summaryResult = await summarizeDocumentForKnowledgeBase(extractedText);

@@ -4,9 +4,10 @@ import Link from 'next/link';
 import type { CSSProperties } from 'react';
 import {
     Shield, FolderLock, BarChart2, FileSearch, ShieldCheck,
-    ArrowRight, CheckCircle2, Building2,
+    ArrowRight, CheckCircle2, Building2, Scale,
 } from 'lucide-react';
 import { useAppStore } from '@/store/useAppStore';
+import { SCM_UNIQUE_SELLING_POINTS } from '@/lib/scmIntelligence';
 
 // ─── Feature cards data ──────────────────────────────────────────────────────
 const FEATURES = [
@@ -201,6 +202,38 @@ export default function LandingPage() {
                                 </div>
                             </div>
                         ))}
+                    </div>
+                </section>
+
+                <section className="px-6 sm:px-10 pb-20 max-w-6xl mx-auto w-full">
+                    <div className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
+                        <div className="rounded-2xl border p-6"
+                            style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)' }}>
+                            <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl"
+                                style={{ background: 'rgba(15,118,110,0.1)', color: '#0F766E' }}>
+                                <Scale size={24} />
+                            </div>
+                            <h2 className="text-2xl font-bold leading-tight" style={{ color: 'var(--color-text-primary)' }}>
+                                Built for South Africa&apos;s SCM framework.
+                            </h2>
+                            <p className="mt-3 text-sm leading-relaxed" style={{ color: 'var(--color-text-muted)' }}>
+                                TenderFlow helps manage tenders after the bid decision. TenderGuard Pro answers the earlier
+                                question: are we qualified to bid right now?
+                            </p>
+                            <p className="mt-4 text-sm font-semibold" style={{ color: '#0F766E' }}>
+                                It does not just manage tenders. It tells you whether you are ready to win them.
+                            </p>
+                        </div>
+
+                        <div className="grid gap-3 sm:grid-cols-2">
+                            {SCM_UNIQUE_SELLING_POINTS.map((point) => (
+                                <div key={point.title} className="rounded-xl border p-4"
+                                    style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)' }}>
+                                    <h3 className="text-sm font-bold" style={{ color: 'var(--color-text-primary)' }}>{point.title}</h3>
+                                    <p className="mt-1 text-xs leading-relaxed" style={{ color: 'var(--color-text-muted)' }}>{point.summary}</p>
+                                </div>
+                            ))}
+                        </div>
                     </div>
                 </section>
 

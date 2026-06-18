@@ -35,7 +35,11 @@ export default function VerifySearchPage() {
     const { data: results, isLoading, isError } = useVerifySearch(submittedQuery);
 
     useEffect(() => {
-        setRecentSearches(loadRecentSearches());
+        const timeoutId = window.setTimeout(() => {
+            setRecentSearches(loadRecentSearches());
+        }, 0);
+
+        return () => window.clearTimeout(timeoutId);
     }, []);
 
     const runSearch = (value: string) => {

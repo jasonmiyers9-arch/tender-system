@@ -42,8 +42,8 @@ export default function MyTendersPage() {
         return (
             <div className="space-y-6 max-w-7xl mx-auto">
                 <PageHeader
-                    title="Evaluator Tenders"
-                    subtitle="Tenders you have created and their approval status."
+                    title="Provider Tenders"
+                    subtitle="Tenders your organization has created and their publication status."
                     icon={<FileText size={22} />}
                     iconColor="#7C3AED"
                 />
@@ -59,8 +59,8 @@ export default function MyTendersPage() {
     return (
         <div className="space-y-6 max-w-7xl mx-auto">
             <PageHeader
-                title="Evaluator Tenders"
-                subtitle="Tenders you have created and their approval status."
+                title="Provider Tenders"
+                subtitle="Tenders your organization has created and their publication status."
                 icon={<FileText size={22} />}
                 iconColor="#7C3AED"
                 actions={
@@ -75,7 +75,7 @@ export default function MyTendersPage() {
                     <EmptyState
                         title="No tenders yet"
                         description="Create your first tender to get started."
-                        action={{ label: 'Upload Tender', onClick: () => router.push('/provider/tenders/new') }}
+                        action={{ label: 'Create Tender', onClick: () => router.push('/provider/tenders/new') }}
                     />
                 </Card>
             ) : (

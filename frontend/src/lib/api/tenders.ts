@@ -3,6 +3,29 @@ import { resolveApiBase } from './base';
 
 export type ProviderTender = TenderMatch;
 
+export interface TenderSearchFilters {
+    q?: string;
+    province?: string;
+    category?: string;
+    buyer?: string;
+    tenderType?: string;
+    briefing?: 'any' | 'true' | 'compulsory';
+    closingWithin?: number;
+    minValue?: number;
+    maxValue?: number;
+    minScore?: number;
+}
+
+export interface SavedTenderSearch {
+    id: string;
+    name: string;
+    filters: TenderSearchFilters;
+    frequency: 'daily' | 'weekly' | 'paused';
+    enabled: boolean;
+    createdAt: string;
+    updatedAt: string;
+}
+
 export interface CreateTenderPayload {
     title: string;
     organization: string;
@@ -48,8 +71,31 @@ async function authFetch(path: string, init?: RequestInit) {
 }
 
 export const tenders = {
-    async listMatches(): Promise<TenderMatch[]> {
-        const res = await authFetch('/tenders');
+    async listMatches(filters?: TenderSearchFilters): Promise<TenderMatch[]> {
+        const params = new URLSearchParams();
+        Object.entries(filters ?? {}).forEach(([key, value]) => {
+            if (value !== undefined && value !== '' && value !== 'any') params.set(key, String(value));
+        });
+        const res = await authFetch(`/tenders${params.size ? `?${params}` : ''}`);
+        return res.json();
+    },
+
+    async listSavedSearches(): Promise<SavedTenderSearch[]> {
+        const res = await authFetch('/tenders/saved-searches');
+        const json = await res.json() as { searches: SavedTenderSearch[] };
+        return json.searches ?? [];
+    },
+
+    async saveSearch(payload: { name: string; filters: TenderSearchFilters; frequency?: SavedTenderSearch['frequency'] }): Promise<SavedTenderSearch> {
+        const res = await authFetch('/tenders/saved-searches', {
+            method: 'POST',
+            body: JSON.stringify(payload),
+        });
+        return res.json();
+    },
+
+    async deleteSavedSearch(id: string): Promise<{ ok: boolean }> {
+        const res = await authFetch(`/tenders/saved-searches/${id}`, { method: 'DELETE' });
         return res.json();
     },
 

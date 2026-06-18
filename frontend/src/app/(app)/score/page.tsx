@@ -53,7 +53,7 @@ function ScoreGauge({ score }: { score: number }) {
                 />
             </svg>
             <div className="text-center z-10">
-                <p className="text-5xl font-extrabold" style={{ color }}>{score}</p>
+                <p className="text-[72px] leading-none font-extrabold" style={{ color }}>{score}</p>
                 <p className="text-xs text-[--color-text-muted] font-medium tracking-wide">/ 100</p>
             </div>
         </div>
@@ -125,8 +125,8 @@ export default function ScorePage() {
     return (
         <div className="space-y-6 max-w-5xl mx-auto">
             <PageHeader
-                title="Compliance Score"
-                subtitle="Your tender readiness rating based on document completeness and validity"
+                title="Tender Readiness Score™"
+                subtitle="Your compliance posture, missing documents, and improvement path"
                 icon={<BarChart2 size={22} />}
                 iconColor="#059669"
             />
@@ -314,6 +314,46 @@ export default function ScorePage() {
                     })}
                 </div>
             </Card>
+
+            {scoreQuery.data && (
+                <Card
+                    header={
+                        <div className="flex items-center gap-2">
+                            <AlertTriangle size={15} className="text-[--color-warning]" />
+                            <h3 className="text-sm font-semibold text-[--color-text-primary]">Improvement Actions</h3>
+                        </div>
+                    }
+                >
+                    <div className="space-y-2">
+                        {scoreQuery.data.missingDocuments.slice(0, 4).map((cat, index) => (
+                            <div key={cat} className="flex items-center gap-3 rounded-xl border border-[--color-border] px-4 py-3">
+                                <span className={`w-2.5 h-2.5 rounded-full ${index === 0 ? 'bg-red-500' : index === 1 ? 'bg-amber-500' : 'bg-blue-500'}`} />
+                                <div className="min-w-0 flex-1">
+                                    <p className="text-sm font-medium text-[--color-text-primary]">Upload {CATEGORY_LABELS[cat] ?? cat}</p>
+                                    <p className="text-xs text-[--color-text-muted]">Needed to increase your compliance coverage.</p>
+                                </div>
+                                <span className="text-xs font-semibold text-teal-700">+8 pts</span>
+                                <Link href="/vault">
+                                    <Button size="sm" variant="outline">Fix Now</Button>
+                                </Link>
+                            </div>
+                        ))}
+                        {scoreQuery.data.expiringDocuments.slice(0, 2).map((doc) => (
+                            <div key={doc} className="flex items-center gap-3 rounded-xl border border-[--color-border] px-4 py-3">
+                                <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />
+                                <div className="min-w-0 flex-1">
+                                    <p className="text-sm font-medium text-[--color-text-primary]">Renew {doc}</p>
+                                    <p className="text-xs text-[--color-text-muted]">Expired or near-expiry items reduce your score.</p>
+                                </div>
+                                <span className="text-xs font-semibold text-teal-700">+5 pts</span>
+                                <Link href="/vault">
+                                    <Button size="sm" variant="outline">Fix Now</Button>
+                                </Link>
+                            </div>
+                        ))}
+                    </div>
+                </Card>
+            )}
         </div>
     );
 }

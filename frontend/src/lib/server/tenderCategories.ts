@@ -3,40 +3,37 @@
 // Based on eTenders.gov.za and SA Government classifications
 // ─────────────────────────────────────────────
 
+import { getScmSectorForText } from '@/lib/scmIntelligence';
+
 export const TENDER_CATEGORIES = [
-  'Construction',
-  'Infrastructure & Civil Works',
-  'IT & Technology',
-  'Professional Services',
-  'Consulting',
-  'Financial Services',
-  'Healthcare & Medical',
-  'Education & Training',
-  'Transport & Logistics',
-  'Security Services',
-  'Cleaning & Waste Management',
-  'Catering & Food Services',
-  'Supplies: General',
-  'Supplies: Computer Equipment',
-  'Supplies: Electrical Equipment',
-  'Supplies: Medical Equipment',
-  'Agricultural & Farming',
-  'Mining & Resources',
-  'Energy & Power',
-  'Water & Sanitation',
-  'Telecommunications',
+  'Construction and Civil Engineering',
+  'Roads, Bridges and Infrastructure',
+  'Electrical Engineering and Energy',
+  'Mechanical and Plant Engineering',
+  'Information and Communications Technology',
+  'Software Development and Systems Integration',
+  'Skills Development, Training and Education',
+  'Healthcare, Medical Supplies and Pharmaceutical',
+  'Security Services and Investigations',
+  'Cleaning, Hygiene and Facilities Management',
+  'Transport, Logistics and Fleet Management',
+  'Environmental Services and Waste Management',
+  'Property, Real Estate and Valuation',
+  'Financial, Accounting and Audit Services',
   'Legal Services',
-  'Facilities Management',
-  'Printing & Stationery',
-  'Advertising & Media',
-  'Research & Development',
-  'Environmental Services',
-  'Manufacturing',
-  'Rental & Leasing',
-  'Maintenance & Repairs',
-  'Social Services',
-  'Tourism & Hospitality',
-  'Engineering Services',
+  'Supply, Delivery and Distribution',
+  'Emergency, Disaster Management and Health and Safety',
+  'Catering, Food Services and Hospitality',
+  'Media, Communications, Advertising and Marketing',
+  'Printing, Stationery and Office Supplies',
+  'Mining, Resources and Geology',
+  'Agriculture, Food Production and Veterinary',
+  'Manufacturing and Industrial',
+  'Human Resources, Staffing and Employee Wellness',
+  'Maintenance, Repair and Asset Management',
+  'Municipal and Local Government Suppliers',
+  'State-Owned Enterprise Suppliers',
+  'Research, Strategy, Monitoring and Evaluation',
   'Other',
 ] as const;
 
@@ -47,11 +44,13 @@ export type TenderCategory = (typeof TENDER_CATEGORIES)[number];
  */
 export function normalizeTenderCategory(raw: string): TenderCategory {
   const lower = raw.toLowerCase().trim();
+  const scmSector = getScmSectorForText(lower);
+  if (scmSector) return scmSector.name as TenderCategory;
 
   if (lower.includes('construct') || lower.includes('building') || lower.includes('civil')) {
-    return 'Construction';
+    return 'Construction and Civil Engineering';
   }
-  if (lower.includes('infrastructure')) return 'Infrastructure & Civil Works';
+  if (lower.includes('infrastructure')) return 'Roads, Bridges and Infrastructure';
   if (
     lower === 'it' ||
     lower.startsWith('it ') ||
@@ -70,53 +69,53 @@ export function normalizeTenderCategory(raw: string): TenderCategory {
     lower.includes('cyber') ||
     lower.includes('system')
   ) {
-    return 'IT & Technology';
+    return 'Information and Communications Technology';
   }
   if (lower.includes('information and communication') || lower.includes('telecomm')) {
-    return 'Telecommunications';
+    return 'Information and Communications Technology';
   }
-  if (lower.includes('professional')) return 'Professional Services';
-  if (lower.includes('consult')) return 'Consulting';
+  if (lower.includes('professional')) return 'Research, Strategy, Monitoring and Evaluation';
+  if (lower.includes('consult')) return 'Research, Strategy, Monitoring and Evaluation';
   if (lower.includes('financ') || lower.includes('accounting') || lower.includes('audit')) {
-    return 'Financial Services';
+    return 'Financial, Accounting and Audit Services';
   }
   if (lower.includes('health') || lower.includes('medical') || lower.includes('pharma')) {
-    return 'Healthcare & Medical';
+    return 'Healthcare, Medical Supplies and Pharmaceutical';
   }
-  if (lower.includes('educat') || lower.includes('training')) return 'Education & Training';
+  if (lower.includes('educat') || lower.includes('training')) return 'Skills Development, Training and Education';
   if (lower.includes('transport') || lower.includes('logistics') || lower.includes('fleet')) {
-    return 'Transport & Logistics';
+    return 'Transport, Logistics and Fleet Management';
   }
-  if (lower.includes('security') || lower.includes('guard')) return 'Security Services';
+  if (lower.includes('security') || lower.includes('guard')) return 'Security Services and Investigations';
   if (lower.includes('clean') || lower.includes('waste') || lower.includes('sanit')) {
-    return 'Cleaning & Waste Management';
+    return lower.includes('waste') ? 'Environmental Services and Waste Management' : 'Cleaning, Hygiene and Facilities Management';
   }
-  if (lower.includes('cater') || lower.includes('food')) return 'Catering & Food Services';
-  if (lower.includes('electrical')) return 'Supplies: Electrical Equipment';
-  if (lower.includes('medical') && lower.includes('supplies')) return 'Supplies: Medical Equipment';
+  if (lower.includes('cater') || lower.includes('food')) return 'Catering, Food Services and Hospitality';
+  if (lower.includes('electrical')) return 'Electrical Engineering and Energy';
+  if (lower.includes('medical') && lower.includes('supplies')) return 'Healthcare, Medical Supplies and Pharmaceutical';
   if (lower.includes('supplies') || lower.includes('delivery') || lower.includes('supply')) {
-    return 'Supplies: General';
+    return 'Supply, Delivery and Distribution';
   }
-  if (lower.includes('agricul') || lower.includes('farm')) return 'Agricultural & Farming';
-  if (lower.includes('mining')) return 'Mining & Resources';
+  if (lower.includes('agricul') || lower.includes('farm')) return 'Agriculture, Food Production and Veterinary';
+  if (lower.includes('mining')) return 'Mining, Resources and Geology';
   if (lower.includes('energy') || lower.includes('power') || lower.includes('electri')) {
-    return 'Energy & Power';
+    return 'Electrical Engineering and Energy';
   }
-  if (lower.includes('water')) return 'Water & Sanitation';
+  if (lower.includes('water')) return 'Environmental Services and Waste Management';
   if (lower.includes('legal') || lower.includes('law')) return 'Legal Services';
-  if (lower.includes('facilit')) return 'Facilities Management';
-  if (lower.includes('print') || lower.includes('stationery')) return 'Printing & Stationery';
+  if (lower.includes('facilit')) return 'Cleaning, Hygiene and Facilities Management';
+  if (lower.includes('print') || lower.includes('stationery')) return 'Printing, Stationery and Office Supplies';
   if (lower.includes('advertis') || lower.includes('media') || lower.includes('marketing')) {
-    return 'Advertising & Media';
+    return 'Media, Communications, Advertising and Marketing';
   }
-  if (lower.includes('research')) return 'Research & Development';
-  if (lower.includes('environment')) return 'Environmental Services';
-  if (lower.includes('manufactur')) return 'Manufacturing';
-  if (lower.includes('rental') || lower.includes('lease')) return 'Rental & Leasing';
-  if (lower.includes('mainten') || lower.includes('repair')) return 'Maintenance & Repairs';
-  if (lower.includes('social')) return 'Social Services';
-  if (lower.includes('tourism') || lower.includes('hospitality')) return 'Tourism & Hospitality';
-  if (lower.includes('engineer')) return 'Engineering Services';
+  if (lower.includes('research')) return 'Research, Strategy, Monitoring and Evaluation';
+  if (lower.includes('environment')) return 'Environmental Services and Waste Management';
+  if (lower.includes('manufactur')) return 'Manufacturing and Industrial';
+  if (lower.includes('rental') || lower.includes('lease')) return 'Property, Real Estate and Valuation';
+  if (lower.includes('mainten') || lower.includes('repair')) return 'Maintenance, Repair and Asset Management';
+  if (lower.includes('social')) return 'Human Resources, Staffing and Employee Wellness';
+  if (lower.includes('tourism') || lower.includes('hospitality')) return 'Catering, Food Services and Hospitality';
+  if (lower.includes('engineer')) return 'Mechanical and Plant Engineering';
 
   return 'Other';
 }

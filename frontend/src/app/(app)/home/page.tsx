@@ -68,7 +68,7 @@ const ADMIN_ACTIONS = [
 ];
 
 const EVALUATOR_ACTIONS = [
-    { icon: <BarChart2 size={22} />, title: 'Evaluator Dashboard', description: 'Review evaluator-side tender and application activity.', href: '/provider/dashboard', color: '#4F46E5' },
+    { icon: <BarChart2 size={22} />, title: 'Provider Dashboard', description: 'Publish tenders and review supplier application activity.', href: '/provider/dashboard', color: '#4F46E5' },
     { icon: <FileSearch size={22} />, title: 'Manage Tenders', description: 'Create, edit, and monitor tender opportunities.', href: '/provider/tenders', color: '#059669' },
     { icon: <ClipboardList size={22} />, title: 'Review Applications', description: 'Assess submitted company applications.', href: '/provider/applications', color: '#D97706' },
     { icon: <ShieldCheck size={22} />, title: 'Company Search', description: 'Verify company compliance by name, registration number, or CSD number.', href: '/verify', color: '#0F766E' },
@@ -84,7 +84,7 @@ function getGreeting() {
 
 function getRoleLabel(role: string) {
     if (role === 'admin') return 'Administrator';
-    if (role === 'evaluator') return 'Evaluator';
+    if (role === 'evaluator') return 'Tender Provider';
     return 'Company User';
 }
 
@@ -143,7 +143,7 @@ export default function HomePage() {
                             {role === 'admin'
                                 ? 'Manage the TenderGuard Pro platform from here.'
                                 : role === 'evaluator'
-                                ? 'Manage evaluator tenders, review applications, and verify supplier compliance records.'
+                                ? 'Manage provider tenders, review applications, and verify supplier compliance records.'
                                 : 'Your compliance hub — manage documents, track scores, and discover tenders.'}
                         </p>
                     </div>

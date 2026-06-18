@@ -193,8 +193,14 @@ The root `netlify.toml` is pre-configured:
 - **Build**: `npm install && npm run build`
 - **Plugin**: `@netlify/plugin-nextjs`
 - **Security headers**: CSP, HSTS, X-Frame-Options, X-Content-Type-Options, Referrer-Policy
+- **Scheduled functions** (all times UTC):
+  - Tender ingestion: `03:00` daily (`05:00` SAST)
+  - Tender matching: `03:30` daily (`05:30` SAST)
+  - Document expiry checks: `04:00` daily (`06:00` SAST)
+  - Tender alerts and digests: `05:00` daily (`07:00` SAST)
+  - Compliance score snapshots: `21:59` daily (`23:59` SAST)
 
-Set the same environment variables from `.env.local` in the Netlify dashboard.
+Set the same environment variables from `.env.local` in the Netlify dashboard. Production automation requires `CRON_SECRET` and Firebase Admin credentials; without Firestore, separate serverless invocations cannot share tender or job-run state. Scheduled functions run only on published deploys and can be tested with **Run now** from Netlify's Functions page.
 
 ---
 

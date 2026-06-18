@@ -14,6 +14,7 @@ import type { InternalDocument } from './mockData';
 import type { DocumentAnalysis } from './pdfExtractor';
 import { DOCUMENT_CATEGORY_GROUPS } from '@/lib/api/types';
 import type { DocumentCategory } from '@/lib/api/types';
+import { getScmSectorForText } from '@/lib/scmIntelligence';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -172,7 +173,8 @@ export const SECTOR_DOCUMENT_REQUIREMENTS: Record<string, string[]> = {
  */
 export function getExpectedDocumentsForSector(sector?: string): string[] {
   const normalized = (sector ?? '').toLowerCase().trim();
-  return SECTOR_DOCUMENT_REQUIREMENTS[normalized] ?? SECTOR_DOCUMENT_REQUIREMENTS.default;
+  const scmSector = getScmSectorForText(normalized);
+  return scmSector?.expectedDocumentGroups ?? SECTOR_DOCUMENT_REQUIREMENTS[normalized] ?? SECTOR_DOCUMENT_REQUIREMENTS.default;
 }
 
 // ─── Scoring Functions ────────────────────────────────────────────────────────

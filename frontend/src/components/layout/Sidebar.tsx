@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import {
     LayoutDashboard, FolderLock, FileSearch, Building2, Calendar,
     ShieldCheck, BarChart2, Users, ClipboardList, Activity, UserCheck,
-    ChevronRight, Shield, Home, Brain, Globe, RefreshCw,
+    ChevronRight, Shield, Home, Brain, Globe, RefreshCw, Scale,
 } from 'lucide-react';
 import { classNames } from '@/lib/utils/formatters';
 import { useAppStore } from '@/store/useAppStore';
@@ -25,13 +25,14 @@ interface NavGroup {
 
 const companyNavGroups: NavGroup[] = [
     {
-        label: 'Company Portal',
+        label: 'Company',
         items: [
             { label: 'Home', href: '/home', icon: <Home size={18} /> },
             { label: 'Dashboard', href: '/dashboard', icon: <LayoutDashboard size={18} /> },
             { label: 'Compliance Vault', href: '/vault', icon: <FolderLock size={18} /> },
             { label: 'Renewals', href: '/renewals', icon: <RefreshCw size={18} /> },
             { label: 'AI Knowledge', href: '/knowledge', icon: <Brain size={18} /> },
+            { label: 'SCM Intelligence', href: '/scm-intelligence', icon: <Scale size={18} /> },
             { label: 'Compliance Score', href: '/score', icon: <BarChart2 size={18} /> },
             { label: 'Tender Matches', href: '/tenders', icon: <FileSearch size={18} /> },
             { label: 'Tender Calendar', href: '/tenders/calendar', icon: <Calendar size={18} /> },
@@ -43,27 +44,29 @@ const companyNavGroups: NavGroup[] = [
 
 const providerNavGroups: NavGroup[] = [
     {
-        label: 'Evaluator Portal',
+        label: 'Tender Provider',
         items: [
             { label: 'Home', href: '/home', icon: <Home size={18} /> },
-            { label: 'Evaluator Dashboard', href: '/provider/dashboard', icon: <LayoutDashboard size={18} /> },
-            { label: 'Evaluator Tenders', href: '/provider/tenders', icon: <FileSearch size={18} /> },
+            { label: 'Provider Dashboard', href: '/provider/dashboard', icon: <LayoutDashboard size={18} /> },
+            { label: 'My Tenders', href: '/provider/tenders', icon: <FileSearch size={18} /> },
             { label: 'Applications', href: '/provider/applications', icon: <ClipboardList size={18} /> },
             { label: 'Company Search', href: '/verify', icon: <ShieldCheck size={18} /> },
+            { label: 'SCM Intelligence', href: '/scm-intelligence', icon: <Scale size={18} /> },
             { label: 'Tender Calendar', href: '/tenders/calendar', icon: <Calendar size={18} /> },
-            { label: 'Evaluator Profile', href: '/provider/profile', icon: <Building2 size={18} /> },
+            { label: 'Provider Profile', href: '/provider/profile', icon: <Building2 size={18} /> },
         ],
     },
 ];
 
 const adminNavGroups: NavGroup[] = [
     {
-        label: 'Admin Portal',
+        label: 'Admin',
         items: [
             { label: 'Home', href: '/home', icon: <Home size={18} /> },
             { label: 'Admin Dashboard', href: '/admin/dashboard', icon: <BarChart2 size={18} /> },
             { label: 'Tender Oversight', href: '/admin/tenders', icon: <FileSearch size={18} /> },
             { label: 'Tender Scraper', href: '/admin/scraper', icon: <Globe size={18} /> },
+            { label: 'SCM Intelligence', href: '/scm-intelligence', icon: <Scale size={18} /> },
             { label: 'Document Review', href: '/admin/documents', icon: <ShieldCheck size={18} /> },
             { label: 'Accounts', href: '/admin/accounts', icon: <UserCheck size={18} /> },
             { label: 'Companies', href: '/admin/companies', icon: <Users size={18} /> },

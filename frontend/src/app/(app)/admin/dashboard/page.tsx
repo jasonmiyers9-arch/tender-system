@@ -8,6 +8,7 @@ import {
     Activity, CalendarDays,
 } from 'lucide-react';
 import { useAppStore } from '@/store/useAppStore';
+import { useCompanies, useSwitchCompany } from '@/lib/hooks/useCompanies';
 import {
     useAdminDashboard,
     useRenewalsPipeline,
@@ -262,6 +263,9 @@ function ForecastItem({ label, value, icon, tone }: ForecastItemProps) {
 
 export default function AdminTodayPage() {
     const currentUser = useAppStore((s) => s.currentUser);
+    const activeCompanyId = useAppStore((s) => s.activeCompanyId);
+    const companiesQuery = useCompanies();
+    const switchCompany = useSwitchCompany();
     const statsQuery = useAdminDashboard();
     const pipelineQuery = useRenewalsPipeline();
     const docsQuery = usePendingAdminDocuments();
@@ -320,6 +324,7 @@ export default function AdminTodayPage() {
         currentUser?.name?.split(' ')[0] ??
         currentUser?.email?.split('@')[0] ??
         'there';
+    const managedCompanies = companiesQuery.data ?? [];
 
     const heroLine =
         totalToDo === 0
@@ -339,6 +344,32 @@ export default function AdminTodayPage() {
             />
 
             <div className="space-y-6 max-w-[1280px] mx-auto">
+                {managedCompanies.length > 0 && (
+                    <div className="flex items-center gap-2 overflow-x-auto pb-1">
+                        {managedCompanies.map((company) => {
+                            const active = company.id === activeCompanyId;
+                            const alerts = company.status === 'verified' ? 0 : 1;
+                            return (
+                                <button
+                                    key={company.id}
+                                    type="button"
+                                    onClick={() => switchCompany.mutate(company.id)}
+                                    className={`whitespace-nowrap rounded-full border px-4 py-2 text-xs font-semibold transition-all ${
+                                        active
+                                            ? 'border-teal-500 bg-teal-500/10 text-teal-700'
+                                            : 'border-[--color-border] bg-[--color-surface] text-[--color-text-muted] hover:text-[--color-text-primary]'
+                                    }`}
+                                >
+                                    {company.name}
+                                    <span className={`ml-2 inline-flex min-w-[18px] items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] ${active ? 'bg-teal-500 text-white' : 'bg-[--color-bg] text-[--color-text-muted]'}`}>
+                                        {alerts}
+                                    </span>
+                                </button>
+                            );
+                        })}
+                    </div>
+                )}
+
                 {/* ─── HERO ─────────────────────────────────────────────────── */}
                 <motion.div
                     variants={fadeUp}
