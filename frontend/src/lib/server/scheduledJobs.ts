@@ -179,7 +179,7 @@ export async function runScanTenderPortalsJob(): Promise<ScheduledJobResult> {
   // for targeted/deep enrichment, while OCDS supplies the core structured metadata.
   const scrapeResults = await runScrapeAll({ maxPages: 1, extractPdfs: false, scrapeDetails: false });
   const errors = scrapeResults.flatMap((result) => result.errors.map((error) => `${result.source}: ${error}`));
-  const importResult = await importScrapedTenders();
+  const importResult = await importScrapedTenders({ scrapedSince: checkedAt });
 
   return {
     job: 'scan_tender_portals',

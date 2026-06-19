@@ -24,7 +24,7 @@ function getManualScrapeOptions(body: Record<string, unknown>): ScrapeOptions {
     ? Math.min(10, Math.max(1, Number(body.maxPages)))
     : deep
       ? undefined
-      : 2;
+      : 1;
 
   return {
     categories: Array.isArray(body.categories) ? body.categories.map(String).filter(Boolean) : undefined,
@@ -101,10 +101,11 @@ export async function POST(req: Request) {
 
     switch (action) {
       case 'scrape-all': {
+        const scrapedSince = new Date().toISOString();
         const options = getManualScrapeOptions(body);
         const results = await runScrapeAll(options);
         const hasErrors = results.some((result) => result.errors.length > 0);
-        const recommendationResult = await importScrapedTenders();
+        const recommendationResult = await importScrapedTenders({ scrapedSince });
         return NextResponse.json({
           message: 'Scraping completed',
           results,
@@ -120,8 +121,9 @@ export async function POST(req: Request) {
         if (!sourceName) {
           return NextResponse.json({ detail: 'sourceName is required' }, { status: 400 });
         }
+        const scrapedSince = new Date().toISOString();
         const result = await runScrapeSingle(sourceName, getManualScrapeOptions(body));
-        const recommendationResult = await importScrapedTenders();
+        const recommendationResult = await importScrapedTenders({ scrapedSince });
         return NextResponse.json({
           message: `Scraped ${sourceName}`,
           result,
