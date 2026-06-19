@@ -1,7 +1,10 @@
 [build]
   base = "frontend"
-  command = "npm install && npm run build"
+  command = "npm ci && npm run build"
   publish = ".next"
+
+[build.environment]
+  NODE_VERSION = "20.20.2"
 
 [functions]
   directory = "netlify/functions"
@@ -10,7 +13,7 @@
   package = "@netlify/plugin-nextjs"
 
 [dev]
-  command = "cd frontend && npm run dev"
+  command = "npm run dev"
 
 [[headers]]
   for = "/*"

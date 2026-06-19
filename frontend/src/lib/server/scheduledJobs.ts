@@ -24,6 +24,7 @@ import {
 } from './firestoreService';
 import { getScrapedTenders, runScrapeAll, type ScrapedTender } from './tenderScraper';
 import { sendAuthEmail } from './authEmail';
+import { isFirestoreAvailable } from './firebaseAdmin';
 import type { SavedTenderSearchRecord } from './firestoreService';
 import type { TenderMatch } from '@/lib/api/types';
 
@@ -329,6 +330,10 @@ export async function runMatchTendersToCompaniesJob(tenderIds?: string[]): Promi
 }
 
 export async function runSendEmailDigestsJob(): Promise<ScheduledJobResult> {
+  if (!isFirestoreAvailable()) {
+    throw new Error('Firebase Admin is unavailable; refusing to send email digests using demo data');
+  }
+
   const checkedAt = new Date().toISOString();
   const users = (await listAllUsers()).filter((user) => user.role === 'user' && user.verificationStatus === 'approved');
   const availableTenders = await listTenders();
