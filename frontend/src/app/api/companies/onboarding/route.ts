@@ -1,13 +1,16 @@
 import { NextResponse } from 'next/server';
 import {
+  createNotificationsForCompany,
   ensureUserCompanyContext,
   getCompanyById,
   getUserByToken,
   getUserOnboardingStatus,
+  listDocumentsForCompany,
   listCompaniesForUser,
   updateCompanyProfile,
 } from '@/lib/server/firestoreService';
 import { publishRescoreEvent } from '@/lib/server/analystEngine';
+import { buildComplianceScore } from '@/lib/utils/calculateReadinessScore';
 
 function parseToken(req: Request): string | null {
   const header = req.headers.get('authorization');
@@ -67,6 +70,8 @@ export async function POST(req: Request) {
     phone: company.phone,
     website: company.website,
   });
+  const documents = await listDocumentsForCompany(companyId);
+  const complianceScore = buildComplianceScore(documents);
   const priorityDocs = await getUserOnboardingStatus({ ...user, activeCompanyId: companyId, companyId });
   const profileComplete = Boolean(
     updatedCompany.csdNumber &&
@@ -86,6 +91,14 @@ export async function POST(req: Request) {
       requiredDocuments: priorityDocs.requiredDocuments,
       onboardingCompleted,
     },
+  });
+
+  await createNotificationsForCompany(companyId, {
+    alertType: 'info',
+    title: 'Company profile created',
+    message: `Your company profile has been created. Current compliance score: ${complianceScore.score}% (${complianceScore.band}). You will receive future emails only when a tender matches your company.`,
+    triggerDate: new Date().toISOString(),
+    dedupeKey: `company-profile-created:${companyId}`,
   });
 
   return NextResponse.json({ ok: true, company: updatedCompany, onboardingCompleted });

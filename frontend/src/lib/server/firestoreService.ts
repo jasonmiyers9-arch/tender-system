@@ -1645,7 +1645,14 @@ async function createNotificationsForCompany(
       dedupeKey: `${payload.dedupeKey}:user:${member.id}`,
     });
 
-    if (created && options?.deliver !== false) {
+    const shouldDeliver = options?.deliver !== false && (
+      created ||
+      !notification.delivery?.attemptedAt ||
+      notification.delivery.email === 'pending' ||
+      notification.delivery.sms === 'pending'
+    );
+
+    if (shouldDeliver) {
       await dispatchNotification(notification, member);
     }
 

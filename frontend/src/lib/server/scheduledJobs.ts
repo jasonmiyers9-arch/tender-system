@@ -14,20 +14,13 @@ import {
   createScoreHistoryRecord,
   createTender,
   listAllCompanies,
-  listAllUsers,
   listDocumentsForCompany,
-  listSavedTenderSearches,
   listTenders,
-  markSavedTenderSearchDelivered,
   updateTender,
   upsertTenderMatch,
   purgeUsersScheduledForDeletion,
 } from './firestoreService';
 import { getScrapedTenders, runScrapeAll, type ScrapedTender } from './tenderScraper';
-import { sendAuthEmail } from './authEmail';
-import { isFirestoreAvailable } from './firebaseAdmin';
-import type { SavedTenderSearchRecord } from './firestoreService';
-import type { TenderMatch } from '@/lib/api/types';
 
 export interface ScheduledJobResult {
   job: string;
@@ -65,30 +58,6 @@ function normalizeRequiredCategories(tender: ScrapedTender): string[] {
   if (/(health|safety|quality|environmental|policy)/.test(text)) categories.add('policy');
 
   return categories.size > 0 ? [...categories] : ['tax', 'registration'];
-}
-
-function matchesSavedSearch(tender: TenderMatch, search: SavedTenderSearchRecord, since: number): boolean {
-  const filters = search.filters;
-  const publishedAt = new Date(tender.advertised || tender.createdAt || 0).getTime();
-  if (!Number.isFinite(publishedAt) || publishedAt < since) return false;
-  const haystack = [tender.title, tender.description, tender.organization, tender.tenderNumber, tender.category, tender.location]
-    .filter(Boolean).join(' ').toLowerCase();
-  if (filters.q && !haystack.includes(filters.q.toLowerCase())) return false;
-  if (filters.province && (tender.province || tender.location || '').toLowerCase() !== filters.province.toLowerCase()) return false;
-  if (filters.category && tender.category.toLowerCase() !== filters.category.toLowerCase()) return false;
-  if (filters.buyer && !tender.organization.toLowerCase().includes(filters.buyer.toLowerCase())) return false;
-  if (filters.tenderType && !(tender.tenderType || '').toLowerCase().includes(filters.tenderType.toLowerCase())) return false;
-  if (filters.briefing === 'true' && !tender.briefing?.hasBriefingSession) return false;
-  if (filters.briefing === 'compulsory' && !tender.briefing?.isCompulsory) return false;
-  if (filters.closingWithin) {
-    const days = Math.ceil((new Date(tender.deadline).getTime() - Date.now()) / 86_400_000);
-    if (!Number.isFinite(days) || days < 0 || days > filters.closingWithin) return false;
-  }
-  const valueMatch = tender.value.replace(/,/g, '').match(/\d+(?:\.\d+)?/);
-  const value = valueMatch ? Number(valueMatch[0]) : null;
-  if (filters.minValue && (value === null || value < filters.minValue)) return false;
-  if (filters.maxValue && (value === null || value > filters.maxValue)) return false;
-  return true;
 }
 
 export async function importScrapedTenders(options?: { scrapedSince?: string }): Promise<{ importedTenderIds: string[]; skippedDuplicates: number }> {
@@ -303,11 +272,11 @@ export async function runMatchTendersToCompaniesJob(tenderIds?: string[]): Promi
         if (hybrid.adjustedScore >= 60) {
           const notifications = await createNotificationsForCompany(company.id, {
             alertType: 'info',
-            title: 'Tender match found',
-            message: `${tender.title} matches your company at ${hybrid.adjustedScore}%.`,
+            title: 'New tender match',
+            message: `${tender.title} now matches your company at ${hybrid.adjustedScore}%. Open Tender Guard Pro to review the details.`,
             triggerDate: checkedAt,
-            dedupeKey: `tender-match:${tender.id}:${company.id}:${hybrid.adjustedScore}`,
-          }, { deliver: false });
+            dedupeKey: `tender-match:${tender.id}:${company.id}`,
+          });
           notificationsCreated += notifications.length;
         }
       } catch (err) {
@@ -331,76 +300,15 @@ export async function runMatchTendersToCompaniesJob(tenderIds?: string[]): Promi
 }
 
 export async function runSendEmailDigestsJob(): Promise<ScheduledJobResult> {
-  if (!isFirestoreAvailable()) {
-    throw new Error('Firebase Admin is unavailable; refusing to send email digests using demo data');
-  }
-
-  const checkedAt = new Date().toISOString();
-  const users = (await listAllUsers()).filter((user) => user.role === 'user' && user.verificationStatus === 'approved');
-  const availableTenders = await listTenders();
-  const errors: string[] = [];
-  let sent = 0;
-  let skipped = 0;
-
-  for (const user of users) {
-    const companyId = user.activeCompanyId ?? user.companyId;
-    if (!companyId) {
-      skipped++;
-      continue;
-    }
-
-    try {
-      const documents = await listDocumentsForCompany(companyId);
-      const score = buildComplianceScore(documents);
-      const expiring = documents.filter((document) => document.expiryDate && new Date(document.expiryDate) <= new Date(Date.now() + 30 * 86_400_000));
-      const searches = (await listSavedTenderSearches(user.id)).filter((search) => search.enabled && search.frequency !== 'paused');
-      const searchSections: string[] = [];
-      const deliveredSearches: SavedTenderSearchRecord[] = [];
-      for (const search of searches) {
-        const interval = search.frequency === 'weekly' ? 7 * 86_400_000 : 86_400_000;
-        const since = search.lastDeliveredAt ? new Date(search.lastDeliveredAt).getTime() : Date.now() - interval;
-        if (search.lastDeliveredAt && Date.now() - since < interval * 0.8) continue;
-        const matches = availableTenders.filter((tender) => matchesSavedSearch(tender, search, since)).slice(0, 20);
-        if (!matches.length) continue;
-        searchSections.push('', `${search.name} (${matches.length} new)`, ...matches.map((tender) => `- ${tender.title} — closes ${tender.deadline}`));
-        deliveredSearches.push(search);
-      }
-      const result = await sendAuthEmail({
-        to: user.email,
-        subject: searchSections.length ? 'Tender Guard Pro tender alerts and compliance summary' : 'Tender Guard Pro compliance summary',
-        body: [
-          `Hi ${user.fullName},`,
-          '',
-          `Compliance score: ${score.score} (${score.band})`,
-          `Completed documents: ${score.completedDocuments}/${score.totalDocuments}`,
-          `Missing documents: ${score.missingDocuments.length ? score.missingDocuments.join(', ') : 'None'}`,
-          `Expiring within 30 days: ${expiring.length ? expiring.map((document) => document.name).join(', ') : 'None'}`,
-          ...searchSections,
-          '',
-          'Open Tender Guard Pro to review your compliance status.',
-        ].join('\n'),
-      });
-
-      if (result.sent) {
-        sent++;
-        await Promise.all(deliveredSearches.map((search) => markSavedTenderSearchDelivered(search.id, checkedAt)));
-      } else {
-        skipped++;
-        if (result.reason) errors.push(`${user.email}: ${result.reason}`);
-      }
-    } catch (err) {
-      errors.push(`Failed digest for ${user.email}: ${err instanceof Error ? err.message : String(err)}`);
-    }
-  }
-
   return {
     job: 'send_email_digests',
-    ok: errors.length === 0,
-    checkedAt,
-    usersChecked: users.length,
-    sent,
-    skipped,
-    errors,
+    ok: true,
+    checkedAt: new Date().toISOString(),
+    sent: 0,
+    skipped: 0,
+    disabled: true,
+    reason: 'Daily digest emails are disabled. Companies receive email when their profile is first created and when a new tender match is found.',
+    errors: [],
   };
 }
 
