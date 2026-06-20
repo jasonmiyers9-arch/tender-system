@@ -257,6 +257,17 @@ function extractClosingTime(dateStr: string): string {
   return timeMatch ? timeMatch[1] : '';
 }
 
+export function resolveScraperUrl(href: string | null | undefined, baseUrl: string): string | null {
+  const value = (href ?? '').trim();
+  if (!value) return null;
+
+  try {
+    return new URL(value, baseUrl).toString();
+  } catch {
+    return null;
+  }
+}
+
 async function fetchPage(url: string, retries = 2): Promise<string> {
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
@@ -541,7 +552,9 @@ async function scrapeOcdsReleases(config: ScraperConfig, options?: ScrapeOptions
     }
 
     if (!payload.links?.next) break;
-    nextUrl = new URL(payload.links.next);
+    const resolvedNextUrl = resolveScraperUrl(payload.links.next, nextUrl.toString());
+    if (!resolvedNextUrl) break;
+    nextUrl = new URL(resolvedNextUrl);
   }
 
   if (options?.extractPdfs !== false) await extractPdfsForTenders(tenders);
@@ -614,7 +627,8 @@ function parseETenderDetailRow(
       href.toLowerCase().includes('download') ||
       href.toLowerCase().includes('document')
     ) {
-      const fullUrl = href.startsWith('http') ? href : `${baseUrl}${href.startsWith('/') ? '' : '/'}${href}`;
+      const fullUrl = resolveScraperUrl(href, baseUrl);
+      if (!fullUrl) return;
       if (tender.documents.find(d => d.url === fullUrl)) return;
       const dateUploadedMatch = text.match(/Date Uploaded[:\s]*([\d-]+)/i);
       tender.documents.push({
@@ -792,7 +806,7 @@ async function scrapeTenderBulletins(config: ScraperConfig, options?: ScrapeOpti
         try {
           const titleEl = $(article).find('h2 a, h3 a, .entry-title a, .tender-title a').first();
           const title = titleEl.text().trim();
-          const detailUrl = titleEl.attr('href') || '';
+          const detailUrl = resolveScraperUrl(titleEl.attr('href'), url);
 
           if (!title) continue;
 
@@ -858,7 +872,8 @@ async function scrapeTenderBulletins(config: ScraperConfig, options?: ScrapeOpti
                 const href = $d(link).attr('href') || '';
                 const linkText = $d(link).text().trim();
                 if (href) {
-                  const fullUrl = href.startsWith('http') ? href : new URL(href, detailUrl).toString();
+                  const fullUrl = resolveScraperUrl(href, detailUrl);
+                  if (!fullUrl) return;
                   if (!tender.documents.find(d => d.url === fullUrl)) {
                     tender.documents.push({
                       filename: linkText || href.split('/').pop() || 'document.pdf',
@@ -933,6 +948,14 @@ export async function scrapeGenericUrl(url: string): Promise<ScrapedTender[]> {
         const refMatch = text.match(/([A-Z]{2,}[\/-]\d{3,}[\/-]?\d*)/i);
 
         if (title && title.length > 10) {
+          const parsedSourceUrl = resolveScraperUrl(href, url) ?? url;
+          const parsedSourceSite = (() => {
+            try {
+              return new URL(url).hostname;
+            } catch {
+              return url;
+            }
+          })();
           const tender = createEmptyScrapedTender();
           tender.title = title.substring(0, 300);
           tender.description = text.substring(0, 500);
@@ -940,9 +963,9 @@ export async function scrapeGenericUrl(url: string): Promise<ScrapedTender[]> {
           tender.category = categorizeTender(tender.rawCategory, title, text);
           tender.deadline = dateMatch ? parseDate(dateMatch[1]) : '';
           tender.referenceNumber = refMatch ? refMatch[1] : '';
-          tender.organization = new URL(url).hostname;
-          tender.sourceUrl = href.startsWith('http') ? href : new URL(href, url).toString();
-          tender.sourceSite = new URL(url).hostname;
+          tender.organization = parsedSourceSite;
+          tender.sourceUrl = parsedSourceUrl;
+          tender.sourceSite = parsedSourceSite;
           tender.fullText = buildFullText(tender);
           tenders.push(tender);
         }
