@@ -31,6 +31,25 @@ function formatFileSize(bytes?: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+const authorityByCategory: Record<string, string> = {
+  tax: 'SARS',
+  tax_clearance: 'SARS',
+  sars_pin: 'SARS',
+  registration: 'CIPC',
+  cipc_registration: 'CIPC',
+  bbbee: 'SANAS / B-BBEE Commission',
+  bbbee_certificate: 'SANAS / B-BBEE Commission',
+  csd_registration: 'National Treasury CSD',
+  cidb: 'CIDB',
+  cidb_certificate: 'CIDB',
+  coida: 'Department of Employment and Labour',
+  uif: 'UIF',
+  certification: 'Issuing Authority',
+  financial: 'Registered Accountant',
+  legal: 'Legal Authority',
+  policy: 'Company Policy',
+};
+
 export async function GET(
   req: Request,
   { params }: { params: Promise<{ companyId: string }> }
@@ -112,6 +131,7 @@ export async function GET(
     uploadedBy: string;
     fileSize: string;
     fileType: string;
+    issuingAuthority: string;
   }>>>((acc, doc) => {
     const entry = {
       id: doc.id,
@@ -123,6 +143,7 @@ export async function GET(
       uploadedBy: doc.verifiedBy ?? 'Company user',
       fileSize: formatFileSize(doc.fileSize),
       fileType: doc.mimeType ?? 'application/octet-stream',
+      issuingAuthority: authorityByCategory[doc.category] ?? 'Issuing Authority',
     };
 
     if (!acc[doc.category]) {
@@ -204,5 +225,13 @@ export async function GET(
     documentsByCategory,
     auditLog,
     bundleUrl: `/api/verify/companies/${company.id}/bundle-url`,
+    verification: {
+      isVerified: company.status === 'verified',
+      lastVerifiedAt: documents
+        .map((doc) => doc.verifiedAt)
+        .filter((value): value is string => Boolean(value))
+        .sort((a, b) => new Date(b).getTime() - new Date(a).getTime())[0] ?? null,
+      generatedAt: new Date().toISOString(),
+    },
   });
 }

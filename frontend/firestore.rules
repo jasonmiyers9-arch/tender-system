@@ -10,6 +10,15 @@ service cloud.firestore {
       allow create, update, delete: if false;
     }
 
+    match /audit_log/{logId} {
+      allow read: if request.auth != null
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'super_admin'];
+
+      // Audit records are append-only and are written only by Firebase Admin.
+      allow create, update, delete: if false;
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }

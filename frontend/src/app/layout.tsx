@@ -3,7 +3,7 @@ import './globals.css';
 import { Providers } from './providers';
 
 export const metadata: Metadata = {
-  title: 'TenderGuard Pro — Compliance Made Simple',
+  title: 'Tender Guard Pro — Compliance Made Simple',
   description:
     'Enterprise compliance vault and tender readiness platform for South African businesses.',
 };

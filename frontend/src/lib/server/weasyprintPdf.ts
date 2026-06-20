@@ -95,12 +95,12 @@ function buildComplianceBundleHtml(input: ComplianceBundlePdfInput): string {
   </table>
 
   <div class="seal">
-    <strong>🛡 Verified by TenderGuard™</strong>
+    <strong>🛡 Verified by Tender Guard Pro™</strong>
     <p>Report generated: ${escapeHtml(formatDate(input.generatedAt))}</p>
     <span class="badge verified">Audit Log Available</span>
   </div>
 
-  <div class="footer">This compliance bundle was generated for evaluator verification and includes company details, document statuses, score, verification timestamp, and TenderGuard™ seal.</div>
+  <div class="footer">This compliance bundle was generated for evaluator verification and includes company details, document statuses, score, verification timestamp, and Tender Guard Pro™ seal.</div>
 </body>
 </html>`;
 }

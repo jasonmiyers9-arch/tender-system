@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server';
+import { isFirestoreAvailable } from './firebaseAdmin';
 
 export function verifyCronRequest(req: Request): NextResponse | null {
+  if (process.env.NODE_ENV === 'production' && !isFirestoreAvailable()) {
+    return NextResponse.json({ detail: 'Firebase persistence unavailable' }, { status: 503 });
+  }
   const expected = process.env.CRON_SECRET;
 
   if (!expected) {

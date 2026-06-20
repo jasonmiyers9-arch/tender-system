@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/Badge';
 import { CardSkeleton } from '@/components/ui/Skeleton';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { formatDate } from '@/lib/utils/formatters';
-import { Calendar, Building2, CheckCircle2, AlertCircle, ArrowRight, Clock, MapPin, Users } from 'lucide-react';
+import { Calendar, Building2, CheckCircle2, AlertCircle, ArrowRight, Bot, Clock, MapPin, Users } from 'lucide-react';
 
 export default function TenderDetailPage({ params }: { params: Promise<{ tenderId: string }> }) {
     const { tenderId } = use(params);
@@ -38,9 +38,18 @@ export default function TenderDetailPage({ params }: { params: Promise<{ tenderI
                         <span>{tender.value}</span>
                     </div>
                 </div>
-                <Button rightIcon={<ArrowRight size={15} />} onClick={() => router.push(`/tenders/${tenderId}/apply`)}>
-                    Apply Now
-                </Button>
+                <div className="flex flex-wrap justify-end gap-2">
+                    <Button
+                        variant="secondary"
+                        leftIcon={<Bot size={15} />}
+                        onClick={() => router.push(`/assistant?tenderId=${encodeURIComponent(tenderId)}`)}
+                    >
+                        Check with AI
+                    </Button>
+                    <Button rightIcon={<ArrowRight size={15} />} onClick={() => router.push(`/tenders/${tenderId}/apply`)}>
+                        Apply Now
+                    </Button>
+                </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">

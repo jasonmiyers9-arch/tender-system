@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import {
     LayoutDashboard, FolderLock, FileSearch, Building2, Calendar,
     ShieldCheck, BarChart2, Users, ClipboardList, Activity, UserCheck,
-    ChevronRight, Shield, Home, Brain, Globe, RefreshCw, Scale,
+    ChevronRight, Shield, Home, Brain, Bot, Globe, RefreshCw, Bell, History,
 } from 'lucide-react';
 import { classNames } from '@/lib/utils/formatters';
 import { useAppStore } from '@/store/useAppStore';
@@ -32,7 +32,7 @@ const companyNavGroups: NavGroup[] = [
             { label: 'Compliance Vault', href: '/vault', icon: <FolderLock size={18} /> },
             { label: 'Renewals', href: '/renewals', icon: <RefreshCw size={18} /> },
             { label: 'AI Knowledge', href: '/knowledge', icon: <Brain size={18} /> },
-            { label: 'SCM Intelligence', href: '/scm-intelligence', icon: <Scale size={18} /> },
+            { label: 'AI Compliance Advisor', href: '/assistant', icon: <Bot size={18} /> },
             { label: 'Compliance Score', href: '/score', icon: <BarChart2 size={18} /> },
             { label: 'Tender Matches', href: '/tenders', icon: <FileSearch size={18} /> },
             { label: 'Tender Calendar', href: '/tenders/calendar', icon: <Calendar size={18} /> },
@@ -44,16 +44,12 @@ const companyNavGroups: NavGroup[] = [
 
 const providerNavGroups: NavGroup[] = [
     {
-        label: 'Tender Provider',
+        label: 'Evaluator',
         items: [
-            { label: 'Home', href: '/home', icon: <Home size={18} /> },
-            { label: 'Provider Dashboard', href: '/provider/dashboard', icon: <LayoutDashboard size={18} /> },
-            { label: 'My Tenders', href: '/provider/tenders', icon: <FileSearch size={18} /> },
-            { label: 'Applications', href: '/provider/applications', icon: <ClipboardList size={18} /> },
+            { label: 'Overview', href: '/evaluator/dashboard', icon: <LayoutDashboard size={18} /> },
             { label: 'Company Search', href: '/verify', icon: <ShieldCheck size={18} /> },
-            { label: 'SCM Intelligence', href: '/scm-intelligence', icon: <Scale size={18} /> },
-            { label: 'Tender Calendar', href: '/tenders/calendar', icon: <Calendar size={18} /> },
-            { label: 'Provider Profile', href: '/provider/profile', icon: <Building2 size={18} /> },
+            { label: 'Verification Activity', href: '/evaluator/activity', icon: <History size={18} /> },
+            { label: 'Notifications', href: '/notifications', icon: <Bell size={18} /> },
         ],
     },
 ];
@@ -66,7 +62,6 @@ const adminNavGroups: NavGroup[] = [
             { label: 'Admin Dashboard', href: '/admin/dashboard', icon: <BarChart2 size={18} /> },
             { label: 'Tender Oversight', href: '/admin/tenders', icon: <FileSearch size={18} /> },
             { label: 'Tender Scraper', href: '/admin/scraper', icon: <Globe size={18} /> },
-            { label: 'SCM Intelligence', href: '/scm-intelligence', icon: <Scale size={18} /> },
             { label: 'Document Review', href: '/admin/documents', icon: <ShieldCheck size={18} /> },
             { label: 'Accounts', href: '/admin/accounts', icon: <UserCheck size={18} /> },
             { label: 'Companies', href: '/admin/companies', icon: <Users size={18} /> },
@@ -82,7 +77,13 @@ export function Sidebar() {
     const role = currentUser?.role ?? 'user';
 
     const isActive = (href: string) =>
-        href === '/home' ? pathname === '/home' : (pathname === href || (!['/dashboard', '/admin/dashboard', '/provider/dashboard'].includes(href) && pathname.startsWith(href)));
+        href === '/evaluator/dashboard'
+            ? pathname === '/evaluator/dashboard'
+            : href === '/verify'
+            ? pathname === '/verify' || pathname.startsWith('/verify/company')
+            : href === '/home'
+                ? pathname === '/home'
+                : (pathname === href || (!['/dashboard', '/admin/dashboard', '/provider/dashboard'].includes(href) && pathname.startsWith(href)));
 
     const navGroups = role === 'admin' || role === 'super_admin'
         ? adminNavGroups
@@ -125,7 +126,7 @@ export function Sidebar() {
                             transition={T.snappy}
                             className="min-w-0"
                         >
-                            <p className="text-sm font-bold leading-tight tracking-tight" style={{ color: '#F1F5F9' }}>TenderGuard</p>
+                            <p className="text-sm font-bold leading-tight tracking-tight" style={{ color: '#F1F5F9' }}>Tender Guard Pro</p>
                             <p className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: '#6366F1' }}>Pro Platform</p>
                         </motion.div>
                     )}

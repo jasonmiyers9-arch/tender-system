@@ -3,12 +3,13 @@
 import { usePendingAdminDocuments, useAdminDownloadDocument, useRejectDocument, useVerifyDocument } from '@/lib/hooks/useAdmin';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
+import { DownloadButton } from '@/components/ui/DownloadButton';
 import { CardSkeleton } from '@/components/ui/Skeleton';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { StatusBadge } from '@/components/badges/Badges';
 import { formatDate, docCategoryLabel } from '@/lib/utils/formatters';
 import type { DocumentCategory, DocumentStatus } from '@/lib/api/types';
-import { CheckCircle, Download, FileText, XCircle } from 'lucide-react';
+import { CheckCircle, FileText, XCircle } from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';
 import Link from 'next/link';
 
@@ -62,14 +63,13 @@ export default function AdminDocumentsPage() {
                                     <Link href={`/admin/companies/${doc.companyId}`}>
                                         <Button variant="ghost" size="sm">Open Company</Button>
                                     </Link>
-                                    <Button
-                                        variant="ghost"
+                                    <DownloadButton
                                         size="sm"
-                                        leftIcon={<Download size={14} />}
+                                        iconSize={14}
                                         onClick={() => downloadDoc.mutate({ docId: doc.id, filename: doc.name })}
                                     >
                                         Download
-                                    </Button>
+                                    </DownloadButton>
                                     <Button
                                         variant="success"
                                         size="sm"

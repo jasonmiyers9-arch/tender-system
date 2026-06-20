@@ -33,7 +33,7 @@ const STATUS_TONE: Record<string, { dot: string; chip: string; chipText: string;
 
 const ROLE_LABEL: Record<string, string> = {
     user: 'Company user',
-    evaluator: 'Tender Provider',
+    evaluator: 'Evaluator',
     admin: 'Administrator',
 };
 

@@ -25,34 +25,19 @@ function getToken(): string | null {
 
 const API_BASE = resolveApiBase();
 
-export type AdminMfaChallenge = {
-    mfaRequired: true;
-    setupRequired: boolean;
-    secret?: string;
-    otpauthUrl?: string;
-    message: string;
-};
-
 async function loginForPortal(
     path: string,
     email: string,
-    password: string,
-    totpCode?: string
-): Promise<LoginResponse | AdminMfaChallenge> {
+    password: string
+): Promise<LoginResponse> {
     const body = isFirebaseClientConfigured()
-        ? { idToken: (await signInWithEmailPassword(email, password)).idToken, totpCode }
-        : { email, password, totpCode };
+        ? { idToken: (await signInWithEmailPassword(email, password)).idToken }
+        : { email, password };
     const res = await fetch(`${API_BASE}${path}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
     });
-
-    if ((res.status === 401 || res.status === 403) && path.includes('/auth/admin/login')) {
-        const challenge = await res.json().catch(() => null);
-        if (challenge?.mfaRequired) return challenge as AdminMfaChallenge;
-        if (challenge?.detail === 'invalid_mfa_code') throw new Error('invalid_mfa_code');
-    }
 
     if (!res.ok) {
         const err = await res.json().catch(() => ({ detail: 'Login failed' }));
@@ -79,8 +64,8 @@ export const auth = {
         return loginForPortal('/auth/login', email, password) as Promise<LoginResponse>;
     },
 
-    async adminLogin(email: string, password: string, totpCode?: string): Promise<LoginResponse | AdminMfaChallenge> {
-        return loginForPortal('/auth/admin/login', email, password, totpCode);
+    async adminLogin(email: string, password: string): Promise<LoginResponse> {
+        return loginForPortal('/auth/admin/login', email, password);
     },
 
     async googleSignIn(): Promise<LoginResponse> {
@@ -113,6 +98,7 @@ export const auth = {
         registrationNumber?: string;
         phone?: string;
         tenderCategories?: string[];
+        privacyAccepted: boolean;
     }): Promise<{ status: string; message: string; verifyLink?: string | null; user: AuthUser; token?: string }> {
         const payload = {
             name: data.name,
@@ -123,6 +109,7 @@ export const auth = {
             registration_number: data.registrationNumber,
             phone: data.phone,
             tender_categories: data.tenderCategories,
+            privacy_accepted: data.privacyAccepted,
         };
 
         const res = isFirebaseClientConfigured()
@@ -165,6 +152,29 @@ export const auth = {
         if (!res.ok) {
             const err = await res.json().catch(() => ({ detail: 'Profile update failed' }));
             throw new Error(err.detail ?? 'Profile update failed');
+        }
+        return res.json();
+    },
+
+    async exportMyData(): Promise<Blob> {
+        const token = (await getCurrentIdToken()) ?? getToken();
+        const res = await fetch(`${API_BASE}/users/me/export`, {
+            headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+            cache: 'no-store',
+        });
+        if (!res.ok) throw new Error('Data export failed');
+        return res.blob();
+    },
+
+    async requestAccountDeletion(): Promise<{ ok: true; requestedAt: string; scheduledFor: string }> {
+        const token = (await getCurrentIdToken()) ?? getToken();
+        const res = await fetch(`${API_BASE}/users/me/delete`, {
+            method: 'POST',
+            headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        });
+        if (!res.ok) {
+            const error = await res.json().catch(() => ({ detail: 'Account deletion request failed' }));
+            throw new Error(error.detail);
         }
         return res.json();
     },

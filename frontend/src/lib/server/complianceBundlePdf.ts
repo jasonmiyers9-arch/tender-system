@@ -73,8 +73,8 @@ function wrapLine(line: string, maxLength = 92): string[] {
 
 function buildLines(input: ComplianceBundlePdfInput): string[] {
   const lines: string[] = [
-    'TenderGuard Pro Compliance Bundle',
-    'Verified by TenderGuard(TM)',
+    'Tender Guard Pro Compliance Bundle',
+    'Verified by Tender Guard Pro(TM)',
     `Generated: ${formatDate(input.generatedAt)}`,
     'Audit Log Available',
     '',
@@ -146,7 +146,7 @@ function pageContent(lines: string[], pageNumber: number, totalPages: number): s
     'BT',
     '/F1 8 Tf',
     '50 32 Td',
-    `(Verified by TenderGuard\\(TM\\) - Page ${pageNumber} of ${totalPages}) Tj`,
+    `(Verified by Tender Guard Pro\\(TM\\) - Page ${pageNumber} of ${totalPages}) Tj`,
     'ET',
   );
 

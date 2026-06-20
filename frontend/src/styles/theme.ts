@@ -1,4 +1,4 @@
-// TenderGuard Pro — Design Tokens
+// Tender Guard Pro — Design Tokens
 // Single source of truth for brand colours.
 // Referenced by globals.css (:root vars) and used via CSS variable utility classes.
 

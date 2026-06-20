@@ -142,11 +142,11 @@ export default function VerifySearchPage() {
                     <EmptyState
                         icon={<Building2 size={24} />}
                         title={`No results found for ${submittedQuery}`}
-                        description={`No results found for ${submittedQuery}. The company may not be registered on TenderGuard Pro yet.`}
+                        description={`No results found for ${submittedQuery}. The company may not be registered on Tender Guard Pro yet.`}
                         action={{
                             label: 'Invite Company',
                             onClick: () => {
-                                window.location.href = `mailto:?subject=${encodeURIComponent('TenderGuard Pro invitation')}&body=${encodeURIComponent(`Please register on TenderGuard Pro so we can verify your tender compliance status. Search attempted: ${submittedQuery}`)}`;
+                                window.location.href = `mailto:?subject=${encodeURIComponent('Tender Guard Pro invitation')}&body=${encodeURIComponent(`Please register on Tender Guard Pro so we can verify your tender compliance status. Search attempted: ${submittedQuery}`)}`;
                             },
                         }}
                     />

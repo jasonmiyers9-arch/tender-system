@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { motion, AnimatePresence } from 'motion/react';
 import {
     ArrowLeft, Bell, Building2, CheckCircle, CheckCircle2, ChevronDown, Copy,
-    Download, Edit, FileText, KeyRound, Mail, ShieldCheck, ShieldOff, Shield, Sparkles,
+    Edit, FileText, KeyRound, Mail, ShieldCheck, ShieldOff, Shield, Sparkles,
     Users as UsersIcon, XCircle, AlertCircle,
 } from 'lucide-react';
 import {
@@ -22,6 +22,7 @@ import {
 import { Modal } from '@/components/ui/Modal';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
+import { DownloadButton } from '@/components/ui/DownloadButton';
 import { CardSkeleton } from '@/components/ui/Skeleton';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { StatusBadge } from '@/components/badges/Badges';
@@ -278,13 +279,14 @@ function DocumentsSection({ companyId }: { companyId: string }) {
                             </div>
                             <StatusBadge status={doc.status as DocumentStatus} />
                             <div className="flex items-center gap-1">
-                                <button
-                                    className="p-1.5 rounded-md text-[--color-text-muted] hover:bg-[--color-bg] hover:text-indigo-600 transition-colors cursor-pointer"
+                                <DownloadButton
+                                    ariaLabel="Download document"
                                     title="Download"
+                                    size="sm"
+                                    iconSize={14}
+                                    className="px-2 py-1.5 rounded-md text-[--color-text-muted] hover:bg-[--color-bg] hover:text-indigo-600 border-transparent"
                                     onClick={() => downloadDoc.mutate({ docId: doc.id, filename: doc.name })}
-                                >
-                                    <Download size={14} />
-                                </button>
+                                />
                                 {doc.status === 'uploaded' && (
                                     <>
                                         <button

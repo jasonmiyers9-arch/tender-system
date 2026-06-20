@@ -13,9 +13,10 @@ export interface InternalUser {
   companyName?: string;
   registrationNumber?: string;
   phone?: string;
-  mfaEnabled?: boolean;
-  mfaTotpSecret?: string | null;
-  mfaEnrolledAt?: string | null;
+  isActive?: boolean;
+  deletionRequestedAt?: string | null;
+  deletionScheduledFor?: string | null;
+  privacyAcceptedAt?: string | null;
   createdAt: string;
 }
 

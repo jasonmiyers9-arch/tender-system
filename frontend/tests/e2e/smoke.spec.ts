@@ -2,5 +2,5 @@ import { test, expect } from '@playwright/test';
 
 test('home page loads', async ({ page }) => {
   await page.goto('/');
-  await expect(page).toHaveTitle(/TenderGuard/i);
+  await expect(page).toHaveTitle(/Tender Guard Pro/i);
 });

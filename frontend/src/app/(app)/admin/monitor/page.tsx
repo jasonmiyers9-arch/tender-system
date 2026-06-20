@@ -4,8 +4,9 @@ import { useEffect, useMemo, useState, Fragment } from 'react';
 import { motion } from 'motion/react';
 import {
     AlertCircle, Bell, CheckCircle2, ChevronDown,
-    Download, Filter, Globe, Heart, Key, RefreshCw, Shield, Sparkles, Zap,
+    Filter, Globe, Heart, Key, RefreshCw, Shield, Sparkles, Zap,
 } from 'lucide-react';
+import { DownloadButton } from '@/components/ui/DownloadButton';
 import { useAppStore } from '@/store/useAppStore';
 import { admin } from '@/lib/api/admin';
 import { fadeUp, T, stagger } from '@/lib/motion';
@@ -203,8 +204,8 @@ export default function AdminMonitorPage() {
 
     const [levelFilter, setLevelFilter] = useState<LevelKey>('all');
 
-    const [openRouterKey, setOpenRouterKey] = useState('');
-    const [openRouterModel, setOpenRouterModel] = useState('openai/gpt-oss-120b:free');
+    const [geminiKey, setGeminiKey] = useState('');
+    const [geminiModel, setGeminiModel] = useState('gemini-2.0-flash');
     const [aiSource, setAiSource] = useState<'admin' | 'env' | 'none'>('none');
     const [maskedKey, setMaskedKey] = useState<string | null>(null);
     const [savingAi, setSavingAi] = useState(false);
@@ -225,9 +226,9 @@ export default function AdminMonitorPage() {
                 const ai = await admin.getAiSettings();
                 setStatus(sJson);
                 setEvents(eJson.items ?? []);
-                setOpenRouterModel(ai.openRouterModel || 'openai/gpt-oss-120b:free');
+                setGeminiModel(ai.geminiModel || 'gemini-2.0-flash');
                 setAiSource(ai.source);
-                setMaskedKey(ai.openRouterKeyMasked);
+                setMaskedKey(ai.geminiKeyMasked);
                 setLastUpdatedAt(Date.now());
                 setError(null);
             } catch (e) {
@@ -303,13 +304,13 @@ export default function AdminMonitorPage() {
         setAiMessage(null);
         try {
             const updated = await admin.updateAiSettings({
-                openRouterApiKey: openRouterKey.trim() || undefined,
-                openRouterModel,
+                geminiApiKey: geminiKey.trim() || undefined,
+                geminiModel,
             });
             setAiSource(updated.source);
-            setMaskedKey(updated.openRouterKeyMasked);
-            setOpenRouterModel(updated.openRouterModel || openRouterModel);
-            setOpenRouterKey('');
+            setMaskedKey(updated.geminiKeyMasked);
+            setGeminiModel(updated.geminiModel || geminiModel);
+            setGeminiKey('');
             setAiMessage('Saved. New uploads will use this configuration.');
         } catch (e) {
             setAiMessage(e instanceof Error ? e.message : 'Failed to save AI settings');
@@ -541,14 +542,16 @@ export default function AdminMonitorPage() {
                                     <option value="info">Info only</option>
                                 </select>
                             </div>
-                            <button
+                            <DownloadButton
                                 type="button"
                                 onClick={() => downloadEventsCsv(filteredEvents)}
                                 disabled={filteredEvents.length === 0}
-                                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold text-indigo-600 border border-indigo-500/30 hover:bg-indigo-500/5 transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                                iconSize={13}
+                                variant="outline"
+                                className="text-indigo-600 border-indigo-500/30 hover:bg-indigo-500/5"
                             >
-                                <Download size={13} /> Export CSV
-                            </button>
+                                Export CSV
+                            </DownloadButton>
                         </div>
                     </div>
 
@@ -610,7 +613,7 @@ export default function AdminMonitorPage() {
                                     <Key size={16} />
                                 </div>
                                 <div>
-                                    <h3 className="text-sm font-semibold text-[--color-text-primary]">AI summaries · OpenRouter</h3>
+                                    <h3 className="text-sm font-semibold text-[--color-text-primary]">AI summaries · Gemini</h3>
                                     <p className="text-xs text-[--color-text-muted] mt-0.5">
                                         Powers document knowledge-base summaries across the app.
                                     </p>
@@ -627,18 +630,18 @@ export default function AdminMonitorPage() {
 
                         <div className="relative grid grid-cols-1 md:grid-cols-2 gap-4">
                             <Input
-                                label="OpenRouter API key"
+                                label="Gemini API key"
                                 type="password"
-                                placeholder={maskedKey ? `Current: ${maskedKey}` : 'sk-or-v1-…'}
-                                value={openRouterKey}
-                                onChange={(e) => setOpenRouterKey(e.target.value)}
+                                placeholder={maskedKey ? `Current: ${maskedKey}` : 'AIza…'}
+                                value={geminiKey}
+                                onChange={(e) => setGeminiKey(e.target.value)}
                                 hint="Leave empty to keep current key."
                             />
                             <Input
                                 label="Model"
-                                placeholder="openai/gpt-oss-120b:free"
-                                value={openRouterModel}
-                                onChange={(e) => setOpenRouterModel(e.target.value)}
+                                placeholder="gemini-2.0-flash"
+                                value={geminiModel}
+                                onChange={(e) => setGeminiModel(e.target.value)}
                             />
                         </div>
 

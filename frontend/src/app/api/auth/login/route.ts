@@ -57,6 +57,11 @@ export async function POST(req: Request) {
       return NextResponse.json({ detail: 'Unable to load user profile' }, { status: 500 });
     }
 
+    if (user.isActive === false || user.deletionRequestedAt) {
+      await logAuthFailure(req, user.email, 'Account inactive or pending deletion');
+      return NextResponse.json({ detail: 'account_inactive' }, { status: 403 });
+    }
+
     if (isAdminRole(user.role)) {
       await logAuthFailure(req, user.email, 'Admin attempted public login');
       return NextResponse.json({ detail: 'admin_portal_required' }, { status: 403 });

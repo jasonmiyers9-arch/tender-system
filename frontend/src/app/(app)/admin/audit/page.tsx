@@ -6,6 +6,7 @@ import {
     Search, Filter, Calendar, Download, Bell, Sparkles, Shield,
     UserCheck, FileCheck, XCircle, Inbox, ChevronDown, Activity,
 } from 'lucide-react';
+import { DownloadButton } from '@/components/ui/DownloadButton';
 import { useAppStore } from '@/store/useAppStore';
 import { useAuditLog } from '@/lib/hooks/useAdmin';
 import { CardSkeleton } from '@/components/ui/Skeleton';
@@ -496,14 +497,16 @@ export default function AdminActivityPage() {
                                     <option value="verified">Verified</option>
                                 </select>
                             </div>
-                            <button
+                            <DownloadButton
                                 type="button"
                                 onClick={() => downloadCsv(filtered)}
                                 disabled={filtered.length === 0}
-                                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold text-indigo-600 border border-indigo-500/30 hover:bg-indigo-500/5 transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                                iconSize={13}
+                                variant="outline"
+                                className="text-indigo-600 border-indigo-500/30 hover:bg-indigo-500/5"
                             >
-                                <Download size={13} /> Export CSV
-                            </button>
+                                Export CSV
+                            </DownloadButton>
                         </div>
                     </div>
 

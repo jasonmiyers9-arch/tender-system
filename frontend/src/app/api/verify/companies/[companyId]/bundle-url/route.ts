@@ -133,7 +133,7 @@ export async function GET(
       'Content-Type': 'application/pdf',
       'Content-Disposition': `attachment; filename="${filename}"`,
       'Cache-Control': 'no-store',
-      'X-TenderGuard-Seal': 'Verified by TenderGuard',
+      'X-TenderGuard-Seal': 'Verified by Tender Guard Pro',
       'X-PDF-Engine': weasyPrintPdf ? 'weasyprint' : 'built-in-fallback',
     },
   });

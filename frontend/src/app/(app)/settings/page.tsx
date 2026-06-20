@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { Card } from '@/components/ui/Card';
 import { Select } from '@/components/ui/Select';
 import { Button } from '@/components/ui/Button';
@@ -7,6 +8,29 @@ import { Save, Settings } from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';
 
 export default function SettingsPage() {
+    const [timezone, setTimezone] = useState('Africa/Johannesburg');
+    const [dateFormat, setDateFormat] = useState('DD/MM/YYYY');
+    const [saved, setSaved] = useState(false);
+
+    useEffect(() => {
+        const raw = window.localStorage.getItem('tenderguard-settings');
+        if (!raw) return;
+
+        try {
+            const parsed = JSON.parse(raw) as { timezone?: string; dateFormat?: string };
+            if (parsed.timezone) setTimezone(parsed.timezone);
+            if (parsed.dateFormat) setDateFormat(parsed.dateFormat);
+        } catch {
+            window.localStorage.removeItem('tenderguard-settings');
+        }
+    }, []);
+
+    function saveSettings() {
+        window.localStorage.setItem('tenderguard-settings', JSON.stringify({ timezone, dateFormat }));
+        setSaved(true);
+        window.setTimeout(() => setSaved(false), 2500);
+    }
+
     return (
         <div className="space-y-6 max-w-3xl mx-auto">
             <PageHeader
@@ -24,7 +48,8 @@ export default function SettingsPage() {
                             { value: 'Africa/Johannesburg', label: 'South Africa Standard Time (SAST)' },
                             { value: 'UTC', label: 'Coordinated Universal Time (UTC)' }
                         ]}
-                        value="Africa/Johannesburg"
+                        value={timezone}
+                        onChange={(e) => setTimezone(e.target.value)}
                     />
                     <Select
                         label="Date Format"
@@ -32,7 +57,8 @@ export default function SettingsPage() {
                             { value: 'DD/MM/YYYY', label: 'DD/MM/YYYY (e.g. 30/12/2025)' },
                             { value: 'YYYY-MM-DD', label: 'YYYY-MM-DD (e.g. 2025-12-30)' }
                         ]}
-                        value="DD/MM/YYYY"
+                        value={dateFormat}
+                        onChange={(e) => setDateFormat(e.target.value)}
                     />
                 </div>
             </Card>
@@ -49,7 +75,10 @@ export default function SettingsPage() {
             </Card>
 
             <div className="flex justify-end pt-4">
-                <Button leftIcon={<Save size={16} />}>Save Settings</Button>
+                <div className="flex items-center gap-3">
+                    {saved && <p className="text-sm text-[--color-success]">Settings saved locally.</p>}
+                    <Button leftIcon={<Save size={16} />} onClick={saveSettings}>Save Settings</Button>
+                </div>
             </div>
         </div>
     );

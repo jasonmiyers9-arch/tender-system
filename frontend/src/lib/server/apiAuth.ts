@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getUserByToken, listCompaniesForUser, ensureUserCompanyContext } from './firestoreService';
 import { logAccessDenied } from './securityAudit';
+import { isFirestoreAvailable } from './firebaseAdmin';
 
 export function parseBearerToken(req: Request): string | null {
   const header = req.headers.get('authorization');
@@ -13,6 +14,9 @@ export function parseBearerToken(req: Request): string | null {
  * Authenticate request and return the user. Returns an error response if unauthenticated.
  */
 export async function requireAuth(req: Request) {
+  if (process.env.NODE_ENV === 'production' && !isFirestoreAvailable()) {
+    return { user: null, error: NextResponse.json({ detail: 'Firebase persistence unavailable' }, { status: 503 }) };
+  }
   const token = parseBearerToken(req);
   if (!token) {
     await logAccessDenied(req, null, 'Missing authentication token');
@@ -23,6 +27,11 @@ export async function requireAuth(req: Request) {
   if (!user) {
     await logAccessDenied(req, null, 'Invalid or expired token');
     return { user: null, error: NextResponse.json({ detail: 'Unauthorized' }, { status: 401 }) };
+  }
+
+  if (user.isActive === false || user.deletionRequestedAt) {
+    await logAccessDenied(req, user.id, 'Account is inactive or pending deletion');
+    return { user: null, error: NextResponse.json({ detail: 'Account inactive' }, { status: 403 }) };
   }
 
   return { user, error: null };

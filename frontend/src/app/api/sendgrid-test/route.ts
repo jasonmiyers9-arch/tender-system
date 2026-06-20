@@ -6,9 +6,9 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const apiKey = process.env.SENDGRID_API_KEY;
   const fromEmail = process.env.SENDGRID_FROM_EMAIL;
-  const fromName = process.env.SENDGRID_FROM_NAME || 'TenderGuard Pro';
+  const fromName = process.env.SENDGRID_FROM_NAME || 'Tender Guard Pro';
   const toEmail = searchParams.get('to') || process.env.SENDGRID_TEST_TO_EMAIL;
-  const subject = searchParams.get('subject') || 'TenderGuard Pro SendGrid test';
+  const subject = searchParams.get('subject') || 'Tender Guard Pro SendGrid test';
 
   if (!apiKey || !fromEmail || !toEmail) {
     return NextResponse.json(
@@ -31,7 +31,7 @@ export async function GET(request: Request) {
         personalizations: [{ to: [{ email: toEmail }] }],
         from: { email: fromEmail, name: fromName },
         subject,
-        content: [{ type: 'text/plain', value: 'This is a test from TenderGuard Pro.' }],
+        content: [{ type: 'text/plain', value: 'This is a test from Tender Guard Pro.' }],
       }),
     });
 

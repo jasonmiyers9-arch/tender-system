@@ -2,7 +2,7 @@
 
 ## Overview
 
-The TenderGuard Pro system has been successfully migrated from a Python FastAPI backend to a **Netlify-compatible serverless architecture** with **Firebase Firestore** for metadata and **Firebase Authentication** for user management.
+The Tender Guard Pro system has been successfully migrated from a Python FastAPI backend to a **Netlify-compatible serverless architecture** with **Firebase Firestore** for metadata and **Firebase Authentication** for user management.
 
 ## Architecture
 

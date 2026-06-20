@@ -2,10 +2,11 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { ChevronLeft, ChevronRight, Download, AlertTriangle, Calendar as CalIcon } from 'lucide-react';
+import { ChevronLeft, ChevronRight, AlertTriangle, Calendar as CalIcon } from 'lucide-react';
 
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
+import { DownloadButton } from '@/components/ui/DownloadButton';
 import { Badge } from '@/components/ui/Badge';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { CardSkeleton } from '@/components/ui/Skeleton';
@@ -185,14 +186,16 @@ export default function TenderCalendarPage() {
                 icon={<CalIcon size={22} />}
                 iconColor="#7C3AED"
                 actions={
-                    <Button
-                        variant="ghost"
-                        leftIcon={<Download size={14} />}
+                    <DownloadButton
                         onClick={() => tenders.downloadCalendarIcs()}
-                        style={{ color: 'white', borderColor: 'rgba(255,255,255,0.3)' }}
+                        variant="ghost"
+                        className="text-white border-white/30 hover:bg-white/10"
+                        size="md"
+                        iconSize={14}
+                        ariaLabel="Export calendar ICS"
                     >
                         Export ICS
-                    </Button>
+                    </DownloadButton>
                 }
             />
 

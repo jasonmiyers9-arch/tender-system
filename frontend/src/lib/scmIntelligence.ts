@@ -136,7 +136,7 @@ export const SCM_UNIQUE_SELLING_POINTS: ScmUsp[] = [
   {
     title: 'Sector Intelligence - 28 sectors, not a generic list',
     summary:
-      'TenderGuard maps broad tender categories into actionable South African business sectors, each with a specific document checklist.',
+      'Tender Guard Pro maps broad tender categories into actionable South African business sectors, each with a specific document checklist.',
   },
   {
     title: 'One-click tender qualification',

@@ -43,8 +43,23 @@ function shouldSkip(pathname: string): boolean {
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+
+  if (pathname.startsWith('/api/') && process.env.NODE_ENV === 'production') {
+    const firebaseConfigured = Boolean(
+      process.env.FIREBASE_PROJECT_ID
+      && process.env.FIREBASE_CLIENT_EMAIL
+      && process.env.FIREBASE_PRIVATE_KEY
+      && process.env.FIREBASE_STORAGE_BUCKET
+    );
+    if (!firebaseConfigured) {
+      return NextResponse.json(
+        { detail: 'Production persistence is unavailable. Firebase configuration is required.' },
+        { status: 503, headers: { 'Cache-Control': 'no-store' } },
+      );
+    }
+  }
   
-  // Skip for static assets and API routes
+  // Skip remaining processing for static assets and configured API routes.
   if (shouldSkip(pathname)) {
     return NextResponse.next();
   }

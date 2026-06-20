@@ -118,7 +118,13 @@ function RenewalCard({ item }: { item: RenewalItem }) {
                             Upload new document
                         </Button>
                     </Link>
-                    <Button variant="ghost" size="sm">
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                            window.location.href = `mailto:ops@tenderguard.co.za?subject=${encodeURIComponent(`Managed renewal request: ${item.documentName}`)}`;
+                        }}
+                    >
                         Request managed renewal
                     </Button>
                 </div>

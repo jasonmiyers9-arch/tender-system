@@ -27,7 +27,10 @@ export function EmptyState({ title, description, icon, action }: EmptyStateProps
                 initial={{ scale: 0.6, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 transition={T.softSpring}
-                whileHover={{ rotate: [0, -6, 6, 0] }}
+                whileHover={{
+                    rotate: [0, -6, 6, 0],
+                    transition: { type: 'tween', duration: 0.45, ease: 'easeInOut' },
+                }}
                 className="w-16 h-16 rounded-2xl bg-[--color-bg] border border-[--color-border] flex items-center justify-center mb-4 text-[--color-text-muted]"
             >
                 {icon ?? <FolderOpen size={28} />}

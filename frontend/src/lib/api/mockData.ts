@@ -460,4 +460,9 @@ export const mockComplianceReport: CompanyComplianceReport = {
     },
     auditLog: mockAuditLog,
     bundleUrl: '/mock-compliance-bundle.pdf',
+    verification: {
+        isVerified: true,
+        lastVerifiedAt: '2025-03-01T10:00:00.000Z',
+        generatedAt: '2025-03-01T10:00:00.000Z',
+    },
 };

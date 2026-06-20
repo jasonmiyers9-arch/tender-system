@@ -22,10 +22,16 @@ export async function POST(req: Request) {
   const tenderCategories = Array.isArray(data.tender_categories)
     ? data.tender_categories.map((c: unknown) => String(c).trim()).filter(Boolean)
     : undefined;
+  const privacyAccepted = data.privacy_accepted === true;
 
   if (!name || !email) {
     return NextResponse.json({ detail: 'name and email are required' }, { status: 400 });
   }
+
+  if (!privacyAccepted) {
+    return NextResponse.json({ detail: 'Privacy policy acceptance is required' }, { status: 400 });
+  }
+  const privacyAcceptedAt = new Date().toISOString();
 
   if (role === 'admin') {
     return NextResponse.json({ detail: 'admin_registration_disabled' }, { status: 403 });
@@ -61,6 +67,7 @@ export async function POST(req: Request) {
             registrationNumber,
             phone,
             tenderCategories,
+            privacyAcceptedAt,
           });
         })()
       : await createUser({
@@ -72,6 +79,7 @@ export async function POST(req: Request) {
           registrationNumber,
           phone,
           tenderCategories,
+          privacyAcceptedAt,
         });
 
     let verifyLink: string | null = null;
@@ -82,7 +90,7 @@ export async function POST(req: Request) {
         verifyLink = await generateEmailVerificationLink(email);
         const delivery = await sendAuthEmail({
           to: email,
-          subject: 'Verify your TenderGuard Pro email',
+          subject: 'Verify your Tender Guard Pro email',
           body: emailVerificationBody(verifyLink),
         });
         verificationEmailSent = delivery.sent;
@@ -103,7 +111,7 @@ export async function POST(req: Request) {
       userId: user.id,
       userEmail: email,
       ...ctx,
-      details: { role, companyName, verificationEmailSent, verificationEmailReason },
+      details: { role, companyName, verificationEmailSent, verificationEmailReason, privacyAcceptedAt },
     });
 
     return NextResponse.json({

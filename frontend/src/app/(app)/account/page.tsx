@@ -5,11 +5,14 @@ import { useAppStore } from '@/store/useAppStore';
 import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
-import { User, Shield } from 'lucide-react';
+import { Trash2, User, Shield } from 'lucide-react';
+import { DownloadButton } from '@/components/ui/DownloadButton';
+import { useRouter } from 'next/navigation';
 import { auth } from '@/lib/api/auth';
 
 export default function AccountProfilePage() {
-    const { currentUser, setCurrentUser } = useAppStore();
+    const { currentUser, setCurrentUser, logout } = useAppStore();
+    const router = useRouter();
     const [fullName, setFullName] = useState(currentUser?.name ?? '');
     const [phone, setPhone] = useState('');
     const [jobTitle, setJobTitle] = useState('');
@@ -31,6 +34,33 @@ export default function AccountProfilePage() {
             setError(e instanceof Error ? e.message : 'Failed to save profile');
         } finally {
             setSaving(false);
+        }
+    };
+
+    const exportData = async () => {
+        setError(null);
+        try {
+            const blob = await auth.exportMyData();
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = 'tenderguard-data-export.json';
+            link.click();
+            URL.revokeObjectURL(url);
+        } catch (e) {
+            setError(e instanceof Error ? e.message : 'Data export failed');
+        }
+    };
+
+    const deleteAccount = async () => {
+        if (!window.confirm('Request account deletion? Access will stop immediately and permanent deletion is scheduled after 30 days.')) return;
+        setError(null);
+        try {
+            await auth.requestAccountDeletion();
+            logout();
+            router.push('/login?reason=account_deletion_requested');
+        } catch (e) {
+            setError(e instanceof Error ? e.message : 'Account deletion request failed');
         }
     };
 
@@ -62,6 +92,15 @@ export default function AccountProfilePage() {
                     <Input label="Email Address" type="email" value={currentUser.email} readOnly hint="Contact support to change email." />
                     <Input label="Phone Number" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} hint="Local-only for now (not yet synced to backend)." />
                     <Input label="Job Title" value={jobTitle} onChange={(e) => setJobTitle(e.target.value)} hint="Local-only for now (not yet synced to backend)." />
+                </div>
+            </Card>
+
+            <Card>
+                <h2 className="text-base font-semibold text-[--color-text-primary]">Privacy and personal data</h2>
+                <p className="mt-1 text-sm text-[--color-text-muted]">Download a machine-readable copy of your account data or request deletion under POPIA.</p>
+                <div className="mt-5 flex flex-wrap gap-3">
+                    <DownloadButton variant="outline" size="md" iconSize={15} onClick={exportData}>Export My Data</DownloadButton>
+                    <Button variant="ghost" leftIcon={<Trash2 size={15} />} onClick={deleteAccount} className="border border-red-500/50 text-red-600">Request Account Deletion</Button>
                 </div>
             </Card>
 

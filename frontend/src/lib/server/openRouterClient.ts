@@ -1,17 +1,18 @@
-import { getOpenRouterRuntimeConfig } from './aiSettingsService';
+import { GoogleGenerativeAI } from '@google/generative-ai';
+import { getAiRuntimeConfig } from './aiSettingsService';
 
-type OpenRouterMessage = {
+type AiMessage = {
   role: 'system' | 'user' | 'assistant';
   content: string;
 };
 
-type OpenRouterChatOptions = {
-  messages: OpenRouterMessage[];
+type AiChatOptions = {
+  messages: AiMessage[];
   temperature?: number;
   maxTokens?: number;
 };
 
-export type OpenRouterChatResult =
+export type AiChatResult =
   | {
       ok: true;
       content: string;
@@ -25,53 +26,73 @@ export type OpenRouterChatResult =
       error?: string;
     };
 
-export async function chatWithOpenRouter(options: OpenRouterChatOptions): Promise<OpenRouterChatResult> {
-  const { apiKey, model } = await getOpenRouterRuntimeConfig();
+function splitMessages(messages: AiMessage[]) {
+  const systemMessages: string[] = [];
+  const conversationMessages = messages.reduce<Array<{ role: 'user' | 'assistant'; content: string }>>((acc, message) => {
+    if (message.role === 'system') {
+      systemMessages.push(message.content);
+      return acc;
+    }
+    acc.push({ role: message.role, content: message.content });
+    return acc;
+  }, []);
+
+  return {
+    systemInstruction: systemMessages.join('\n\n').trim(),
+    conversationMessages,
+  };
+}
+
+function toGeminiContents(messages: Array<{ role: 'user' | 'assistant'; content: string }>) {
+  return messages.map((message) => ({
+    role: message.role === 'assistant' ? 'model' : 'user',
+    parts: [{ text: message.content }],
+  }));
+}
+
+async function chatWithGemini(options: AiChatOptions): Promise<AiChatResult> {
+  const { apiKey, model } = await getAiRuntimeConfig();
 
   if (!apiKey) {
     return { ok: false, reason: 'no_api_key', model };
   }
 
   try {
-    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model,
+    const client = new GoogleGenerativeAI(apiKey);
+    const modelClient = client.getGenerativeModel({
+      model,
+      generationConfig: {
         temperature: options.temperature ?? 0.2,
-        max_tokens: options.maxTokens ?? 700,
-        messages: options.messages,
-      }),
+        maxOutputTokens: options.maxTokens ?? 700,
+      },
     });
 
-    if (!response.ok) {
-      return { ok: false, reason: 'request_failed', model, status: response.status };
-    }
+    const { systemInstruction, conversationMessages } = splitMessages(options.messages);
+    const response = await modelClient.generateContent({
+      contents: toGeminiContents(conversationMessages),
+      ...(systemInstruction ? { systemInstruction } : {}),
+    });
 
-    const json = (await response.json()) as {
-      choices?: Array<{ message?: { content?: string } }>;
-      model?: string;
-    };
-    const content = json.choices?.[0]?.message?.content?.trim() ?? '';
-
+    const content = response.response.text().trim();
     if (!content) {
-      return { ok: false, reason: 'empty_response', model: json.model ?? model };
+      return { ok: false, reason: 'empty_response', model };
     }
 
     return {
       ok: true,
       content,
-      model: json.model ?? model,
+      model,
     };
   } catch (error) {
     return {
       ok: false,
       reason: 'exception',
       model,
-      error: error instanceof Error ? error.message : 'OpenRouter request failed',
+      error: error instanceof Error ? error.message : 'Gemini request failed',
     };
   }
+}
+
+export async function chatWithOpenRouter(options: AiChatOptions): Promise<AiChatResult> {
+  return chatWithGemini(options);
 }

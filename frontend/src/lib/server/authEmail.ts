@@ -9,7 +9,7 @@ export async function sendAuthEmail(input: {
 }): Promise<{ sent: boolean; reason?: string }> {
   const apiKey = process.env.SENDGRID_API_KEY;
   const fromEmail = process.env.SENDGRID_FROM_EMAIL;
-  const fromName = process.env.SENDGRID_FROM_NAME || 'TenderGuard Pro';
+  const fromName = process.env.SENDGRID_FROM_NAME || 'Tender Guard Pro';
 
   if (!apiKey || !fromEmail) {
     return { sent: false, reason: 'SendGrid is not configured' };
@@ -38,24 +38,24 @@ export async function sendAuthEmail(input: {
 
 export function passwordResetEmailBody(resetLink: string): string {
   return [
-    'We received a request to reset your TenderGuard Pro password.',
+    'We received a request to reset your Tender Guard Pro password.',
     '',
     `Reset your password: ${resetLink}`,
     '',
     'If you did not request this, you can ignore this email.',
     '',
-    `Open TenderGuard: ${appUrl()}`,
+    `Open Tender Guard Pro: ${appUrl()}`,
   ].join('\n');
 }
 
 export function emailVerificationBody(verifyLink: string): string {
   return [
-    'Welcome to TenderGuard Pro.',
+    'Welcome to Tender Guard Pro.',
     '',
     `Verify your email address: ${verifyLink}`,
     '',
     'This link confirms that you can receive account and compliance notifications.',
     '',
-    `Open TenderGuard: ${appUrl()}`,
+    `Open Tender Guard Pro: ${appUrl()}`,
   ].join('\n');
 }

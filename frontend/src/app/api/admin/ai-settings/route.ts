@@ -36,13 +36,13 @@ export async function PUT(req: Request) {
 
   try {
     const body = await req.json() as {
-      openRouterApiKey?: string | null;
-      openRouterModel?: string | null;
+      geminiApiKey?: string | null;
+      geminiModel?: string | null;
     };
 
     const settings = await upsertAiSettings({
-      openRouterApiKey: body.openRouterApiKey,
-      openRouterModel: body.openRouterModel,
+      geminiApiKey: body.geminiApiKey,
+      geminiModel: body.geminiModel,
       updatedBy: user.id,
     });
 

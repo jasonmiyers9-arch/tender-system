@@ -1,8 +1,8 @@
-# TenderGuard Pro
+# Tender Guard Pro
 
 A compliance management and tender readiness platform for South African businesses. Upload compliance documents, get AI-powered readiness scores, browse matched government tenders, and apply — all from one portal.
 
-Built with **Next.js 16**, **React 19**, **Firebase** (Auth + Firestore + Storage), **Tailwind CSS v4**, and **OpenRouter AI**.
+Built with **Next.js 16**, **React 19**, **Firebase** (Auth + Firestore + Storage), **Tailwind CSS v4**, and **Gemini AI**.
 
 ---
 
@@ -12,15 +12,15 @@ The app is a **fully functional monolithic BFF** (Backend-for-Frontend) with 53 
 
 ### What Works
 
-- **Authentication**: Email/password + Google OAuth sign-in/register, role-based access (Company, Provider, Admin), demo login buttons
+- **Authentication**: Email/password + Google OAuth sign-in/register, role-based access (Company, Evaluator, Admin), demo login buttons
 - **Document Vault**: Upload compliance documents (PDF, DOC, XLS, images, ZIP — up to 50 MB), AI-powered text extraction, expiry detection, verification workflow
-- **Compliance Scoring**: Weighted scoring engine (completeness 25%, validity 25%, requirement matching 30%, verification 20%) with optional LLM-based adjustment via OpenRouter
+- **Compliance Scoring**: Weighted scoring engine (completeness 25%, validity 25%, requirement matching 30%, verification 20%) with optional LLM-based adjustment via Gemini
 - **Tender Marketplace**: Browse tenders with AI match scores, category filters, deadline calendar with iCal export, gap analysis before applying
 - **Tender Scraper**: Scrapes SA government sites (eTenders.gov.za, tenderbulletins.co.za), parses full detail pages, downloads and extracts attached PDFs, filters by company categories
-- **Applications**: Submit applications to tenders, provider-side review with document access, approve/reject workflow
-- **Provider Portal**: Create/edit/delete tenders, define required documents, review applications
+- **Applications**: Submit applications to tenders, evaluator-side review with document access, approve/reject workflow
+- **Evaluator Portal**: Create/edit/delete tenders, define required documents, review applications
 - **Admin Portal**: Account approvals (with 48h SLA tracking), document verification queue, Kanban renewal pipeline, audit log, AI settings management, scraper controls, frontend health monitoring
-- **Knowledge Base**: AI Q&A against uploaded document content via OpenRouter LLM
+- **Knowledge Base**: AI Q&A against uploaded document content via Gemini
 - **Notifications**: Expiry reminders, deadline alerts, configurable preferences
 - **In-Memory Fallback**: Everything runs locally without Firebase — the app seeds mock data automatically
 
@@ -29,7 +29,7 @@ The app is a **fully functional monolithic BFF** (Backend-for-Frontend) with 53 
 | Role | Access |
 |------|--------|
 | **Company** | Dashboard, Vault, Score, Tenders, Applications, Company Profile, Knowledge Base |
-| **Provider / Evaluator** | Everything above + Create Tenders, Review Applications, Verify Companies |
+| **Evaluator** | Everything above + Create Tenders, Review Applications, Verify Companies |
 | **Admin** | Full platform: Account Approvals, Document Verification, Audit Log, Scraper, AI Settings, Monitoring |
 
 ### Tech Stack
@@ -41,7 +41,7 @@ The app is a **fully functional monolithic BFF** (Backend-for-Frontend) with 53 
 | Auth | Firebase Authentication (Email/Password + Google) |
 | Database | Cloud Firestore (in-memory fallback for local dev) |
 | Storage | Firebase Storage (local filesystem fallback) |
-| AI | OpenRouter API (summarization, scoring adjustment, knowledge Q&A) |
+| AI | Gemini API (summarization, scoring adjustment, knowledge Q&A) |
 | PDF Extraction | pdfjs-dist + pdf-parse (dual-engine with caching) |
 | Web Scraping | Cheerio |
 | State Management | Zustand (client), TanStack React Query v5 (server) |
@@ -90,8 +90,9 @@ NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=your-project.firebaseapp.com
 NEXT_PUBLIC_FIREBASE_PROJECT_ID=your-project-id
 NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=your-project.firebasestorage.app
 
-# OpenRouter AI (optional — enables AI scoring, summaries, knowledge Q&A)
-OPENROUTER_API_KEY=sk-or-v1-...
+# Gemini AI (optional — enables AI scoring, summaries, knowledge Q&A)
+GEMINI_API_KEY=AIzaSy...
+GEMINI_MODEL=gemini-2.0-flash
 
 # App URL
 NEXT_PUBLIC_APP_URL=http://localhost:3000
@@ -138,7 +139,7 @@ tender-system/
 │       │   │   ├── company/          # Company profile editor
 │       │   │   ├── knowledge/        # AI document Q&A
 │       │   │   ├── verify/           # Evaluator company compliance reports
-│       │   │   ├── provider/         # Tender provider portal (CRUD + review)
+│       │   │   ├── provider/         # Evaluator portal (CRUD + review)
 │       │   │   ├── admin/            # Admin dashboard, accounts, docs, audit, scraper
 │       │   │   ├── notifications/    # Notification center
 │       │   │   ├── settings/         # Preferences

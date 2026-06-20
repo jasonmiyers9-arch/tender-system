@@ -104,10 +104,10 @@ export async function uploadToStorage(
     },
   });
   
-  // Generate a signed URL that expires in 7 days
+  // Generate a short-lived signed URL.
   const [url] = await file.getSignedUrl({
     action: 'read',
-    expires: Date.now() + 7 * 24 * 60 * 60 * 1000,
+    expires: Date.now() + 60 * 60 * 1000,
   });
   
   return { url, storagePath };
@@ -124,7 +124,7 @@ export async function getDownloadUrl(storagePath: string): Promise<string> {
   
   const [url] = await file.getSignedUrl({
     action: 'read',
-    expires: Date.now() + 7 * 24 * 60 * 60 * 1000,
+    expires: Date.now() + 60 * 60 * 1000,
   });
   
   return url;
@@ -166,6 +166,11 @@ export async function generatePasswordResetLink(email: string): Promise<string> 
     throw new Error('Firebase Admin is not configured for password reset.');
   }
   return getAuth().generatePasswordResetLink(email);
+}
+
+export async function revokeAuthUserSessions(uid: string) {
+  if (!isFirebaseAdminConfigured()) return;
+  await getAuth().revokeRefreshTokens(uid);
 }
 
 export async function generateEmailVerificationLink(email: string): Promise<string> {

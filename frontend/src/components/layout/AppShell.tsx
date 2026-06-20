@@ -121,10 +121,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             return;
         }
         if (pathname.startsWith('/provider')) {
-            if (currentUser.role !== 'evaluator') {
-                router.push(isAdminRole(currentUser.role) ? '/admin/dashboard' : '/dashboard');
-                return;
-            }
+            router.push(isAdminRole(currentUser.role) ? '/admin/dashboard' : currentUser.role === 'evaluator' ? '/evaluator/dashboard' : '/dashboard');
+            return;
         }
         if (currentUser.role === 'user') {
             if (pathname.startsWith('/admin') || pathname.startsWith('/provider')) {
@@ -142,13 +140,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         }
         if (
             currentUser.role === 'evaluator'
+            && !pathname.startsWith('/evaluator')
             && pathname !== '/verify'
             && !pathname.startsWith('/verify/company')
-            && !pathname.startsWith('/provider')
-            && !pathname.startsWith('/tenders/calendar')
-            && pathname !== '/home'
+            && !pathname.startsWith('/notifications')
+            && !pathname.startsWith('/account')
+            && !pathname.startsWith('/settings')
         ) {
-            router.push('/provider/dashboard');
+            router.push('/evaluator/dashboard');
             return;
         }
         if (isAdminRole(currentUser.role) && (pathname === '/dashboard' || pathname === '/verify')) {
@@ -298,7 +297,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                         initial="hidden"
                         animate="show"
                         exit="exit"
-                        className="fixed bottom-5 right-5 z-50 w-[360px] rounded-xl border border-amber-500/30 bg-[--color-surface] p-4 shadow-xl card-shadow"
+                        className="fixed bottom-5 right-5 z-50 w-[360px] rounded-xl border border-amber-500/30 p-4 opacity-100 shadow-xl card-shadow"
+                        style={{ backgroundColor: 'var(--color-surface)' }}
                     >
                         <p className="text-sm font-semibold text-[--color-text-primary]">{popup.title}</p>
                         <p className="mt-1 text-sm text-[--color-text-muted]">{popup.message}</p>

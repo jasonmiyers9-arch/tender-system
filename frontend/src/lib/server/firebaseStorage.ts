@@ -14,7 +14,7 @@ function normalizeBucket(bucket?: string): string | undefined {
 const projectId = process.env.FIREBASE_PROJECT_ID;
 const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
 const rawPrivateKey = process.env.FIREBASE_PRIVATE_KEY;
-const storageBucket = normalizeBucket(process.env.FIREBASE_STORAGE_BUCKET ?? 'gs://tender-f8e31.firebasestorage.app');
+const storageBucket = normalizeBucket(process.env.FIREBASE_STORAGE_BUCKET);
 let cachedLocalStorageRoot: string | null = null;
 
 function normalizePrivateKey(key?: string): string | null {
@@ -140,6 +140,9 @@ function resolveLocalStorageRoot(): string {
 }
 
 export function writeLocalFallback(blobName: string, data: Buffer): string {
+  if (process.env.NODE_ENV === 'production' || process.env.ALLOW_LOCAL_STORAGE_FALLBACK === 'false') {
+    throw new Error('Local document storage fallback is disabled outside development.');
+  }
   const storageRoot = resolveLocalStorageRoot();
   const targetPath = path.join(storageRoot, blobName);
   const dir = path.dirname(targetPath);

@@ -46,7 +46,7 @@ const TENDER_CATEGORIES = [
 ] as const;
 
 export default function RegisterPage() {
-    const [formData, setFormData] = useState({ name: '', email: '', password: '', role: 'company' as 'company' | 'tender_provider', companyName: '', registrationNumber: '', phone: '', tenderCategories: [] as string[] });
+    const [formData, setFormData] = useState({ name: '', email: '', password: '', role: 'company' as 'company' | 'tender_provider', companyName: '', registrationNumber: '', phone: '', tenderCategories: [] as string[], privacyAccepted: false });
     const [categoryDropdownOpen, setCategoryDropdownOpen] = useState(false);
     const [loading, setLoading] = useState(false);
     const [progress, setProgress] = useState(0);
@@ -107,6 +107,14 @@ export default function RegisterPage() {
             return;
         }
 
+        if (!formData.privacyAccepted) {
+            setError('You must accept the Privacy Policy and Terms of Use.');
+            setLoading(false);
+            setProgress(0);
+            setFlowMessage('');
+            return;
+        }
+
         startProgressTicker();
 
         try {
@@ -154,7 +162,7 @@ export default function RegisterPage() {
                 </div>
                 <div className="text-center space-y-1">
                     <h1 className="text-2xl font-bold text-[--color-text-primary] tracking-tight">Create your account</h1>
-                    <p className="text-sm text-[--color-text-muted]">Get started with TenderGuard Pro</p>
+                    <p className="text-sm text-[--color-text-muted]">Get started with Tender Guard Pro</p>
                 </div>
             </div>
 
@@ -207,6 +215,16 @@ export default function RegisterPage() {
                             value={formData.name}
                             onChange={e => setFormData({ ...formData, name: e.target.value })}
                         />
+
+                        <label className="flex items-start gap-3 rounded-xl border border-[--color-border] p-3 text-sm text-[--color-text-muted]">
+                            <input
+                                type="checkbox"
+                                checked={formData.privacyAccepted}
+                                onChange={(event) => setFormData({ ...formData, privacyAccepted: event.target.checked })}
+                                className="mt-0.5 h-4 w-4"
+                            />
+                            <span>I accept the <Link href="/privacy" className="font-semibold text-[--color-primary]">Privacy Policy</Link> and Terms of Use.</span>
+                        </label>
                         <Input
                             type="email"
                             label="Email Address"
@@ -225,13 +243,13 @@ export default function RegisterPage() {
                                 onChange={e => setFormData({ ...formData, role: e.target.value as 'company' | 'tender_provider' })}
                             >
                                 <option value="company">Company</option>
-                                <option value="tender_provider">Tender Provider</option>
+                                <option value="tender_provider">Evaluator</option>
                             </select>
                         </div>
 
                         <>
                             <Input
-                                label={formData.role === 'tender_provider' ? 'Provider Organisation Name' : 'Company Name'}
+                                label={formData.role === 'tender_provider' ? 'Evaluator Organisation Name' : 'Company Name'}
                                 placeholder={formData.role === 'tender_provider' ? 'e.g. City Infrastructure Dept' : 'e.g. Acme Infra (Pty) Ltd'}
                                 required
                                 value={formData.companyName}

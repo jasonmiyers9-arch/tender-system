@@ -51,14 +51,14 @@ export default function ProviderDashboardPage() {
     return (
         <div className="space-y-6 max-w-7xl mx-auto">
             <PageHeader
-                title="Tender Provider Portal"
+                title="Evaluator Portal"
                 subtitle="Publish tenders, review supplier applications, and track procurement deadlines."
                 icon={<LayoutDashboard size={22} />}
                 iconColor="#2563EB"
                 actions={
                     <div className="flex flex-wrap gap-3">
                         <Link href="/provider/profile">
-                            <Button variant="ghost"><Building2 size={16} className="mr-1.5" />Provider Profile</Button>
+                            <Button variant="ghost"><Building2 size={16} className="mr-1.5" />Evaluator Profile</Button>
                         </Link>
                         <Link href="/provider/tenders/new">
                             <Button><Plus size={16} className="mr-1.5" />New Tender</Button>
@@ -102,7 +102,7 @@ export default function ProviderDashboardPage() {
                     <div className="flex items-start justify-between gap-3">
                         <div>
                             <p className="text-xs font-semibold uppercase text-[--color-text-muted]">Portal Type</p>
-                            <p className="text-base font-semibold text-[--color-text-primary] mt-2">Tender Provider</p>
+                            <p className="text-base font-semibold text-[--color-text-primary] mt-2">Evaluator</p>
                             <Badge variant="accent" size="sm" className="mt-2">Procurement</Badge>
                         </div>
                         <CheckCircle2 size={18} className="text-emerald-500" />

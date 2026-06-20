@@ -14,6 +14,7 @@ const routeLabels: Record<string, string> = {
     admin: 'Admin',
     companies: 'Companies',
     audit: 'Audit Log',
+    assistant: 'AI Compliance Advisor',
 };
 
 export function Breadcrumbs() {

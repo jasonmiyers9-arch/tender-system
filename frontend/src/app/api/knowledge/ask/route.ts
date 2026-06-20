@@ -104,7 +104,7 @@ export async function POST(req: Request) {
     return NextResponse.json({
       answer: completion.content,
       model: completion.model,
-      source: 'openrouter',
+      source: 'gemini',
     });
   }
 

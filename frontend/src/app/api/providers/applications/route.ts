@@ -31,8 +31,8 @@ export async function GET(req: Request) {
   if (!user) {
     return NextResponse.json({ detail: 'Unauthorized' }, { status: 401 });
   }
-  if (user.role !== 'evaluator' && !isAdminRole(user.role)) {
-    return NextResponse.json({ detail: 'Forbidden' }, { status: 403 });
+  if (!isAdminRole(user.role)) {
+    return NextResponse.json({ detail: 'Admin only' }, { status: 403 });
   }
 
   const providerTenders = await listTenders({ createdBy: user.id });

@@ -54,5 +54,29 @@ export const verify = {
         });
         return res.blob();
     },
+
+    async requestUpdate(companyId: string): Promise<{ ok: true }> {
+        const res = await authFetch(`/verify/companies/${companyId}/request-update`, { method: 'POST' });
+        return res.json();
+    },
+
+    async flagForReview(companyId: string): Promise<{ ok: true }> {
+        const res = await authFetch(`/verify/companies/${companyId}/flag-review`, { method: 'POST' });
+        return res.json();
+    },
+
+    async getActivity(): Promise<EvaluatorActivity[]> {
+        const res = await authFetch('/verify/activity');
+        return res.json();
+    },
 };
+
+export interface EvaluatorActivity {
+    id: string;
+    action: string;
+    companyId: string | null;
+    companyName: string | null;
+    timestamp: string;
+    outcome: string;
+}
 

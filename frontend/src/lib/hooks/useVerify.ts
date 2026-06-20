@@ -16,3 +16,17 @@ export function useVerifyCompany(companyId: string) {
         enabled: !!companyId,
     });
 }
+
+export function useEvaluatorCompanies() {
+    return useQuery({
+        queryKey: ['evaluator-companies'],
+        queryFn: () => verify.searchCompanies(''),
+    });
+}
+
+export function useEvaluatorActivity() {
+    return useQuery({
+        queryKey: ['evaluator-activity'],
+        queryFn: () => verify.getActivity(),
+    });
+}

@@ -59,11 +59,11 @@ export default function ProviderProfilePage() {
     return (
         <div className="space-y-6 max-w-3xl mx-auto">
             <PageHeader
-                title="Provider Profile"
-                subtitle="Set the identity and contact details used by the tender provider portal."
+                title="Evaluator Profile"
+                subtitle="Set the identity and contact details used by the evaluator portal."
                 icon={<Building2 size={22} />}
                 iconColor="#10B981"
-                actions={<Badge variant="accent" dot>Tender Provider</Badge>}
+                actions={<Badge variant="accent" dot>Evaluator</Badge>}
             />
 
             <Card
@@ -76,7 +76,7 @@ export default function ProviderProfilePage() {
             >
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                     <Input label="Organization Name" value={form.organizationName} onChange={(e) => setField('organizationName', e.target.value)} />
-                    <Input label="Provider Type" value={form.providerType} onChange={(e) => setField('providerType', e.target.value)} />
+                    <Input label="Organisation Type" value={form.providerType} onChange={(e) => setField('providerType', e.target.value)} />
                     <Input label="Location" value={form.location} onChange={(e) => setField('location', e.target.value)} />
                     <div className="md:col-span-2">
                         <Input label="Address" value={form.address} onChange={(e) => setField('address', e.target.value)} />
@@ -109,7 +109,7 @@ export default function ProviderProfilePage() {
 
             <div className="flex justify-end">
                 <Button onClick={handleSave} leftIcon={<Save size={15} />}>
-                    {saved ? 'Saved ✓' : 'Save Provider Profile'}
+                    {saved ? 'Saved ✓' : 'Save Evaluator Profile'}
                 </Button>
             </div>
         </div>

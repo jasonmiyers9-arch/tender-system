@@ -161,7 +161,7 @@ export async function PATCH(
   if (!user) {
     return NextResponse.json({ detail: 'Unauthorized' }, { status: 401 });
   }
-  if (user.role !== 'evaluator' && !isAdminRole(user.role)) {
+  if (!isAdminRole(user.role)) {
     return NextResponse.json({ detail: 'Forbidden' }, { status: 403 });
   }
 
@@ -212,7 +212,7 @@ export async function DELETE(
   if (!user) {
     return NextResponse.json({ detail: 'Unauthorized' }, { status: 401 });
   }
-  if (user.role !== 'evaluator' && !isAdminRole(user.role)) {
+  if (!isAdminRole(user.role)) {
     return NextResponse.json({ detail: 'Forbidden' }, { status: 403 });
   }
 

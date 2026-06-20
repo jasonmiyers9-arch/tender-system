@@ -72,7 +72,7 @@ function authHeaders(token) {
 
 function documentBody(category) {
   return [
-    'TenderGuard Pro dummy compliance document',
+    'Tender Guard Pro dummy compliance document',
     `Category: ${category}`,
     'Company: Demo Compliance Holdings',
     'Registration: 2024/123456/07',

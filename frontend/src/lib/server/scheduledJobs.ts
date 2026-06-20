@@ -21,6 +21,7 @@ import {
   markSavedTenderSearchDelivered,
   updateTender,
   upsertTenderMatch,
+  purgeUsersScheduledForDeletion,
 } from './firestoreService';
 import { getScrapedTenders, runScrapeAll, type ScrapedTender } from './tenderScraper';
 import { sendAuthEmail } from './authEmail';
@@ -366,7 +367,7 @@ export async function runSendEmailDigestsJob(): Promise<ScheduledJobResult> {
       }
       const result = await sendAuthEmail({
         to: user.email,
-        subject: searchSections.length ? 'TenderGuard tender alerts and compliance summary' : 'TenderGuard compliance summary',
+        subject: searchSections.length ? 'Tender Guard Pro tender alerts and compliance summary' : 'Tender Guard Pro compliance summary',
         body: [
           `Hi ${user.fullName},`,
           '',
@@ -376,7 +377,7 @@ export async function runSendEmailDigestsJob(): Promise<ScheduledJobResult> {
           `Expiring within 30 days: ${expiring.length ? expiring.map((document) => document.name).join(', ') : 'None'}`,
           ...searchSections,
           '',
-          'Open TenderGuard to review your compliance status.',
+          'Open Tender Guard Pro to review your compliance status.',
         ].join('\n'),
       });
 
@@ -404,14 +405,15 @@ export async function runSendEmailDigestsJob(): Promise<ScheduledJobResult> {
 }
 
 export async function runCleanupExpiredSessionsJob(): Promise<ScheduledJobResult> {
+  const deletionResult = await purgeUsersScheduledForDeletion();
   return {
     job: 'cleanup_expired_sessions',
-    ok: true,
+    ok: deletionResult.errors.length === 0,
     checkedAt: new Date().toISOString(),
     removedTokens: 0,
-    skipped: true,
-    reason: 'No Redis refresh-token store is configured in this codebase. Redis TTL cleanup should remove expired tokens automatically when refresh tokens are introduced.',
-    errors: [],
+    purgedDeletionRequests: deletionResult.purged,
+    reason: 'Firebase Auth manages token expiry; this job purges POPIA deletion requests after retention.',
+    errors: deletionResult.errors,
   };
 }
 

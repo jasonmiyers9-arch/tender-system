@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 /* ─────────────────────────────────────────────
-   TenderGuard Pro — Professional Design System
+   Tender Guard Pro — Professional Design System
    Enterprise SaaS palette. Warm slate-based.
 ──────────────────────────────────────────────── */
 
@@ -102,6 +102,8 @@
 }
 
 .dark {
+  color-scheme: dark;
+
   --primary:      #818CF8;
   --primary-dark: #6366F1;
   --secondary:    #22D3EE;
@@ -130,6 +132,8 @@
 }
 
 .light {
+  color-scheme: light;
+
   --primary:      #4F46E5;
   --primary-dark: #4338CA;
   --secondary:    #0891B2;

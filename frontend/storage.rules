@@ -1,0 +1,11 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Compliance documents are only accessed through authenticated server routes
+    // and short-lived signed URLs. Firebase Admin bypasses these client rules.
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

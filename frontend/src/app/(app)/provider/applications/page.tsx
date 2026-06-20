@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/Badge';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { TableRowSkeleton } from '@/components/ui/Skeleton';
+import { DownloadButton } from '@/components/ui/DownloadButton';
 import {
     useProviderApplications,
     useApproveApplication,
@@ -15,7 +16,7 @@ import {
 } from '@/lib/hooks/useApplications';
 import { applicationsApi } from '@/lib/api/applications';
 import { formatDate, formatDateTime } from '@/lib/utils/formatters';
-import { ClipboardList, FileText, X, CheckCircle2, AlertTriangle, Clock, XCircle, Download } from 'lucide-react';
+import { ClipboardList, FileText, X, CheckCircle2, AlertTriangle, Clock, XCircle } from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';
 
 type StatusFilter = 'all' | 'pending' | 'approved' | 'rejected';
@@ -113,14 +114,14 @@ function DocumentsModal({ appId, onClose }: { appId: string; onClose: () => void
                                     <div className="flex items-center gap-2 flex-shrink-0">
                                         {docStatusIcon(doc.status)}
                                         <Badge variant={docStatusVariant(doc.status)} size="sm">{doc.status}</Badge>
-                                        <button
+                                        <DownloadButton
+                                            ariaLabel="Download document"
                                             onClick={() => handleDownload(doc.id, doc.name)}
                                             disabled={downloading === doc.id}
-                                            className="p-1 rounded hover:bg-[--color-border] text-[--color-text-muted] hover:text-[--color-primary] disabled:opacity-50 transition-colors"
-                                            title="Download document"
-                                        >
-                                            <Download size={14} />
-                                        </button>
+                                            size="sm"
+                                            iconSize={14}
+                                            className="p-1 rounded hover:bg-[--color-border] text-[--color-text-muted] hover:text-[--color-primary] border-transparent"
+                                        />
                                     </div>
                                 </div>
                             ))}

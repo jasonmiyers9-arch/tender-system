@@ -2,11 +2,12 @@
  * Rate Limiting Middleware
  * 
  * Implements a sliding window rate limiter for API endpoints.
- * Uses in-memory storage (suitable for single-instance deployments).
- * For distributed deployments, replace with Redis-based implementation.
+ * Uses Firestore transactions in production and an in-memory store in development.
  */
 
 import { NextResponse } from 'next/server';
+import { createHash } from 'node:crypto';
+import { getFirestore, isFirestoreAvailable } from './firebaseAdmin';
 
 interface RateLimitEntry {
   count: number;
@@ -195,6 +196,39 @@ export async function rateLimit(
   req: Request,
   config: RateLimitConfig
 ): Promise<NextResponse | null> {
+  if (process.env.NODE_ENV === 'production') {
+    if (!isFirestoreAvailable()) {
+      return NextResponse.json({ detail: 'Rate limiting persistence is unavailable' }, { status: 503 });
+    }
+    try {
+      const rawKey = (config.keyGenerator || ((r: Request) => getClientIP(r)))(req);
+      const endpoint = new URL(req.url).pathname;
+      const id = createHash('sha256').update(`${endpoint}:${rawKey}`).digest('hex');
+      const db = getFirestore()!;
+      const ref = db.collection('rate_limits').doc(id);
+      const now = Date.now();
+      const result = await db.runTransaction(async (transaction) => {
+        const snapshot = await transaction.get(ref);
+        const current = snapshot.data() as RateLimitEntry | undefined;
+        const entry = !current || now - current.windowStart >= config.windowMs
+          ? { count: 1, windowStart: now }
+          : { count: current.count + 1, windowStart: current.windowStart };
+        transaction.set(ref, {
+          ...entry,
+          expiresAt: new Date(entry.windowStart + config.windowMs + 60_000),
+        });
+        return entry;
+      });
+      if (result.count > config.maxRequests) {
+        const retryAfter = Math.max(1, Math.ceil((config.windowMs - (now - result.windowStart)) / 1000));
+        return (config.handler || defaultRateLimitHandler)(req, retryAfter);
+      }
+      return null;
+    } catch {
+      return NextResponse.json({ detail: 'Rate limiting service unavailable' }, { status: 503 });
+    }
+  }
+
   const result = checkRateLimit(req, config);
   
   if (result.limited && result.error) {

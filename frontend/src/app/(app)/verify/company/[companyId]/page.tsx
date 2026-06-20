@@ -1,33 +1,23 @@
 'use client';
 
-import { use } from 'react';
+import { use, useState } from 'react';
 import { useVerifyCompany } from '@/lib/hooks/useVerify';
 import { verify } from '@/lib/api/verify';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { CardSkeleton } from '@/components/ui/Skeleton';
 import { ErrorState } from '@/components/ui/ErrorState';
+import { TenderGuardStamp } from '@/components/branding/TenderGuardStamp';
+import { DownloadButton } from '@/components/ui/DownloadButton';
 import { formatDate, docCategoryLabel, formatDateTime } from '@/lib/utils/formatters';
 import {
     AlertTriangle,
     CheckCircle2,
-    Download,
     FileText,
     Flag,
     Mail,
-    ShieldCheck,
 } from 'lucide-react';
 import type { VaultDocument } from '@/lib/api/types';
-
-const authorityByCategory: Record<string, string> = {
-    tax: 'SARS',
-    registration: 'CIPC',
-    bbbee: 'SANAS / B-BBEE Commission',
-    certification: 'Issuing Authority',
-    financial: 'Registered Accountant',
-    legal: 'Legal Authority',
-    policy: 'Company Policy',
-};
 
 function scoreTone(score: number) {
     if (score >= 85) {
@@ -60,7 +50,7 @@ function flattenDocuments(documentsByCategory: Record<string, VaultDocument[] | 
         (docs ?? []).map((doc) => ({
             ...doc,
             category,
-            authority: authorityByCategory[category] ?? 'TenderGuard Review',
+            authority: doc.issuingAuthority ?? 'Issuing Authority',
         }))
     );
 }
@@ -68,6 +58,8 @@ function flattenDocuments(documentsByCategory: Record<string, VaultDocument[] | 
 export default function VerifyCompanyReportPage({ params }: { params: Promise<{ companyId: string }> }) {
     const { companyId } = use(params);
     const { data: report, isLoading, isError, refetch } = useVerifyCompany(companyId);
+    const [actionPending, setActionPending] = useState<'request' | 'flag' | null>(null);
+    const [actionMessage, setActionMessage] = useState<string | null>(null);
 
     async function downloadBundle() {
         const blob = await verify.downloadBundle(companyId);
@@ -81,13 +73,30 @@ export default function VerifyCompanyReportPage({ params }: { params: Promise<{ 
         URL.revokeObjectURL(url);
     }
 
-    function requestUpdate() {
-        if (!report) return;
-        window.location.href = `mailto:${report.company.email}?subject=${encodeURIComponent('TenderGuard compliance update request')}&body=${encodeURIComponent(`Please update your TenderGuard compliance documents for evaluator review.\n\nCompany: ${report.company.name}\nRegistration: ${report.company.registrationNumber}`)}`;
+    async function requestUpdate() {
+        setActionPending('request');
+        setActionMessage(null);
+        try {
+            await verify.requestUpdate(companyId);
+            setActionMessage('Update request sent to the bidder and recorded in the audit log.');
+        } catch {
+            setActionMessage('The update request could not be sent. Please try again.');
+        } finally {
+            setActionPending(null);
+        }
     }
 
-    function flagForReview() {
-        window.alert('This report has been flagged for internal review.');
+    async function flagForReview() {
+        setActionPending('flag');
+        setActionMessage(null);
+        try {
+            await verify.flagForReview(companyId);
+            setActionMessage('Company flagged for compliance review and recorded in the audit log.');
+        } catch {
+            setActionMessage('The review flag could not be saved. Please try again.');
+        } finally {
+            setActionPending(null);
+        }
     }
 
     if (isLoading) {
@@ -98,8 +107,6 @@ export default function VerifyCompanyReportPage({ params }: { params: Promise<{ 
     const { company, score, documentsByCategory } = report;
     const documents = flattenDocuments(documentsByCategory as Record<string, VaultDocument[] | undefined>);
     const tone = scoreTone(score.score);
-    const generatedAt = new Date().toISOString();
-
     return (
         <div className="space-y-6 max-w-7xl mx-auto">
             <section className="rounded-2xl border border-[--color-border] bg-[--color-surface] p-6 shadow-sm">
@@ -109,7 +116,7 @@ export default function VerifyCompanyReportPage({ params }: { params: Promise<{ 
                             <h1 className="text-3xl font-extrabold tracking-tight text-[--color-text-primary]">
                                 {company.name}
                             </h1>
-                            <Badge variant="success" size="md" dot>Verified Entity</Badge>
+                            {report.verification.isVerified && <Badge variant="success" size="md" dot>Verified Entity</Badge>}
                         </div>
 
                         <div className="mt-5 grid grid-cols-1 gap-3 text-sm sm:grid-cols-2 lg:grid-cols-3">
@@ -129,7 +136,7 @@ export default function VerifyCompanyReportPage({ params }: { params: Promise<{ 
                             <p className="mt-1 text-sm font-semibold">{tone.label}</p>
                         </div>
                         <p className="text-xs font-medium text-[--color-text-muted]">
-                            Last verified: {formatDateTime(score.lastCalculated)}
+                            Last verified: {report.verification.lastVerifiedAt ? formatDateTime(report.verification.lastVerifiedAt) : 'Not yet verified'}
                         </p>
                     </div>
                 </div>
@@ -189,32 +196,32 @@ export default function VerifyCompanyReportPage({ params }: { params: Promise<{ 
             </section>
 
             <section className="flex flex-col gap-3 rounded-2xl border border-[--color-border] bg-[--color-surface] p-4 sm:flex-row sm:items-center">
-                <Button leftIcon={<Download size={16} />} onClick={downloadBundle} style={{ background: '#2563EB' }}>
+                <DownloadButton size="md" iconSize={16} onClick={downloadBundle} variant="outline" className="border-blue-500/30 text-blue-700 hover:bg-blue-500/10">
                     Download Compliance Bundle PDF
-                </Button>
-                <Button variant="outline" leftIcon={<Mail size={16} />} onClick={requestUpdate}>
-                    Request Update from Bidder
+                </DownloadButton>
+                <Button variant="outline" leftIcon={<Mail size={16} />} onClick={requestUpdate} disabled={actionPending !== null}>
+                    {actionPending === 'request' ? 'Sending Request...' : 'Request Update from Bidder'}
                 </Button>
                 <Button
                     variant="ghost"
                     leftIcon={<Flag size={16} />}
                     onClick={flagForReview}
+                    disabled={actionPending !== null}
                     className="border-red-500/60 text-red-600 hover:bg-red-500/10"
                 >
-                    Flag for Review
+                    {actionPending === 'flag' ? 'Saving Flag...' : 'Flag for Review'}
                 </Button>
+                {actionMessage && <p className="text-sm text-[--color-text-muted] sm:ml-auto">{actionMessage}</p>}
             </section>
 
             <section className="rounded-2xl bg-gradient-to-r from-teal-500 to-blue-600 p-[1px]">
                 <div className="flex flex-col gap-4 rounded-2xl bg-[--color-surface] p-5 sm:flex-row sm:items-center sm:justify-between">
                     <div className="flex items-start gap-4">
-                        <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl bg-teal-500/10 text-teal-700">
-                            <ShieldCheck size={25} />
-                        </div>
+                        <TenderGuardStamp size={88} className="flex-shrink-0" label="SEALED" />
                         <div>
-                            <p className="text-base font-extrabold text-[--color-text-primary]">Verified by TenderGuard&trade;</p>
+                            <p className="text-base font-extrabold text-[--color-text-primary]">Verified by Tender Guard Pro&trade;</p>
                             <p className="mt-1 text-sm text-[--color-text-muted]">
-                                Report generated: {formatDateTime(generatedAt)}
+                                Report generated: {formatDateTime(report.verification.generatedAt)}
                             </p>
                         </div>
                     </div>

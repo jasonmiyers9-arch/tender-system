@@ -31,6 +31,9 @@ export async function POST(req: Request) {
         return NextResponse.json({ detail: 'admin_access_required' }, { status: 403 });
       }
 
+      if (user.isActive === false || user.deletionRequestedAt) {
+        return NextResponse.json({ detail: 'account_inactive' }, { status: 403 });
+      }
       await logAuthSuccess(req, user.id, user.email, 'password');
       return NextResponse.json({ token: user.id, user: mapUserToAuthUser(user) });
     }
@@ -47,6 +50,9 @@ export async function POST(req: Request) {
       return NextResponse.json({ detail: 'admin_access_required' }, { status: 403 });
     }
 
+    if (user.isActive === false || user.deletionRequestedAt) {
+      return NextResponse.json({ detail: 'account_inactive' }, { status: 403 });
+    }
     await logAuthSuccess(req, user.id, user.email, 'password');
     return NextResponse.json({ token: idToken, user: mapUserToAuthUser(user) });
   } catch (error) {

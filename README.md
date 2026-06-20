@@ -1,8 +1,8 @@
-# TenderGuard Pro
+# Tender Guard Pro
 
 A compliance management and tender readiness platform for South African businesses. Upload compliance documents, get AI-powered readiness scores, browse matched government tenders, and apply — all from one portal.
 
-Built with **Next.js 16**, **React 19**, **Firebase** (Auth + Firestore + Storage), **Tailwind CSS v4**, and **OpenRouter AI**.
+Built with **Next.js 16**, **React 19**, **Firebase** (Auth + Firestore + Storage), **Tailwind CSS v4**, and **Gemini AI**.
 
 ---
 
@@ -14,13 +14,13 @@ The app is a **fully functional monolithic BFF** (Backend-for-Frontend) with 53 
 
 - **Authentication**: Email/password + Google OAuth sign-in/register, role-based access (Company, Evaluator, Admin), demo login buttons
 - **Document Vault**: Upload compliance documents (PDF, DOC, XLS, images, ZIP — up to 10 MB), AI-powered text extraction, expiry detection, verification workflow
-- **Compliance Scoring**: Weighted scoring engine (completeness 25%, validity 25%, requirement matching 30%, verification 20%) with optional LLM-based adjustment via OpenRouter
+- **Compliance Scoring**: Weighted scoring engine (completeness 25%, validity 25%, requirement matching 30%, verification 20%) with optional LLM-based adjustment via Gemini
 - **Tender Marketplace**: Browse tenders with AI match scores, category filters, deadline calendar with iCal export, gap analysis before applying
 - **Tender Scraper**: Scrapes SA government sites (eTenders.gov.za, tenderbulletins.co.za), parses full detail pages, downloads and extracts attached PDFs, filters by company categories
 - **Applications**: Submit applications to tenders, evaluator-side review with document access, approve/reject workflow
 - **Evaluator Portal**: Create/edit/delete tenders, define required documents, review applications
 - **Admin Portal**: Account approvals (with 48h SLA tracking), document verification queue, Kanban renewal pipeline, audit log, AI settings management, scraper controls, frontend health monitoring
-- **Knowledge Base**: AI Q&A against uploaded document content via OpenRouter LLM
+- **Knowledge Base**: AI Q&A against uploaded document content via Gemini
 - **Notifications**: Expiry reminders, deadline alerts, configurable preferences
 - **In-Memory Fallback**: Everything runs locally without Firebase — the app seeds mock data automatically
 
@@ -41,7 +41,7 @@ The app is a **fully functional monolithic BFF** (Backend-for-Frontend) with 53 
 | Auth | Firebase Authentication (Email/Password + Google) |
 | Database | Cloud Firestore (in-memory fallback for local dev) |
 | Storage | Firebase Storage (local filesystem fallback) |
-| AI | OpenRouter API (summarization, scoring adjustment, knowledge Q&A) |
+| AI | Gemini API (summarization, scoring adjustment, knowledge Q&A) |
 | PDF Extraction | pdfjs-dist + pdf-parse (dual-engine with caching) |
 | Web Scraping | Cheerio |
 | State Management | Zustand (client), TanStack React Query v5 (server) |
@@ -90,14 +90,20 @@ NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=your-project.firebaseapp.com
 NEXT_PUBLIC_FIREBASE_PROJECT_ID=your-project-id
 NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=your-project.firebasestorage.app
 
-# OpenRouter AI (optional — enables AI scoring, summaries, knowledge Q&A)
-OPENROUTER_API_KEY=sk-or-v1-...
+# Gemini AI (optional — enables AI scoring, summaries, knowledge Q&A)
+GEMINI_API_KEY=AIzaSy...
+GEMINI_MODEL=gemini-2.0-flash
 
 # Scheduled jobs and outbound alerts (production)
 CRON_SECRET=replace-with-a-long-random-secret
 SENDGRID_API_KEY=SG...
 SENDGRID_FROM_EMAIL=alerts@your-domain.co.za
-SENDGRID_FROM_NAME=TenderGuard Pro
+SENDGRID_FROM_NAME=Tender Guard Pro
+# Twilio SMS (preferred)
+TWILIO_ACCOUNT_SID=AC...
+TWILIO_AUTH_TOKEN=your-twilio-auth-token
+TWILIO_FROM_NUMBER=+27...
+# Clickatell SMS (optional fallback)
 CLICKATELL_API_KEY=your-clickatell-api-key
 CLICKATELL_FROM=TenderGuard
 
@@ -201,6 +207,8 @@ The root `netlify.toml` is pre-configured:
   - Compliance score snapshots: `21:59` daily (`23:59` SAST)
 
 Set the same environment variables from `.env.local` in the Netlify dashboard. Production automation requires `CRON_SECRET` and Firebase Admin credentials; without Firestore, separate serverless invocations cannot share tender or job-run state. Scheduled functions run only on published deploys and can be tested with **Run now** from Netlify's Functions page.
+
+AI configuration is handled the same way: set `GEMINI_API_KEY` in Netlify, optionally set `GEMINI_MODEL`, and use the Admin portal’s AI settings to override either value without redeploying.
 
 ---
 

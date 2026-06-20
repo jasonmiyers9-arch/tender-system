@@ -1,6 +1,6 @@
 import { DOCUMENT_CATEGORY_GROUPS } from '@/lib/api/types';
 import type { AuthUser, Company, DocumentCategory, TenderDetail, TenderMatch, TenderReadiness, TenderReadinessScoreBreakdown } from '@/lib/api/types';
-import { getFirestore, isFirestoreAvailable, verifyIdToken } from './firebaseAdmin';
+import { deleteAuthUser, getFirestore, isFirestoreAvailable, verifyIdToken } from './firebaseAdmin';
 import { existsSync } from 'node:fs';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
@@ -581,6 +581,7 @@ async function createUser(payload: {
   registrationNumber?: string;
   phone?: string;
   tenderCategories?: string[];
+  privacyAcceptedAt?: string;
 }): Promise<AuthUser> {
   const existing = await getUserByEmail(payload.email);
   if (existing) {
@@ -606,6 +607,8 @@ async function createUser(payload: {
     companyName: payload.companyName?.trim() || undefined,
     registrationNumber: payload.registrationNumber?.trim() || undefined,
     phone: payload.phone?.trim() || undefined,
+    isActive: true,
+    privacyAcceptedAt: payload.privacyAcceptedAt ?? null,
     createdAt: new Date().toISOString(),
   };
 
@@ -708,52 +711,63 @@ async function updateUserName(userId: string, name: string): Promise<AuthUser> {
   return mapUserToAuthUser(user);
 }
 
-async function setUserTotpSecret(userId: string, secret: string): Promise<InternalUser> {
+async function requestUserDeletion(userId: string): Promise<{ requestedAt: string; scheduledFor: string }> {
   const user = await getUserDocumentById(userId);
   if (!user) throw new Error('User not found');
-
-  user.mfaTotpSecret = secret;
-  user.mfaEnabled = false;
-  user.mfaEnrolledAt = null;
-
+  const requestedAt = new Date().toISOString();
+  const scheduledFor = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+  user.isActive = false;
+  user.deletionRequestedAt = requestedAt;
+  user.deletionScheduledFor = scheduledFor;
   if (isFirestoreAvailable()) {
-    const db = getFirestore()!;
-    await db.collection(USERS_COLLECTION).doc(userId).set(
-      {
-        mfaTotpSecret: secret,
-        mfaEnabled: false,
-        mfaEnrolledAt: null,
-      },
-      { merge: true }
-    );
+    await getFirestore()!.collection(USERS_COLLECTION).doc(userId).set({
+      isActive: false,
+      deletionRequestedAt: requestedAt,
+      deletionScheduledFor: scheduledFor,
+    }, { merge: true });
   } else {
     await persistLocalAuthUsers();
   }
-
-  return user;
+  return { requestedAt, scheduledFor };
 }
 
-async function enableUserMfa(userId: string): Promise<InternalUser> {
-  const user = await getUserDocumentById(userId);
-  if (!user) throw new Error('User not found');
+async function purgeUsersScheduledForDeletion(now = new Date()): Promise<{ purged: number; errors: string[] }> {
+  const users = await listAllUsers();
+  const due = users.filter((user) => user.deletionScheduledFor && new Date(user.deletionScheduledFor) <= now);
+  const errors: string[] = [];
+  let purged = 0;
 
-  user.mfaEnabled = true;
-  user.mfaEnrolledAt = new Date().toISOString();
-
-  if (isFirestoreAvailable()) {
-    const db = getFirestore()!;
-    await db.collection(USERS_COLLECTION).doc(userId).set(
-      {
-        mfaEnabled: true,
-        mfaEnrolledAt: user.mfaEnrolledAt,
-      },
-      { merge: true }
-    );
-  } else {
-    await persistLocalAuthUsers();
+  for (const user of due) {
+    try {
+      if (isFirestoreAvailable()) {
+        const db = getFirestore()!;
+        const [notifications, searches, applications, companies] = await Promise.all([
+          db.collection(NOTIFICATIONS_COLLECTION).where('userId', '==', user.id).get(),
+          db.collection(SAVED_SEARCHES_COLLECTION).where('userId', '==', user.id).get(),
+          db.collection(APPLICATIONS_COLLECTION).where('userId', '==', user.id).get(),
+          db.collection(COMPANIES_COLLECTION).where('memberIds', 'array-contains', user.id).get(),
+        ]);
+        const batch = db.batch();
+        notifications.docs.forEach((doc) => batch.delete(doc.ref));
+        searches.docs.forEach((doc) => batch.delete(doc.ref));
+        applications.docs.forEach((doc) => batch.set(doc.ref, { userId: 'deleted-user' }, { merge: true }));
+        companies.docs.forEach((doc) => batch.set(doc.ref, {
+          memberIds: ((doc.data().memberIds as string[] | undefined) ?? []).filter((id) => id !== user.id),
+        }, { merge: true }));
+        batch.delete(db.collection(USERS_COLLECTION).doc(user.id));
+        await batch.commit();
+        await deleteAuthUser(user.id).catch(() => undefined);
+      } else {
+        MEMORY_DB.users = MEMORY_DB.users.filter((candidate) => candidate.id !== user.id);
+        MEMORY_DB.notifications = MEMORY_DB.notifications.filter((item) => item.userId !== user.id);
+        await persistLocalAuthUsers();
+      }
+      purged++;
+    } catch (error) {
+      errors.push(`${user.id}: ${error instanceof Error ? error.message : String(error)}`);
+    }
   }
-
-  return user;
+  return { purged, errors };
 }
 
 async function ensureFirebaseUser(payload: {
@@ -2008,8 +2022,8 @@ export {
   getOrCreateGoogleUser,
   authenticateUser,
   updateUserName,
-  setUserTotpSecret,
-  enableUserMfa,
+  requestUserDeletion,
+  purgeUsersScheduledForDeletion,
   ensureFirebaseUser,
   listCompaniesForUser,
   listAllCompanies,

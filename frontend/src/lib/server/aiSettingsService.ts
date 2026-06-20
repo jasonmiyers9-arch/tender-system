@@ -2,20 +2,22 @@ import { getFirestore, isFirestoreAvailable } from './firebaseAdmin';
 
 const SETTINGS_COLLECTION = 'app_settings';
 const AI_SETTINGS_DOC = 'ai_provider';
-const DEFAULT_OPENROUTER_MODEL = 'openai/gpt-oss-120b:free';
+const DEFAULT_GEMINI_MODEL = 'gemini-2.0-flash';
 
 type StoredAiSettings = {
-  openRouterApiKey?: string;
-  openRouterModel?: string;
+  geminiApiKey?: string;
+  geminiModel?: string;
   updatedAt?: string;
   updatedBy?: string;
+  openRouterApiKey?: string;
+  openRouterModel?: string;
 };
 
 let memoryAiSettings: StoredAiSettings = {};
 
 function sanitizeModel(model: string | null | undefined): string {
   const value = (model ?? '').trim();
-  return value || DEFAULT_OPENROUTER_MODEL;
+  return value || DEFAULT_GEMINI_MODEL;
 }
 
 function maskKey(key: string | null | undefined): string | null {
@@ -35,33 +37,39 @@ async function readStoredAiSettings(): Promise<StoredAiSettings> {
   return memoryAiSettings;
 }
 
+function resolveGeminiKey(stored: StoredAiSettings): string | null {
+  return stored.geminiApiKey?.trim() || stored.openRouterApiKey?.trim() || process.env.GEMINI_API_KEY || process.env.OPENROUTER_API_KEY || null;
+}
+
+function resolveGeminiModel(stored: StoredAiSettings): string {
+  return sanitizeModel(stored.geminiModel || stored.openRouterModel || process.env.GEMINI_MODEL || process.env.OPENROUTER_MODEL);
+}
+
 export async function getAiSettingsPublic() {
   const stored = await readStoredAiSettings();
-  const envModel = process.env.OPENROUTER_MODEL ?? DEFAULT_OPENROUTER_MODEL;
-  const envKey = process.env.OPENROUTER_API_KEY ?? null;
-
-  const effectiveKey = stored.openRouterApiKey?.trim() || envKey;
-  const effectiveModel = sanitizeModel(stored.openRouterModel || envModel);
+  const effectiveKey = resolveGeminiKey(stored);
+  const effectiveModel = resolveGeminiModel(stored);
 
   return {
-    hasOpenRouterKey: Boolean(effectiveKey),
-    openRouterKeyMasked: maskKey(effectiveKey),
-    openRouterModel: effectiveModel,
+    hasGeminiKey: Boolean(effectiveKey),
+    geminiKeyMasked: maskKey(effectiveKey),
+    geminiModel: effectiveModel,
     updatedAt: stored.updatedAt ?? null,
-    source: stored.openRouterApiKey ? 'admin' as const : envKey ? 'env' as const : 'none' as const,
+    source: stored.geminiApiKey || stored.openRouterApiKey ? 'admin' as const : process.env.GEMINI_API_KEY || process.env.OPENROUTER_API_KEY ? 'env' as const : 'none' as const,
   };
 }
 
-export async function getOpenRouterRuntimeConfig(): Promise<{ apiKey: string | null; model: string }> {
+export async function getAiRuntimeConfig(): Promise<{ apiKey: string | null; model: string }> {
   const stored = await readStoredAiSettings();
-  const apiKey = stored.openRouterApiKey?.trim() || process.env.OPENROUTER_API_KEY || null;
-  const model = sanitizeModel(stored.openRouterModel || process.env.OPENROUTER_MODEL);
-  return { apiKey, model };
+  return {
+    apiKey: resolveGeminiKey(stored),
+    model: resolveGeminiModel(stored),
+  };
 }
 
 export async function upsertAiSettings(payload: {
-  openRouterApiKey?: string | null;
-  openRouterModel?: string | null;
+  geminiApiKey?: string | null;
+  geminiModel?: string | null;
   updatedBy: string;
 }) {
   const existing = await readStoredAiSettings();
@@ -71,13 +79,16 @@ export async function upsertAiSettings(payload: {
     updatedBy: payload.updatedBy,
   };
 
-  if (payload.openRouterApiKey !== undefined) {
-    const key = (payload.openRouterApiKey ?? '').trim();
+  if (payload.geminiApiKey !== undefined) {
+    const key = (payload.geminiApiKey ?? '').trim();
+    updates.geminiApiKey = key || undefined;
     updates.openRouterApiKey = key || undefined;
   }
 
-  if (payload.openRouterModel !== undefined) {
-    updates.openRouterModel = sanitizeModel(payload.openRouterModel);
+  if (payload.geminiModel !== undefined) {
+    const model = sanitizeModel(payload.geminiModel);
+    updates.geminiModel = model;
+    updates.openRouterModel = model;
   }
 
   if (isFirestoreAvailable()) {

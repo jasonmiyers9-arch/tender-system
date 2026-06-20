@@ -95,7 +95,7 @@ export default function LandingPage() {
                         <Shield size={16} color="white" />
                     </div>
                     <span className="font-bold text-white tracking-tight text-sm sm:text-base">
-                        TenderGuard <span style={{ color: '#818CF8' }}>Pro</span>
+                        Tender Guard <span style={{ color: '#818CF8' }}>Pro</span>
                     </span>
                 </div>
 
@@ -143,7 +143,7 @@ export default function LandingPage() {
                     {/* Subline */}
                     <p className="mt-5 text-base sm:text-lg max-w-xl leading-relaxed"
                         style={{ color: '#475569' }}>
-                        TenderGuard Pro gives South African companies a single platform to manage compliance documents,
+                        Tender Guard Pro gives South African companies a single platform to manage compliance documents,
                         track expiry dates, monitor bid readiness, and discover government tenders — all in one place.
                     </p>
 
@@ -217,7 +217,7 @@ export default function LandingPage() {
                                 Built for South Africa&apos;s SCM framework.
                             </h2>
                             <p className="mt-3 text-sm leading-relaxed" style={{ color: 'var(--color-text-muted)' }}>
-                                TenderFlow helps manage tenders after the bid decision. TenderGuard Pro answers the earlier
+                                TenderFlow helps manage tenders after the bid decision. Tender Guard Pro answers the earlier
                                 question: are we qualified to bid right now?
                             </p>
                             <p className="mt-4 text-sm font-semibold" style={{ color: '#0F766E' }}>
@@ -244,7 +244,7 @@ export default function LandingPage() {
                 className="border-t px-6 py-5 text-center text-xs"
                 style={{ borderColor: '#14253D', background: '#040B14', color: '#4A6080' }}
             >
-                © 2026 TenderGuard Pro. All rights reserved. &nbsp;·&nbsp; Built for South African compliance.
+                © 2026 Tender Guard Pro. All rights reserved. &nbsp;·&nbsp; Built for South African compliance.
             </footer>
 
         </div>

@@ -18,7 +18,7 @@ export async function POST(req: Request) {
     const resetLink = await generatePasswordResetLink(email);
     const delivery = await sendAuthEmail({
       to: email,
-      subject: 'Reset your TenderGuard Pro password',
+      subject: 'Reset your Tender Guard Pro password',
       body: passwordResetEmailBody(resetLink),
     });
 

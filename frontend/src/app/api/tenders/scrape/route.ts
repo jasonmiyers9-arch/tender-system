@@ -36,7 +36,7 @@ function getManualScrapeOptions(body: Record<string, unknown>): ScrapeOptions {
 
 // GET /api/tenders/scrape — Get scraper status, history, and scraped tenders
 export async function GET(req: Request) {
-  const { error } = await requireRole(req, ['admin', 'evaluator']);
+  const { error } = await requireRole(req, ['admin', 'super_admin']);
   if (error) return error;
 
   const url = new URL(req.url);

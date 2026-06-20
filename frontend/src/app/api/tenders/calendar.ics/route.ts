@@ -4,7 +4,7 @@ import { listTenders } from '@/lib/server/firestoreService';
 export async function GET() {
   const tenders = await listTenders();
   const nowStamp = new Date().toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
-  const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//TenderGuard Pro//Tender Calendar//EN'];
+  const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Tender Guard Pro//Tender Calendar//EN'];
 
   for (const tender of tenders) {
     lines.push('BEGIN:VEVENT');

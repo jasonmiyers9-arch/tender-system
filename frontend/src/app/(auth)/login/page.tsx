@@ -78,7 +78,7 @@ function LoginForm() {
             if (res.user.onboardingCompleted === false) {
                 router.push('/onboarding');
             } else if (res.user.role === 'evaluator') {
-                router.push(destination === '/home' ? '/provider/dashboard' : destination);
+                router.push(destination.startsWith('/verify') || destination.startsWith('/evaluator') ? destination : '/evaluator/dashboard');
             } else {
                 router.push(destination);
             }
@@ -110,7 +110,7 @@ function LoginForm() {
                 </div>
                 <div className="text-center space-y-1">
                     <h1 className="text-2xl font-bold text-[--color-text-primary] tracking-tight">Welcome back</h1>
-                    <p className="text-sm text-[--color-text-muted]">Sign in to TenderGuard Pro</p>
+                    <p className="text-sm text-[--color-text-muted]">Sign in to Tender Guard Pro</p>
                 </div>
             </div>
 

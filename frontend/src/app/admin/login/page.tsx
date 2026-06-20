@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { AdminLoginClient } from './AdminLoginClient';
 
 export const metadata: Metadata = {
-    title: 'Admin Sign In | TenderGuard Pro',
+    title: 'Admin Sign In | Tender Guard Pro',
     robots: {
         index: false,
         follow: false,

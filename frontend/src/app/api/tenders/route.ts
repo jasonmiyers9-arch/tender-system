@@ -170,12 +170,12 @@ export async function GET(req: Request) {
       companyCategories = company?.tenderCategories ?? [];
     }
     
-    // Handle mine-only filter for evaluators
+    // Tender ownership management is an administrative function.
     if (mineOnly) {
       if (!user) {
         return NextResponse.json({ detail: 'Unauthorized' }, { status: 401 });
       }
-      if (user.role !== 'evaluator' && !isAdminRole(user.role)) {
+      if (!isAdminRole(user.role)) {
         return NextResponse.json({ detail: 'Forbidden' }, { status: 403 });
       }
       const items = await listTenders({ createdBy: user.id, includeSystem: false });
@@ -282,7 +282,7 @@ export async function POST(req: Request) {
     if (!user) {
       return NextResponse.json({ detail: 'Unauthorized' }, { status: 401 });
     }
-    if (user.role !== 'evaluator' && !isAdminRole(user.role)) {
+    if (!isAdminRole(user.role)) {
       return NextResponse.json({ detail: 'Forbidden' }, { status: 403 });
     }
 

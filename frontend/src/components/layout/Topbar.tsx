@@ -16,7 +16,7 @@ import { dropdown, T } from '@/lib/motion';
 const roleLabels: Record<string, string> = {
     admin: 'Administrator',
     super_admin: 'Super Admin',
-    evaluator: 'Tender Provider',
+    evaluator: 'Evaluator',
     user: 'Company User',
 };
 
@@ -69,9 +69,9 @@ export function Topbar() {
                                 animate={{ scale: 1, opacity: 1 }}
                                 exit={{ scale: 0, opacity: 0 }}
                                 transition={{ type: 'spring', stiffness: 600, damping: 22 }}
-                                className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] rounded-full bg-[--color-danger] flex items-center justify-center px-1"
+                                className="absolute -top-0.5 -right-0.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full border border-blue-200 bg-blue-50 px-1 dark:border-blue-800 dark:bg-blue-950"
                             >
-                                <span className="text-[10px] font-bold text-white leading-none">
+                                <span className="text-[10px] font-bold leading-none text-blue-600 dark:text-blue-300">
                                     {unreadCount > 9 ? '9+' : unreadCount}
                                 </span>
                             </motion.span>

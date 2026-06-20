@@ -9,13 +9,6 @@ import { auth } from '@/lib/api/auth';
 import { useAppStore } from '@/store/useAppStore';
 
 type BannerConfig = { icon: React.FC<{ size: number; className?: string }>; text: string; accent: string };
-type MfaChallenge = {
-    setupRequired: boolean;
-    secret?: string;
-    otpauthUrl?: string;
-    message: string;
-};
-
 const SESSION_MESSAGES: Record<string, BannerConfig> = {
     session_expired: {
         icon: Lock,
@@ -37,8 +30,6 @@ const SESSION_MESSAGES: Record<string, BannerConfig> = {
 function AdminLoginForm() {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
-    const [totpCode, setTotpCode] = useState('');
-    const [mfaChallenge, setMfaChallenge] = useState<MfaChallenge | null>(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const router = useRouter();
@@ -55,24 +46,13 @@ function AdminLoginForm() {
 
     const signIn = async (loginEmail: string, loginPassword: string) => {
         if (!loginEmail || !loginPassword) return setError('Please enter both email and password.');
-        if (mfaChallenge && !totpCode) return setError('Please enter your 6-digit authenticator code.');
         setError(null);
         setLoading(true);
 
         try {
             setEmail(loginEmail);
             setPassword(loginPassword);
-            const res = await auth.adminLogin(loginEmail, loginPassword, mfaChallenge ? totpCode : undefined);
-            if ('mfaRequired' in res) {
-                setMfaChallenge({
-                    setupRequired: res.setupRequired,
-                    secret: res.secret,
-                    otpauthUrl: res.otpauthUrl,
-                    message: res.message,
-                });
-                setTotpCode('');
-                return;
-            }
+            const res = await auth.adminLogin(loginEmail, loginPassword);
             settoken(res.token);
             setCurrentUser(res.user);
             router.push('/admin/dashboard');
@@ -80,8 +60,6 @@ function AdminLoginForm() {
             const msg = e instanceof Error ? e.message : 'Invalid credentials';
             if (msg.includes('admin_access_required')) {
                 setError('This sign-in is restricted to internal admin accounts.');
-            } else if (msg.includes('invalid_mfa_code')) {
-                setError('Invalid authenticator code.');
             } else {
                 setError(msg);
             }
@@ -148,36 +126,6 @@ function AdminLoginForm() {
                                 required
                             />
 
-                            {mfaChallenge && (
-                                <div className="space-y-3 rounded-xl border border-amber-500/25 bg-amber-500/5 p-3.5">
-                                    <p className="text-xs font-medium text-[--color-text-primary]">{mfaChallenge.message}</p>
-                                    {mfaChallenge.setupRequired && mfaChallenge.secret && (
-                                        <div className="space-y-2">
-                                            <p className="text-xs text-[--color-text-muted]">
-                                                Add this secret to an authenticator app, then enter the 6-digit code.
-                                            </p>
-                                            <p className="break-all rounded-lg bg-[--color-bg] px-3 py-2 font-mono text-xs text-[--color-text-primary]">
-                                                {mfaChallenge.secret}
-                                            </p>
-                                            {mfaChallenge.otpauthUrl && (
-                                                <a className="text-xs font-semibold text-[--color-primary] hover:underline" href={mfaChallenge.otpauthUrl}>
-                                                    Open authenticator setup
-                                                </a>
-                                            )}
-                                        </div>
-                                    )}
-                                    <Input
-                                        id="totp"
-                                        type="text"
-                                        label="Authenticator code"
-                                        placeholder="123456"
-                                        value={totpCode}
-                                        onChange={(e) => setTotpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                                        required
-                                    />
-                                </div>
-                            )}
-
                             <button
                                 type="submit"
                                 disabled={loading}
@@ -192,7 +140,7 @@ function AdminLoginForm() {
                                         <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
                                         Signing in...
                                     </>
-                                ) : mfaChallenge ? 'Verify MFA & Sign In' : 'Sign In to Admin'}
+                                ) : 'Sign In to Admin'}
                             </button>
                         </form>
 

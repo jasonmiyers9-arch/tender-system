@@ -5,11 +5,12 @@ import { useReExtractDocument, useRequestVerification, useVaultDocument } from '
 import { vault } from '@/lib/api/vault';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
+import { DownloadButton } from '@/components/ui/DownloadButton';
 import { StatusBadge } from '@/components/badges/Badges';
 import { CardSkeleton } from '@/components/ui/Skeleton';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { formatDate, formatDateTime, docCategoryLabel } from '@/lib/utils/formatters';
-import { Download, RefreshCw, CheckCircle, XCircle, Clock, Upload } from 'lucide-react';
+import { RefreshCw, CheckCircle, XCircle, Clock, Upload } from 'lucide-react';
 import { useParams } from 'next/navigation';
 
 const timelineIcons: Record<string, ReactNode> = {
@@ -40,16 +41,21 @@ export default function VaultDocumentPage() {
                 </div>
                 <div className="flex gap-2">
                     <a href={vault.getDownloadUrl(doc.id)} target="_blank" rel="noreferrer">
-                        <Button variant="ghost" leftIcon={<Download size={15} />} size="sm">
+                        <DownloadButton ariaLabel="Download document" size="sm" iconSize={15}>
                             Download
-                        </Button>
+                        </DownloadButton>
                     </a>
                     {(doc.status === 'expired' || doc.status === 'rejected') && (
-                        <Button leftIcon={<RefreshCw size={15} />} size="sm">
+                        <Button
+                            leftIcon={<RefreshCw size={15} />}
+                            size="sm"
+                            onClick={() => requestVerification.mutate(doc.id)}
+                            loading={requestVerification.isPending}
+                        >
                             Renew
                         </Button>
                     )}
-                    {doc.status !== 'verified' && (
+                    {doc.status === 'uploaded' && (
                         <Button
                             size="sm"
                             onClick={() => requestVerification.mutate(doc.id)}
@@ -168,9 +174,9 @@ export default function VaultDocumentPage() {
                     <Card>
                         <h3 className="text-sm font-semibold text-[--color-text-primary] mb-4">Actions</h3>
                         <div className="space-y-2">
-                            <Button variant="ghost" className="w-full justify-start" leftIcon={<Download size={15} />}>
+                            <DownloadButton className="w-full justify-start" ariaLabel="Download PDF" iconSize={15}>
                                 Download PDF
-                            </Button>
+                            </DownloadButton>
                             <Button
                                 variant="ghost"
                                 className="w-full justify-start"

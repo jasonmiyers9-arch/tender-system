@@ -226,9 +226,9 @@ export const admin = {
     },
 
     async getAiSettings(): Promise<{
-        hasOpenRouterKey: boolean;
-        openRouterKeyMasked: string | null;
-        openRouterModel: string;
+        hasGeminiKey: boolean;
+        geminiKeyMasked: string | null;
+        geminiModel: string;
         updatedAt: string | null;
         source: 'admin' | 'env' | 'none';
     }> {
@@ -237,12 +237,12 @@ export const admin = {
     },
 
     async updateAiSettings(payload: {
-        openRouterApiKey?: string;
-        openRouterModel?: string;
+        geminiApiKey?: string;
+        geminiModel?: string;
     }): Promise<{
-        hasOpenRouterKey: boolean;
-        openRouterKeyMasked: string | null;
-        openRouterModel: string;
+        hasGeminiKey: boolean;
+        geminiKeyMasked: string | null;
+        geminiModel: string;
         updatedAt: string | null;
         source: 'admin' | 'env' | 'none';
     }> {

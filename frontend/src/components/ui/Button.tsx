@@ -62,6 +62,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
             leftIcon,
             rightIcon,
             children,
+            type = 'button',
             disabled,
             className,
             style,
@@ -73,6 +74,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         return (
             <motion.button
                 ref={ref}
+                type={type}
                 disabled={isDisabled}
                 whileHover={isDisabled ? undefined : { y: -1, scale: 1.01 }}
                 whileTap={isDisabled ? undefined : { scale: 0.97 }}

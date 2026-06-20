@@ -1,4 +1,4 @@
-# TenderGuard Pro — Run Instructions
+# Tender Guard Pro — Run Instructions
 
 A compliance management and tender readiness platform for South African businesses.  
 Built with **Next.js 16**, **React 19**, **TypeScript**, **Firebase** (Auth + Firestore + Storage), and **Tailwind CSS v4**.  
@@ -8,12 +8,12 @@ Deployed to **Netlify**.
 
 ## Overview
 
-TenderGuard Pro helps companies manage compliance documents, track tender readiness scores, and apply for tenders from a unified portal. It supports three user roles:
+Tender Guard Pro helps companies manage compliance documents, track tender readiness scores, and apply for tenders from a unified portal. It supports three user roles:
 
 | Role | Portal | Capabilities |
 |------|--------|-------------|
 | **Company User** | Dashboard, Vault, Score, Tenders | Upload compliance docs, track readiness score, browse & apply for tenders |
-| **Evaluator** | Evaluator Dashboard | Create tenders, review applications, manage evaluator profile |
+| **Evaluator** | Verification Portal | Search companies, review compliance reports, request updates, and download bundles |
 | **Admin** | Admin Dashboard | Verify documents, manage accounts, audit logs, renewals pipeline |
 
 ---
@@ -26,7 +26,7 @@ TenderGuard Pro helps companies manage compliance documents, track tender readin
 | Auth | Firebase Authentication (Email/Password + Google OAuth), JWT-based RBAC |
 | Database | Cloud Firestore (with in-memory fallback for local dev) |
 | File Storage | Firebase Storage (with local filesystem fallback) |
-| AI/LLM | OpenRouter API + Gemini (document summarization, hybrid scoring, knowledge Q&A, expiry extraction) |
+| AI/LLM | Gemini API (document summarization, scoring, knowledge Q&A, expiry extraction) |
 | Deployment | Netlify (serverless functions via `@netlify/plugin-nextjs`) |
 | State | Zustand (client), TanStack React Query v5 (server) |
 
@@ -74,7 +74,7 @@ tender-system/
 │       │   │   ├── analystEngine.ts       # Hybrid scoring (deterministic + LLM)
 │       │   │   ├── pdfExtractor.ts        # Dual-engine PDF extraction
 │       │   │   ├── documentAi.ts          # AI document processing
-│       │   │   ├── documentSummary.ts     # OpenRouter summarization
+│       │   │   ├── documentSummary.ts     # Gemini summarization
 │       │   │   ├── expiryCheckService.ts  # Document expiry monitoring
 │       │   │   ├── aiSettingsService.ts   # AI model configuration
 │       │   │   ├── aiPrompts.ts           # LLM prompt templates
@@ -90,7 +90,7 @@ tender-system/
 ## Prerequisites
 
 - **Node.js 20+** and **npm 10+**
-- A **Firebase project** (optional — app runs with in-memory fallback)
+- A **Firebase project** (required for production; local development supports mock fallback)
 - Git
 
 ### Windows install (winget)
@@ -144,17 +144,20 @@ NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=your-project.firebaseapp.com
 NEXT_PUBLIC_FIREBASE_PROJECT_ID=your-project-id
 NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=your-project.firebasestorage.app
 
-# OpenRouter AI (optional — enables AI features)
-OPENROUTER_API_KEY=sk-or-v1-...
-
-# Gemini AI (optional — enhanced document analysis)
-GEMINI_API_KEY=your-gemini-key
+# Gemini AI (optional — enables AI features)
+GEMINI_API_KEY=AIzaSy...
+GEMINI_MODEL=gemini-2.0-flash
 
 # Scheduled jobs and outbound alerts (production)
 CRON_SECRET=replace-with-a-long-random-secret
 SENDGRID_API_KEY=SG...
 SENDGRID_FROM_EMAIL=alerts@your-domain.co.za
-SENDGRID_FROM_NAME=TenderGuard Pro
+SENDGRID_FROM_NAME=Tender Guard Pro
+# Twilio SMS (preferred)
+TWILIO_ACCOUNT_SID=AC...
+TWILIO_AUTH_TOKEN=your-twilio-auth-token
+TWILIO_FROM_NUMBER=+27...
+# Clickatell SMS (optional fallback)
 CLICKATELL_API_KEY=your-clickatell-api-key
 CLICKATELL_FROM=TenderGuard
 
@@ -162,7 +165,7 @@ CLICKATELL_FROM=TenderGuard
 NEXT_PUBLIC_APP_URL=http://localhost:3000
 ```
 
-> **No Firebase?** The app runs fully functional with an in-memory fallback database. All features work locally without any Firebase config.
+> **Production requirement:** Firebase Admin, Firestore, Auth, and Storage must be configured. Production API routes fail closed instead of using memory or local disk. Mock fallback is development-only.
 
 ## 4) Start Development Server
 
@@ -222,6 +225,8 @@ Netlify scheduled functions are included under `frontend/netlify/functions/`. Ne
 | Score snapshots | 21:59 daily | 23:59 daily |
 
 Set `CRON_SECRET` and Firebase Admin credentials before publishing. Verify each function in **Netlify → Functions** using **Run now** after the first production deploy.
+
+For AI, configure `GEMINI_API_KEY` and `GEMINI_MODEL` in Netlify. The Admin dashboard can also update the active key and model from the AI settings panel.
 
 ---
 

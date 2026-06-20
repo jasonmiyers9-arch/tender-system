@@ -647,7 +647,7 @@ Document text (first 8000 chars):
 `;
 
 /**
- * Analyse document content using the configured OpenRouter model.
+ * Analyse document content using the configured Gemini model.
  * Always runs the regex baseline first; AI result enriches it.
  * If the AI call fails for any reason, returns the regex baseline silently.
  */
@@ -699,13 +699,13 @@ export async function analyzeDocumentWithAI(
       keywords:              ai.keywords?.length       ? ai.keywords        : baseline.keywords,
     };
   } catch (err) {
-    console.warn('OpenRouter document analysis failed; using regex baseline:', err);
+    console.warn('Gemini document analysis failed; using regex baseline:', err);
     return baseline;
   }
 }
 
 /**
- * Extract expiry date using the configured OpenRouter model. Falls back to regex if AI unavailable or fails.
+ * Extract expiry date using the configured Gemini model. Falls back to regex if AI unavailable or fails.
  */
 export async function extractExpiryDateWithAI(text: string): Promise<string | null> {
   if (!text.trim()) return extractExpiryDate(text);

@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────
-// TenderGuard Pro — Shared API Types
+// Tender Guard Pro — Shared API Types
 // ─────────────────────────────────────────────
 
 export type UserRole = 'user' | 'evaluator' | 'admin' | 'super_admin';
@@ -138,6 +138,7 @@ export interface VaultDocument {
     uploadedBy: string;
     fileSize: string;
     fileType: string;
+    issuingAuthority?: string;
 }
 
 export interface DocumentTimelineEvent {
@@ -353,4 +354,9 @@ export interface CompanyComplianceReport {
     documentsByCategory: Partial<Record<DocumentCategory, VaultDocument[]>>;
     auditLog: AuditEntry[];
     bundleUrl: string;
+    verification: {
+        isVerified: boolean;
+        lastVerifiedAt: string | null;
+        generatedAt: string;
+    };
 }
