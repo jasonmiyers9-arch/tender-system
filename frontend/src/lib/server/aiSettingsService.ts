@@ -2,7 +2,20 @@ import { getFirestore, isFirestoreAvailable } from './firebaseAdmin';
 
 const SETTINGS_COLLECTION = 'app_settings';
 const AI_SETTINGS_DOC = 'ai_provider';
-const DEFAULT_GEMINI_MODEL = 'gemini-2.0-flash';
+const DEFAULT_GEMINI_MODEL = 'gemini-2.5-flash';
+
+// Models retired by the Generative Language API. generateContent returns
+// 404 NOT_FOUND for these even though ListModels may still echo them back.
+// Remap to a current equivalent so stored/admin/env values don't break the app.
+const RETIRED_MODEL_REMAP: Record<string, string> = {
+  'gemini-2.0-flash': 'gemini-2.5-flash',
+  'gemini-2.0-flash-001': 'gemini-2.5-flash',
+  'gemini-1.5-flash': 'gemini-2.5-flash',
+  'gemini-1.5-flash-latest': 'gemini-2.5-flash',
+  'gemini-1.5-pro': 'gemini-2.5-pro',
+  'gemini-1.5-pro-latest': 'gemini-2.5-pro',
+  'gemini-pro': 'gemini-2.5-flash',
+};
 
 type StoredAiSettings = {
   geminiApiKey?: string;
@@ -17,7 +30,8 @@ let memoryAiSettings: StoredAiSettings = {};
 
 function sanitizeModel(model: string | null | undefined): string {
   const value = (model ?? '').trim();
-  return value || DEFAULT_GEMINI_MODEL;
+  if (!value) return DEFAULT_GEMINI_MODEL;
+  return RETIRED_MODEL_REMAP[value] ?? value;
 }
 
 function maskKey(key: string | null | undefined): string | null {
