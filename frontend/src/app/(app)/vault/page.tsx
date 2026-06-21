@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState, useRef } from 'react';
-import { useVaultDocuments, useUploadDocument } from '@/lib/hooks/useVault';
+import { useVaultDocuments, useUploadDocument, useUploadBundle } from '@/lib/hooks/useVault';
 import { useScore } from '@/lib/hooks/useScore';
 import { Table } from '@/components/ui/Table';
 import { Button } from '@/components/ui/Button';
@@ -20,7 +20,7 @@ import type { DocumentStatus, DocumentCategory, DocumentUploadCategory, VaultDoc
 import {
     Upload, MoreHorizontal, Plus, FolderLock, AlertTriangle,
     CheckCircle2, Clock, XCircle, FileText, Landmark, BadgeCheck,
-    Scale, BarChart3, Award, ChevronRight, CloudUpload,
+    Scale, BarChart3, Award, ChevronRight, CloudUpload, Layers, Sparkles,
 } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 
@@ -453,6 +453,167 @@ function UploadModal({
     );
 }
 
+// ─── Bundle (smart) upload modal ───────────────────────────────────────────────
+
+type BundleResult = Awaited<ReturnType<ReturnType<typeof useUploadBundle>['mutateAsync']>>;
+
+function BundleUploadModal({
+    open,
+    onClose,
+}: {
+    open: boolean;
+    onClose: () => void;
+}) {
+    const [file, setFile] = useState<File | null>(null);
+    const [fileError, setFileError] = useState<string | null>(null);
+    const [uploadError, setUploadError] = useState<string | null>(null);
+    const [result, setResult] = useState<BundleResult | null>(null);
+    const bundleMutation = useUploadBundle();
+
+    const handleFileChange = (selected: File | null) => {
+        setUploadError(null);
+        setResult(null);
+        setFile(selected);
+        if (selected && selected.size > MAX_UPLOAD_BYTES) {
+            setFileError(`File is too large. Maximum upload size is ${MAX_UPLOAD_MB} MB.`);
+            return;
+        }
+        setFileError(null);
+    };
+
+    const handleSubmit = async () => {
+        if (!file) return;
+        setUploadError(null);
+        if (file.size > MAX_UPLOAD_BYTES) {
+            setFileError(`File is too large. Maximum upload size is ${MAX_UPLOAD_MB} MB.`);
+            return;
+        }
+        try {
+            const res = await bundleMutation.mutateAsync({ file });
+            setResult(res);
+        } catch (error) {
+            setUploadError(error instanceof Error ? error.message : 'Bundle upload failed. Please try again.');
+        }
+    };
+
+    const handleClose = () => {
+        setFile(null);
+        setFileError(null);
+        setUploadError(null);
+        setResult(null);
+        onClose();
+    };
+
+    return (
+        <Modal
+            open={open}
+            onClose={handleClose}
+            title="Smart Bundle Upload"
+            size="md"
+            footer={
+                result ? (
+                    <Button onClick={handleClose}>Done</Button>
+                ) : (
+                    <>
+                        <Button variant="ghost" onClick={handleClose}>Cancel</Button>
+                        <Button
+                            onClick={handleSubmit}
+                            loading={bundleMutation.isPending}
+                            disabled={!file || Boolean(fileError)}
+                            leftIcon={<Sparkles size={15} />}
+                        >
+                            Analyze &amp; File
+                        </Button>
+                    </>
+                )
+            }
+        >
+            {result ? (
+                <div className="space-y-4">
+                    <div className="flex items-start gap-3 rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-4 py-3">
+                        <CheckCircle2 size={18} className="text-emerald-600 flex-shrink-0 mt-0.5" />
+                        <div>
+                            <p className="text-sm font-semibold text-[--color-text-primary]">{result.message}</p>
+                            {result.aiAnalyzed && result.model && (
+                                <p className="text-xs text-[--color-text-muted] mt-0.5">Analyzed with {result.model}</p>
+                            )}
+                        </div>
+                    </div>
+                    <div className="space-y-2">
+                        {result.documents.map((doc) => (
+                            <div key={doc.id} className="flex items-center gap-3 rounded-xl border border-[--color-border] px-3 py-2.5">
+                                <FileText size={15} className="text-[--color-text-muted] flex-shrink-0" />
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-medium text-[--color-text-primary] truncate">{doc.name}</p>
+                                    <p className="text-xs text-[--color-text-muted]">
+                                        {docCategoryLabel(doc.category)}
+                                        {doc.expiryDate ? ` · Expires ${formatDate(doc.expiryDate)}` : ''}
+                                    </p>
+                                </div>
+                                <Badge variant="success" size="sm">Filed</Badge>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            ) : (
+                <div className="space-y-4">
+                    <div className="flex items-start gap-3 rounded-xl border border-[--color-border] bg-[--color-surface-raised] px-4 py-3">
+                        <Layers size={18} className="text-teal-600 flex-shrink-0 mt-0.5" />
+                        <p className="text-xs text-[--color-text-muted]">
+                            Upload a single PDF or photo that bundles several compliance documents — for example your
+                            CIPC registration, SARS Tax Clearance and B-BBEE certificate. The AI reads each one
+                            (including scanned or photographed pages), files it under the right category and records
+                            any expiry date it finds.
+                        </p>
+                    </div>
+
+                    <label
+                        className="flex flex-col items-center justify-center gap-2 border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-all hover:opacity-80"
+                        style={{ borderColor: file ? 'var(--color-primary)' : 'var(--color-border)' }}
+                    >
+                        <CloudUpload size={26} className={file ? 'text-teal-600' : 'text-[--color-text-muted]'} />
+                        {file ? (
+                            <>
+                                <p className="text-sm font-semibold text-teal-700">{file.name}</p>
+                                <p className="text-xs text-[--color-text-muted]">
+                                    {(file.size / 1024 / 1024).toFixed(2)} MB · Click to change
+                                </p>
+                            </>
+                        ) : (
+                            <>
+                                <p className="text-sm font-medium text-[--color-text-primary]">Click to select a combined file</p>
+                                <p className="text-xs text-[--color-text-muted]">PDF, JPG, PNG up to {MAX_UPLOAD_MB}MB</p>
+                            </>
+                        )}
+                        <input
+                            type="file"
+                            className="hidden"
+                            accept=".pdf,.jpg,.jpeg,.png,.webp"
+                            onChange={(e) => handleFileChange(e.target.files?.[0] ?? null)}
+                        />
+                    </label>
+
+                    {fileError && (
+                        <div className="rounded-xl border border-red-500/20 bg-red-500/5 px-4 py-3 text-sm text-[--color-danger]">
+                            {fileError}
+                        </div>
+                    )}
+                    {uploadError && (
+                        <div className="rounded-xl border border-red-500/20 bg-red-500/5 px-4 py-3 text-sm text-[--color-danger]">
+                            {uploadError}
+                        </div>
+                    )}
+                    {bundleMutation.isPending && (
+                        <p className="text-xs text-[--color-text-muted] text-center">
+                            Reading the file and identifying documents… this can take a few seconds.
+                        </p>
+                    )}
+                </div>
+            )}
+        </Modal>
+    );
+}
+
 // ─── Main page ─────────────────────────────────────────────────────────────────
 
 export default function VaultPage() {
@@ -461,6 +622,7 @@ export default function VaultPage() {
     const [categoryFilter, setCategoryFilter] = useState<DocumentCategory | ''>('');
     const [groupFilter, setGroupFilter] = useState<VaultFilterGroup>('all');
     const [uploadOpen, setUploadOpen] = useState(false);
+    const [bundleOpen, setBundleOpen] = useState(false);
     const [uploadCategory, setUploadCategory] = useState<DocumentUploadCategory | null>(null);
 
     const router = useRouter();
@@ -569,9 +731,14 @@ export default function VaultPage() {
                 subtitle={`${countVerified} valid · ${countExpiringSoon} expiring · ${countExpired} expired`}
                 icon={<FolderLock size={22} />}
                 actions={
-                    <Button leftIcon={<Plus size={16} />} onClick={() => openUpload(null)}>
-                        Upload Document
-                    </Button>
+                    <div className="flex gap-2">
+                        <Button variant="outline" leftIcon={<Sparkles size={16} />} onClick={() => setBundleOpen(true)}>
+                            Smart Upload
+                        </Button>
+                        <Button leftIcon={<Plus size={16} />} onClick={() => openUpload(null)}>
+                            Upload Document
+                        </Button>
+                    </div>
                 }
             />
 
@@ -826,6 +993,13 @@ export default function VaultPage() {
                     initialCategory={uploadCategory}
                     onUpload={handleUpload}
                     isLoading={uploadMutation.isPending}
+                />
+            )}
+
+            {bundleOpen && (
+                <BundleUploadModal
+                    open={bundleOpen}
+                    onClose={() => setBundleOpen(false)}
                 />
             )}
         </div>
