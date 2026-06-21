@@ -1,6 +1,6 @@
 'use client';
 
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { useReExtractDocument, useRequestVerification, useVaultDocument } from '@/lib/hooks/useVault';
 import { vault } from '@/lib/api/vault';
 import { Card } from '@/components/ui/Card';
@@ -26,6 +26,21 @@ export default function VaultDocumentPage() {
     const { data: doc, isLoading, isError, refetch } = useVaultDocument(docId ?? '');
     const requestVerification = useRequestVerification();
     const reExtract = useReExtractDocument();
+    const [downloading, setDownloading] = useState(false);
+    const [downloadError, setDownloadError] = useState<string | null>(null);
+
+    const handleDownload = async () => {
+        if (!doc) return;
+        setDownloading(true);
+        setDownloadError(null);
+        try {
+            await vault.downloadDocument(doc.id, doc.name);
+        } catch {
+            setDownloadError('Download failed. Please try again.');
+        } finally {
+            setDownloading(false);
+        }
+    };
 
     if (isLoading) return <CardSkeleton />;
     if (isError || !doc) return <ErrorState onRetry={refetch} />;
@@ -40,11 +55,15 @@ export default function VaultDocumentPage() {
                     </p>
                 </div>
                 <div className="flex gap-2">
-                    <a href={vault.getDownloadUrl(doc.id)} target="_blank" rel="noreferrer">
-                        <DownloadButton ariaLabel="Download document" size="sm" iconSize={15}>
-                            Download
-                        </DownloadButton>
-                    </a>
+                    <DownloadButton
+                        ariaLabel="Download document"
+                        size="sm"
+                        iconSize={15}
+                        onClick={handleDownload}
+                        loading={downloading}
+                    >
+                        Download
+                    </DownloadButton>
                     {(doc.status === 'expired' || doc.status === 'rejected') && (
                         <Button
                             leftIcon={<RefreshCw size={15} />}
@@ -174,7 +193,13 @@ export default function VaultDocumentPage() {
                     <Card>
                         <h3 className="text-sm font-semibold text-[--color-text-primary] mb-4">Actions</h3>
                         <div className="space-y-2">
-                            <DownloadButton className="w-full justify-start" ariaLabel="Download PDF" iconSize={15}>
+                            <DownloadButton
+                                className="w-full justify-start"
+                                ariaLabel="Download PDF"
+                                iconSize={15}
+                                onClick={handleDownload}
+                                loading={downloading}
+                            >
                                 Download PDF
                             </DownloadButton>
                             <Button
@@ -195,6 +220,9 @@ export default function VaultDocumentPage() {
                                 Re-extract Text
                             </Button>
                         </div>
+                        {downloadError && (
+                            <p className="mt-3 text-xs text-[--color-danger]">{downloadError}</p>
+                        )}
                     </Card>
                 </div>
             </div>

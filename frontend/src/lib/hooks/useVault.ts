@@ -37,6 +37,19 @@ export function useUploadDocument() {
     });
 }
 
+export function useBulkUploadDocument() {
+    const activeCompanyId = useAppStore((s) => s.activeCompanyId);
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: (file: File) => vault.bulkUploadDocument(file),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['vault', activeCompanyId] });
+            queryClient.invalidateQueries({ queryKey: ['score', activeCompanyId] });
+            queryClient.invalidateQueries({ queryKey: ['renewals', activeCompanyId] });
+        },
+    });
+}
+
 export function useRequestVerification() {
     const activeCompanyId = useAppStore((s) => s.activeCompanyId);
     const queryClient = useQueryClient();

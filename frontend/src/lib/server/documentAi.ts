@@ -2,7 +2,7 @@ import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { getDocumentById, updateDocument } from './firestoreService';
 import { downloadDocumentFromFirebase, isFirebaseStorageConfigured } from './firebaseStorage';
-import { analyzeDocumentContent, extractExpiryDate, extractPDFContent } from './pdfExtractor';
+import { analyzeDocumentContent, extractExpiryDate, extractPDFContent, ocrPdfWithVision } from './pdfExtractor';
 import { summarizeDocumentForKnowledgeBase } from './documentSummary';
 
 async function loadDocumentBuffer(storageRef: string): Promise<Buffer> {
@@ -49,19 +49,29 @@ export async function reExtractDocumentAi(documentId: string, requestedBy?: stri
   try {
     const buffer = await loadDocumentBuffer(storageRef);
     const extracted = await extractPDFContent(buffer);
-    const text = extracted.text?.trim() ?? '';
+    let text = extracted.text?.trim() ?? '';
+    let usedOcr = false;
+
+    // No digital text layer (scanned / image-only PDF): OCR the page images.
+    if (!text) {
+      const ocrText = await ocrPdfWithVision(buffer);
+      if (ocrText.trim()) {
+        text = ocrText.trim();
+        usedOcr = true;
+      }
+    }
 
     if (!text) {
       await updateDocument(documentId, {
         pageCount: extracted.pageCount,
         extractedText: '',
         extractionStatus: 'failed',
-        extractionError: 'No extractable text found. This PDF may be image-based or scanned and requires OCR before AI analysis.',
+        extractionError: 'No extractable text found. This PDF may be image-based or scanned and OCR could not read it.',
       });
       return {
         ok: false,
         extractionStatus: 'failed',
-        error: 'No extractable text found. This PDF may be image-based or scanned and requires OCR before AI analysis.',
+        error: 'No extractable text found. This PDF may be image-based or scanned and OCR could not read it.',
       };
     }
 
@@ -99,6 +109,7 @@ export async function reExtractDocumentAi(documentId: string, requestedBy?: stri
       requestedBy: requestedBy ?? 'system',
       chars: text.length,
       pages: extracted.pageCount,
+      ocr: usedOcr,
       model: summary.model ?? 'local-fallback',
     });
 

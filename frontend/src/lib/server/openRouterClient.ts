@@ -12,6 +12,17 @@ type AiChatOptions = {
   maxTokens?: number;
 };
 
+type AiVisionOptions = {
+  /** Base64-encoded file data (no data: URI prefix). */
+  data: string;
+  /** MIME type of the supplied file, e.g. "application/pdf". */
+  mimeType: string;
+  prompt: string;
+  systemInstruction?: string;
+  temperature?: number;
+  maxTokens?: number;
+};
+
 export type AiChatResult =
   | {
       ok: true;
@@ -95,4 +106,57 @@ async function chatWithGemini(options: AiChatOptions): Promise<AiChatResult> {
 
 export async function chatWithOpenRouter(options: AiChatOptions): Promise<AiChatResult> {
   return chatWithGemini(options);
+}
+
+/**
+ * Send a binary document (e.g. a scanned/image-only PDF) to Gemini's multimodal
+ * model so it can OCR the page images and answer the prompt. Used when a PDF has
+ * no extractable text layer, so plain text extraction returns nothing.
+ */
+export async function analyzeFileWithGemini(options: AiVisionOptions): Promise<AiChatResult> {
+  const { apiKey, model } = await getAiRuntimeConfig();
+
+  if (!apiKey) {
+    return { ok: false, reason: 'no_api_key', model };
+  }
+
+  try {
+    const client = new GoogleGenerativeAI(apiKey);
+    const modelClient = client.getGenerativeModel({
+      model,
+      generationConfig: {
+        temperature: options.temperature ?? 0,
+        maxOutputTokens: options.maxTokens ?? 1200,
+      },
+      ...(options.systemInstruction
+        ? { systemInstruction: options.systemInstruction }
+        : {}),
+    });
+
+    const response = await modelClient.generateContent({
+      contents: [
+        {
+          role: 'user',
+          parts: [
+            { text: options.prompt },
+            { inlineData: { mimeType: options.mimeType, data: options.data } },
+          ],
+        },
+      ],
+    });
+
+    const content = response.response.text().trim();
+    if (!content) {
+      return { ok: false, reason: 'empty_response', model };
+    }
+
+    return { ok: true, content, model };
+  } catch (error) {
+    return {
+      ok: false,
+      reason: 'exception',
+      model,
+      error: error instanceof Error ? error.message : 'Gemini vision request failed',
+    };
+  }
 }

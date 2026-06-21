@@ -58,6 +58,24 @@ export interface RenewalsResponse {
     lastChecked: string;
 }
 
+export interface BulkUploadedDocument {
+    id: string;
+    name: string;
+    category: string;
+    categoryLabel: string;
+    pages: string;
+    expiryDate: string | null;
+    confidence: number;
+    classifiedBy: 'ai' | 'heuristic';
+}
+
+export interface BulkUploadResponse {
+    message: string;
+    pageCount: number;
+    classificationMethod: 'ai' | 'heuristic';
+    documents: BulkUploadedDocument[];
+}
+
 export const vault = {
     async listDocuments(filters?: {
         status?: DocumentStatus;
@@ -117,6 +135,32 @@ export const vault = {
         return res.json();
     },
 
+    async bulkUploadDocument(file: File): Promise<BulkUploadResponse> {
+        const token = getToken();
+        const form = new FormData();
+        form.set('file', file, file.name || 'bundle.pdf');
+
+        const headers: Record<string, string> = {};
+        if (token) headers.Authorization = `Bearer ${token}`;
+
+        const res = await fetch(`${API_BASE}/documents/bulk-upload`, {
+            method: 'POST',
+            headers,
+            body: form,
+        });
+        if (!res.ok) {
+            let detail = '';
+            try {
+                const json = await res.json() as { detail?: string };
+                detail = json.detail ? `: ${json.detail}` : '';
+            } catch {
+                // ignore json parse errors and keep generic message
+            }
+            throw new Error(`Bulk upload failed (${res.status})${detail}`);
+        }
+        return res.json();
+    },
+
     async renewDocument(id: string, data: { issueDate?: string; expiryDate?: string }): Promise<{ success: boolean }> {
         await authFetch(`/documents/${id}/renew`, {
             method: 'PATCH',
@@ -147,6 +191,19 @@ export const vault = {
 
     getDownloadUrl(id: string): string {
         return `${API_BASE}/documents/${id}/download`;
+    },
+
+    async downloadDocument(id: string, filename: string): Promise<void> {
+        const res = await authFetch(`/documents/${id}/download`);
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename || `document-${id}`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
     },
 };
 
