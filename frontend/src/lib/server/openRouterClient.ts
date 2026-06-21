@@ -6,11 +6,25 @@ type AiMessage = {
   content: string;
 };
 
+// A binary attachment (PDF page image, scan, photo) sent inline to the model
+// so it can read documents directly — layout, stamps, and scanned pages that
+// text extraction cannot recover. `data` must be base64-encoded.
+export type AiAttachment = {
+  mimeType: string;
+  data: string;
+};
+
 type AiChatOptions = {
   messages: AiMessage[];
   temperature?: number;
   maxTokens?: number;
+  attachments?: AiAttachment[];
 };
+
+type GeminiTextPart = { text: string };
+type GeminiInlinePart = { inlineData: { mimeType: string; data: string } };
+type GeminiPart = GeminiTextPart | GeminiInlinePart;
+type GeminiContent = { role: 'user' | 'model'; parts: GeminiPart[] };
 
 export type AiChatResult =
   | {
@@ -43,11 +57,29 @@ function splitMessages(messages: AiMessage[]) {
   };
 }
 
-function toGeminiContents(messages: Array<{ role: 'user' | 'assistant'; content: string }>) {
-  return messages.map((message) => ({
+function toGeminiContents(
+  messages: Array<{ role: 'user' | 'assistant'; content: string }>,
+  attachments?: AiAttachment[],
+): GeminiContent[] {
+  const contents: GeminiContent[] = messages.map((message) => ({
     role: message.role === 'assistant' ? 'model' : 'user',
     parts: [{ text: message.content }],
   }));
+
+  if (attachments?.length) {
+    // Attach binary parts to the most recent user turn so the model reads the
+    // document alongside the instruction. Create a user turn if none exists.
+    let target = [...contents].reverse().find((content) => content.role === 'user');
+    if (!target) {
+      target = { role: 'user', parts: [] };
+      contents.push(target);
+    }
+    for (const attachment of attachments) {
+      target.parts.push({ inlineData: { mimeType: attachment.mimeType, data: attachment.data } });
+    }
+  }
+
+  return contents;
 }
 
 async function chatWithGemini(options: AiChatOptions): Promise<AiChatResult> {
@@ -69,7 +101,7 @@ async function chatWithGemini(options: AiChatOptions): Promise<AiChatResult> {
 
     const { systemInstruction, conversationMessages } = splitMessages(options.messages);
     const response = await modelClient.generateContent({
-      contents: toGeminiContents(conversationMessages),
+      contents: toGeminiContents(conversationMessages, options.attachments),
       ...(systemInstruction ? { systemInstruction } : {}),
     });
 

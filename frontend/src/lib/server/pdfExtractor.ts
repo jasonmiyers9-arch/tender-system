@@ -11,6 +11,28 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { chatWithOpenRouter } from './openRouterClient';
 
+// How much extracted text to feed the model. gemini-2.5-flash has a very large
+// context window, so the old 8000-char cap (~2-4 pages) needlessly truncated
+// long compliance documents. Raised so multi-page docs are analyzed whole.
+const AI_ANALYSIS_TEXT_LIMIT = 24_000;
+const AI_EXPIRY_TEXT_LIMIT = 12_000;
+
+// Mime types the model can read inline (native PDF + image understanding).
+// Used for direct multimodal analysis and OCR of scanned/photographed docs.
+const INLINE_ANALYZABLE_MIME = new Set([
+  'application/pdf',
+  'image/png',
+  'image/jpeg',
+  'image/jpg',
+  'image/webp',
+  'image/heic',
+  'image/heif',
+]);
+
+function isInlineAnalyzable(mimeType: string | null | undefined): boolean {
+  return Boolean(mimeType && INLINE_ANALYZABLE_MIME.has(mimeType.toLowerCase()));
+}
+
 type PdfJsModule = {
   getDocument: (src: { data: Uint8Array; disableWorker?: boolean; useWorkerFetch?: boolean; isEvalSupported?: boolean; useSystemFonts?: boolean }) => {
     promise: Promise<{
@@ -643,21 +665,56 @@ Analyze the following extracted text and return ONLY a valid JSON object with no
   "summary": "one sentence description"
 }
 
-Document text (first 8000 chars):
+Document text (may be empty if the document is scanned — in that case read the attached file directly):
 `;
+
+const OCR_SYSTEM_PROMPT =
+  'You are an OCR engine for scanned South African government and compliance documents. ' +
+  'Output only the transcribed plain text — no commentary, no markdown.';
+
+const OCR_USER_PROMPT =
+  'Transcribe ALL text from the attached document exactly as written, preserving reading order and line breaks. ' +
+  'Include every field label and value, registration/VAT/tax numbers, dates, amounts, B-BBEE level, and any stamps or signatures text. ' +
+  'If a region is unreadable, write [illegible]. Output plain text only.';
+
+/**
+ * OCR a scanned or image-based document by sending the raw bytes to the model.
+ * Recovers text that pdfjs/pdf-parse cannot (no text layer). Returns '' on failure.
+ */
+export async function transcribeDocumentWithGemini(buffer: Buffer, mimeType: string): Promise<string> {
+  if (!isInlineAnalyzable(mimeType)) return '';
+
+  const result = await chatWithOpenRouter({
+    temperature: 0,
+    maxTokens: 8_192,
+    messages: [
+      { role: 'system', content: OCR_SYSTEM_PROMPT },
+      { role: 'user', content: OCR_USER_PROMPT },
+    ],
+    attachments: [{ mimeType, data: buffer.toString('base64') }],
+  });
+
+  if (!result.ok) return '';
+  return cleanText(result.content);
+}
 
 /**
  * Analyse document content using the configured Gemini model.
  * Always runs the regex baseline first; AI result enriches it.
+ * When `file` is an inline-analyzable PDF/image, the raw bytes are sent to the
+ * model so it reads layout, tables, and scanned pages directly (multimodal),
+ * not just the flattened extracted text.
  * If the AI call fails for any reason, returns the regex baseline silently.
  */
 export async function analyzeDocumentWithAI(
   text: string,
   pageCount: number,
+  file?: { buffer: Buffer; mimeType: string },
 ): Promise<DocumentAnalysis> {
   const baseline = analyzeDocumentContent(text, pageCount);
 
-  if (!text.trim()) return baseline;
+  const hasFile = Boolean(file && isInlineAnalyzable(file.mimeType));
+  if (!text.trim() && !hasFile) return baseline;
 
   const result = await chatWithOpenRouter({
     temperature: 0.1,
@@ -666,13 +723,15 @@ export async function analyzeDocumentWithAI(
       {
         role: 'system',
         content:
-          'You extract structured facts from South African compliance documents. Return only valid JSON. No markdown.',
+          'You extract structured facts from South African compliance documents. ' +
+          'Read the attached file when provided. Return only valid JSON. No markdown.',
       },
       {
         role: 'user',
-        content: DOCUMENT_ANALYSIS_PROMPT + text.slice(0, 8000),
+        content: DOCUMENT_ANALYSIS_PROMPT + text.slice(0, AI_ANALYSIS_TEXT_LIMIT),
       },
     ],
+    attachments: hasFile ? [{ mimeType: file!.mimeType, data: file!.buffer.toString('base64') }] : undefined,
   });
 
   if (!result.ok) return baseline;
@@ -722,7 +781,7 @@ export async function extractExpiryDateWithAI(text: string): Promise<string | nu
         role: 'user',
         content:
           'Extract only the expiry date or validity end date from this South African compliance document. No other text, no markdown.\n\n' +
-          text.slice(0, 4000),
+          text.slice(0, AI_EXPIRY_TEXT_LIMIT),
       },
     ],
   });

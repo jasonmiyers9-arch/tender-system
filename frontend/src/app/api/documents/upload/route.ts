@@ -121,16 +121,55 @@ export async function POST(req: Request) {
     let aiSummaryModel: string | undefined;
     let detectedExpiryDate: string | null = null;
 
-    if (ext === '.pdf' && runAi) {
+    // Mime types we can feed to the model inline for direct (multimodal) reading.
+    const EXT_INLINE_MIME: Record<string, string> = {
+      '.pdf': 'application/pdf',
+      '.png': 'image/png',
+      '.jpg': 'image/jpeg',
+      '.jpeg': 'image/jpeg',
+    };
+    const inlineMime = EXT_INLINE_MIME[ext];
+    const isAiReadable = Boolean(inlineMime);
+
+    if (isAiReadable && runAi) {
       try {
-        // Lazy-load PDF extraction to keep parsing dependencies out of build-time module evaluation.
-        const { extractPDFContent } = await import('../../../../lib/server/pdfExtractor');
-        const pdfResult = await extractPDFContent(buffer);
-        extractedText = pdfResult.text;
-        pageCount = pdfResult.pageCount;
-        
-        if (extractedText) {
-          const analysis = await analyzeDocumentWithAI(extractedText, pageCount);
+        const {
+          extractPDFContent,
+          transcribeDocumentWithGemini,
+        } = await import('../../../../lib/server/pdfExtractor');
+
+        let extractor = 'gemini-vision';
+
+        // 1. Digital PDFs: pull the text layer first (fast, free, exact).
+        if (ext === '.pdf') {
+          const pdfResult = await extractPDFContent(buffer);
+          extractedText = pdfResult.text;
+          pageCount = pdfResult.pageCount;
+          extractor = pdfResult.extractor;
+        }
+
+        // 2. OCR fallback via Gemini for scanned PDFs (no/weak text layer) and
+        //    image uploads — recovers text that parsing cannot.
+        if (!extractedText || extractedText.trim().length < 200) {
+          const ocrText = await transcribeDocumentWithGemini(buffer, inlineMime);
+          if (ocrText.trim().length > (extractedText?.trim().length ?? 0)) {
+            extractedText = ocrText;
+            extractor = ext === '.pdf' ? 'gemini-ocr' : 'gemini-vision';
+            if (!pageCount) pageCount = 1;
+          }
+        }
+
+        // 3. Analyze. Always pass the raw file so the model reads layout/scans
+        //    directly (multimodal), with the extracted text as grounding.
+        const analysis = await analyzeDocumentWithAI(
+          extractedText ?? '',
+          pageCount ?? 1,
+          { buffer, mimeType: inlineMime },
+        );
+
+        const hasUsableResult = Boolean(extractedText?.trim()) || analysis.documentType !== null || analysis.confidence >= 0.2;
+
+        if (hasUsableResult) {
           documentAnalysis = {
             wordCount: analysis.wordCount,
             hasSignature: analysis.hasSignature,
@@ -146,26 +185,28 @@ export async function POST(req: Request) {
             keywords: analysis.keywords,
             csdSupplierSummary: analysis.csdSupplierSummary,
           };
-          
-          // Detect expiry date using the configured AI provider, falling back to regex.
-          detectedExpiryDate = await extractExpiryDateWithAI(extractedText);
 
-          const summaryResult = await summarizeDocumentForKnowledgeBase(extractedText);
-          aiSummary = summaryResult.summary ?? undefined;
-          aiSummaryModel = summaryResult.model ?? undefined;
+          if (extractedText?.trim()) {
+            // Detect expiry date using the configured AI provider, falling back to regex.
+            detectedExpiryDate = await extractExpiryDateWithAI(extractedText);
+
+            const summaryResult = await summarizeDocumentForKnowledgeBase(extractedText);
+            aiSummary = summaryResult.summary ?? undefined;
+            aiSummaryModel = summaryResult.model ?? undefined;
+          }
           extractionStatus = 'ok';
         } else {
           extractionStatus = 'failed';
-          extractionError = 'No extractable text found. This PDF may be image-based or scanned and requires OCR before AI analysis.';
+          extractionError = 'No readable content found. The file may be corrupt, encrypted, or blank.';
         }
-        console.log(`PDF extracted with ${pdfResult.extractor}: ${pageCount} pages, ${extractedText?.length ?? 0} chars`);
-      } catch (pdfError) {
-        console.warn('PDF extraction warning:', pdfError);
+        console.log(`Document read with ${extractor}: ${pageCount ?? 0} pages, ${extractedText?.length ?? 0} chars`);
+      } catch (aiError) {
+        console.warn('Document AI extraction warning:', aiError);
         extractionStatus = 'failed';
-        extractionError = pdfError instanceof Error ? pdfError.message : 'PDF extraction failed';
+        extractionError = aiError instanceof Error ? aiError.message : 'Document extraction failed';
         // Continue without extraction - document will still be stored
       }
-    } else if (ext === '.pdf' && !runAi) {
+    } else if (isAiReadable && !runAi) {
       extractionStatus = 'skipped';
       extractionError = 'AI extraction was skipped by user choice.';
     }
@@ -244,9 +285,9 @@ export async function POST(req: Request) {
         status: extractionStatus,
         error: extractionError,
         extracted: Boolean(extractedText?.trim()),
-        extractor: ext === '.pdf' && runAi ? 'multi-engine' : null,
+        extractor: isAiReadable && runAi ? 'multi-engine' : null,
       },
-      aiTriggered: runAi && ext === '.pdf',
+      aiTriggered: runAi && isAiReadable,
       message: extractedText 
         ? `Document uploaded and analyzed (${pageCount} pages, ${documentAnalysis?.wordCount ?? 0} words)`
         : 'Document uploaded successfully',
