@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState, useRef } from 'react';
-import { useVaultDocuments, useUploadDocument } from '@/lib/hooks/useVault';
+import { useVaultDocuments, useUploadDocument, useBulkUploadDocument } from '@/lib/hooks/useVault';
 import { useScore } from '@/lib/hooks/useScore';
 import { Table } from '@/components/ui/Table';
 import { Button } from '@/components/ui/Button';
@@ -17,10 +17,11 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { formatDate, docCategoryLabel } from '@/lib/utils/formatters';
 import { DOCUMENT_CATEGORY_GROUPS, DOCUMENT_UPLOAD_CATEGORIES } from '@/lib/api/types';
 import type { DocumentStatus, DocumentCategory, DocumentUploadCategory, VaultDocument } from '@/lib/api/types';
+import type { BulkUploadResponse } from '@/lib/api/vault';
 import {
     Upload, MoreHorizontal, Plus, FolderLock, AlertTriangle,
     CheckCircle2, Clock, XCircle, FileText, Landmark, BadgeCheck,
-    Scale, BarChart3, Award, ChevronRight, CloudUpload,
+    Scale, BarChart3, Award, ChevronRight, CloudUpload, Sparkles, FileStack,
 } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 
@@ -455,6 +456,170 @@ function UploadModal({
 
 // ─── Main page ─────────────────────────────────────────────────────────────────
 
+const MAX_BULK_BYTES = 25 * 1024 * 1024;
+const MAX_BULK_MB = MAX_BULK_BYTES / 1024 / 1024;
+
+function BulkUploadModal({
+    open,
+    onClose,
+}: {
+    open: boolean;
+    onClose: () => void;
+}) {
+    const bulkMutation = useBulkUploadDocument();
+    const [file, setFile] = useState<File | null>(null);
+    const [error, setError] = useState<string | null>(null);
+    const [result, setResult] = useState<BulkUploadResponse | null>(null);
+
+    const reset = () => {
+        setFile(null);
+        setError(null);
+        setResult(null);
+    };
+
+    const close = () => {
+        reset();
+        onClose();
+    };
+
+    const handleFileChange = (selected: File | null) => {
+        setError(null);
+        setResult(null);
+        if (selected && selected.size > MAX_BULK_BYTES) {
+            setFile(null);
+            setError(`File is too large. Maximum bundle size is ${MAX_BULK_MB} MB.`);
+            return;
+        }
+        setFile(selected);
+    };
+
+    const handleSubmit = async () => {
+        if (!file) return;
+        setError(null);
+        try {
+            const res = await bulkMutation.mutateAsync(file);
+            setResult(res);
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Bulk processing failed. Please try again.');
+        }
+    };
+
+    return (
+        <Modal
+            open={open}
+            onClose={close}
+            title="AI Bulk Document Upload"
+            size="md"
+            footer={
+                result ? (
+                    <Button onClick={close} leftIcon={<CheckCircle2 size={15} />}>Done</Button>
+                ) : (
+                    <>
+                        <Button variant="ghost" onClick={close}>Cancel</Button>
+                        <Button
+                            onClick={handleSubmit}
+                            loading={bulkMutation.isPending}
+                            disabled={!file}
+                            leftIcon={<Sparkles size={15} />}
+                        >
+                            Analyze &amp; File
+                        </Button>
+                    </>
+                )
+            }
+        >
+            <div className="space-y-4">
+                {!result && (
+                    <div className="flex items-start gap-3 rounded-xl border border-[--color-border] bg-[--color-surface-raised] p-3">
+                        <Sparkles size={18} className="mt-0.5 shrink-0 text-[--color-accent]" />
+                        <p className="text-xs text-[--color-text-muted]">
+                            Upload a single PDF that bundles several compliance documents — for example your CIPC
+                            registration, SARS Tax Clearance and B-BBEE certificate. The AI reads the file, identifies
+                            each document, files it in the right category and records any expiry date it finds.
+                        </p>
+                    </div>
+                )}
+
+                {!result && (
+                    <>
+                        <label
+                            className="flex flex-col items-center justify-center gap-2 border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-all hover:opacity-80"
+                            style={{ borderColor: file ? 'var(--color-accent)' : 'var(--color-border)' }}
+                        >
+                            <FileStack size={26} style={{ color: file ? 'var(--color-accent)' : 'var(--color-text-muted)' }} />
+                            {file ? (
+                                <>
+                                    <p className="text-sm font-semibold text-[--color-text-primary]">{file.name}</p>
+                                    <p className="text-xs text-[--color-text-muted]">
+                                        {(file.size / 1024 / 1024).toFixed(2)} MB · Click to change
+                                    </p>
+                                </>
+                            ) : (
+                                <>
+                                    <p className="text-sm font-medium text-[--color-text-primary]">Click to select a bundled PDF</p>
+                                    <p className="text-xs text-[--color-text-muted]">PDF only · up to {MAX_BULK_MB}MB</p>
+                                </>
+                            )}
+                            <input
+                                type="file"
+                                className="hidden"
+                                accept=".pdf"
+                                onChange={(e) => handleFileChange(e.target.files?.[0] ?? null)}
+                            />
+                        </label>
+                        {bulkMutation.isPending && (
+                            <div className="rounded-xl border border-[--color-border] bg-[--color-surface-raised] px-4 py-3 text-sm text-[--color-text-muted]">
+                                Reading the bundle and identifying documents… this can take a moment for large files.
+                            </div>
+                        )}
+                    </>
+                )}
+
+                {error && (
+                    <div className="rounded-xl border border-red-500/20 bg-red-500/5 px-4 py-3 text-sm text-[--color-danger]">
+                        {error}
+                    </div>
+                )}
+
+                {result && (
+                    <div className="space-y-3">
+                        <div className="flex items-center gap-2 rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-4 py-3 text-sm text-[--color-text-primary]">
+                            <CheckCircle2 size={16} className="text-emerald-500" />
+                            <span>{result.message}</span>
+                        </div>
+                        <div className="space-y-2">
+                            {result.documents.map((doc) => (
+                                <div
+                                    key={doc.id}
+                                    className="flex items-center justify-between gap-3 rounded-xl border border-[--color-border] bg-[--color-surface] px-3 py-2.5"
+                                >
+                                    <div className="min-w-0">
+                                        <p className="truncate text-sm font-semibold text-[--color-text-primary]">
+                                            {doc.categoryLabel}
+                                        </p>
+                                        <p className="text-xs text-[--color-text-muted]">
+                                            Pages {doc.pages}
+                                            {doc.expiryDate ? ` · expires ${formatDate(doc.expiryDate)}` : ' · no expiry detected'}
+                                        </p>
+                                    </div>
+                                    <Badge variant={doc.classifiedBy === 'ai' ? 'accent' : 'default'}>
+                                        {doc.classifiedBy === 'ai' ? 'AI' : 'Heuristic'}
+                                    </Badge>
+                                </div>
+                            ))}
+                        </div>
+                        <p className="text-xs text-[--color-text-muted]">
+                            Review each filed document in its category and adjust the type or expiry date if needed.
+                        </p>
+                    </div>
+                )}
+            </div>
+        </Modal>
+    );
+}
+
+// ─── Main page ─────────────────────────────────────────────────────────────────
+
 export default function VaultPage() {
     const searchParams = useSearchParams();
     const [statusFilter, setStatusFilter] = useState<DocumentStatus | ''>('');
@@ -462,6 +627,7 @@ export default function VaultPage() {
     const [groupFilter, setGroupFilter] = useState<VaultFilterGroup>('all');
     const [uploadOpen, setUploadOpen] = useState(false);
     const [uploadCategory, setUploadCategory] = useState<DocumentUploadCategory | null>(null);
+    const [bulkOpen, setBulkOpen] = useState(false);
 
     const router = useRouter();
 
@@ -569,9 +735,14 @@ export default function VaultPage() {
                 subtitle={`${countVerified} valid · ${countExpiringSoon} expiring · ${countExpired} expired`}
                 icon={<FolderLock size={22} />}
                 actions={
-                    <Button leftIcon={<Plus size={16} />} onClick={() => openUpload(null)}>
-                        Upload Document
-                    </Button>
+                    <div className="flex items-center gap-2">
+                        <Button variant="outline" leftIcon={<Sparkles size={16} />} onClick={() => setBulkOpen(true)}>
+                            Bulk Upload (AI)
+                        </Button>
+                        <Button leftIcon={<Plus size={16} />} onClick={() => openUpload(null)}>
+                            Upload Document
+                        </Button>
+                    </div>
                 }
             />
 
@@ -826,6 +997,13 @@ export default function VaultPage() {
                     initialCategory={uploadCategory}
                     onUpload={handleUpload}
                     isLoading={uploadMutation.isPending}
+                />
+            )}
+
+            {bulkOpen && (
+                <BulkUploadModal
+                    open={bulkOpen}
+                    onClose={() => setBulkOpen(false)}
                 />
             )}
         </div>

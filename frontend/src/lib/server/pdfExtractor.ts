@@ -9,7 +9,7 @@ import { existsSync } from 'node:fs';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { chatWithOpenRouter } from './openRouterClient';
+import { chatWithOpenRouter, analyzeFileWithGemini } from './openRouterClient';
 
 type PdfJsModule = {
   getDocument: (src: { data: Uint8Array; disableWorker?: boolean; useWorkerFetch?: boolean; isEvalSupported?: boolean; useSystemFonts?: boolean }) => {
@@ -471,6 +471,89 @@ export async function extractPDFContent(buffer: Buffer): Promise<PDFExtractResul
   writeToMemoryCache(cacheKey, finalResult);
   await writeToDiskCache(cacheKey, finalResult);
   return finalResult;
+}
+
+export interface PDFPageText {
+  page: number; // 1-based page number
+  text: string;
+}
+
+export interface PDFPagesResult {
+  pageCount: number;
+  pages: PDFPageText[];
+}
+
+/**
+ * Largest PDF we will send to the vision model inline. Gemini inline request
+ * payloads must stay well under ~20 MB; base64 inflates bytes by ~33 %, so cap
+ * the raw PDF at 14 MB to stay safely inside the request ceiling.
+ */
+const MAX_OCR_PDF_BYTES = 14 * 1024 * 1024;
+
+/**
+ * OCR a scanned / image-only PDF by sending it to the Gemini vision model and
+ * transcribing the text printed on the page images. Returns an empty string
+ * when OCR is unavailable (no API key), the file is too large to send inline,
+ * or the model returns nothing usable. Used as a fallback when a PDF has no
+ * digital text layer.
+ */
+export async function ocrPdfWithVision(buffer: Buffer): Promise<string> {
+  if (buffer.length > MAX_OCR_PDF_BYTES) {
+    console.warn(`PDF too large for inline vision OCR (${buffer.length} bytes); skipping.`);
+    return '';
+  }
+
+  const result = await analyzeFileWithGemini({
+    data: buffer.toString('base64'),
+    mimeType: 'application/pdf',
+    prompt:
+      'Transcribe ALL text from this scanned South African compliance document exactly as it appears, preserving the reading order and any dates, reference numbers and labels. Output only the transcribed text with no commentary or markdown.',
+    systemInstruction: 'You are a precise OCR engine. Return only the transcribed document text.',
+    temperature: 0,
+    maxTokens: 8000,
+  });
+
+  return result.ok ? cleanText(result.content) : '';
+}
+
+/**
+ * Extract the text of each page separately.
+ * Used by the bulk-document splitter to find the boundaries between
+ * several compliance documents concatenated into a single PDF.
+ */
+export async function extractPDFPages(buffer: Buffer): Promise<PDFPagesResult> {
+  const pdfjs = await getPdfJs();
+  const loadingTask = pdfjs.getDocument({
+    data: new Uint8Array(buffer),
+    disableWorker: true,
+    useWorkerFetch: false,
+    isEvalSupported: false,
+    useSystemFonts: false,
+  });
+  const pdfDoc = await loadingTask.promise;
+  const maxPages = Math.min(pdfDoc.numPages, MAX_PAGES);
+
+  const pages: PDFPageText[] = [];
+  for (let pageNumber = 1; pageNumber <= maxPages; pageNumber += 1) {
+    let text = '';
+    try {
+      const page = await pdfDoc.getPage(pageNumber);
+      const textContent = await page.getTextContent();
+      text = cleanText(
+        textContent.items
+          .map((item) => item?.str ?? '')
+          .join(' ')
+          .replace(/\s+/g, ' '),
+      );
+    } catch (pageError) {
+      console.warn(`Per-page extraction failed for page ${pageNumber}:`, pageError);
+    }
+    pages.push({ page: pageNumber, text });
+  }
+
+  await pdfDoc.destroy?.();
+
+  return { pageCount: pdfDoc.numPages, pages };
 }
 
 /**
