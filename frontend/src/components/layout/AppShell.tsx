@@ -48,7 +48,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         if (!token) {
             authCheckedRef.current = false;
             setSessionReady(false);
-            router.push(`${loginPath}?reason=auth_required`);
+            const returnTo = `${window.location.pathname}${window.location.search}`;
+            router.push(`${loginPath}?reason=auth_required&next=${encodeURIComponent(returnTo)}`);
             return;
         }
 
@@ -79,7 +80,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                     if (!cancelled) {
                         await signOutFirebase();
                         logout();
-                        router.push(`${loginPath}?reason=session_expired`);
+                        const returnTo = `${window.location.pathname}${window.location.search}`;
+                        router.push(`${loginPath}?reason=session_expired&next=${encodeURIComponent(returnTo)}`);
                     }
                 });
             return () => { cancelled = true; };
@@ -105,7 +107,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 if (!cancelled) {
                     await signOutFirebase();
                     logout();
-                    router.push(`${loginPath}?reason=session_expired`);
+                    const returnTo = `${window.location.pathname}${window.location.search}`;
+                    router.push(`${loginPath}?reason=session_expired&next=${encodeURIComponent(returnTo)}`);
                 }
             });
         return () => { cancelled = true; };
@@ -161,7 +164,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         if (countdownRef.current) clearInterval(countdownRef.current);
         await signOutFirebase();
         logout();
-        router.push(`${loginPath}?reason=inactivity`);
+        const returnTo = `${window.location.pathname}${window.location.search}`;
+        router.push(`${loginPath}?reason=inactivity&next=${encodeURIComponent(returnTo)}`);
     }, [loginPath, logout, router]);
 
     const resetIdleTimers = useCallback(() => {

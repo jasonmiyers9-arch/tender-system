@@ -14,13 +14,17 @@ import {
   createScoreHistoryRecord,
   createTender,
   listAllCompanies,
+  listAllUsers,
   listDocumentsForCompany,
+  listPendingTenderMatchNotifications,
   listTenders,
+  recordNotificationEmailDelivery,
   updateTender,
   upsertTenderMatch,
   purgeUsersScheduledForDeletion,
 } from './firestoreService';
 import { getScrapedTenders, runScrapeAll, type ScrapedTender } from './tenderScraper';
+import { sendTenderMatchDigest } from './notificationDelivery';
 
 export interface ScheduledJobResult {
   job: string;
@@ -272,11 +276,12 @@ export async function runMatchTendersToCompaniesJob(tenderIds?: string[]): Promi
         if (hybrid.adjustedScore >= 60) {
           const notifications = await createNotificationsForCompany(company.id, {
             alertType: 'info',
-            title: 'New tender match',
+            title: tender.title,
             message: `${tender.title} now matches your company at ${hybrid.adjustedScore}%. Open Tender Guard Pro to review the details.`,
             triggerDate: checkedAt,
             dedupeKey: `tender-match:${tender.id}:${company.id}`,
-          });
+            actionUrl: `/tenders/${encodeURIComponent(tender.id)}`,
+          }, { deliver: false });
           notificationsCreated += notifications.length;
         }
       } catch (err) {
@@ -300,15 +305,61 @@ export async function runMatchTendersToCompaniesJob(tenderIds?: string[]): Promi
 }
 
 export async function runSendEmailDigestsJob(): Promise<ScheduledJobResult> {
+  const checkedAt = new Date().toISOString();
+  const [notifications, users] = await Promise.all([
+    listPendingTenderMatchNotifications(),
+    listAllUsers(),
+  ]);
+  const usersById = new Map(users.map((user) => [user.id, user]));
+  const grouped = new Map<string, typeof notifications>();
+
+  for (const notification of notifications) {
+    if (!notification.userId) continue;
+    const current = grouped.get(notification.userId) ?? [];
+    current.push(notification);
+    grouped.set(notification.userId, current);
+  }
+
+  let sent = 0;
+  let skipped = 0;
+  let matchesIncluded = 0;
+  const errors: string[] = [];
+
+  for (const [userId, matches] of grouped) {
+    const recipient = usersById.get(userId);
+    if (!recipient?.email) {
+      skipped++;
+      await recordNotificationEmailDelivery(matches, 'skipped', 'Recipient has no email address');
+      continue;
+    }
+
+    try {
+      const delivery = await sendTenderMatchDigest(recipient.email, matches);
+      await recordNotificationEmailDelivery(matches, delivery.status, delivery.reason);
+      if (delivery.status === 'sent') {
+        sent++;
+        matchesIncluded += matches.length;
+      } else {
+        skipped++;
+        if (delivery.status === 'failed') errors.push(`${recipient.email}: ${delivery.reason ?? 'Delivery failed'}`);
+      }
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      await recordNotificationEmailDelivery(matches, 'failed', reason);
+      errors.push(`${recipient.email}: ${reason}`);
+    }
+  }
+
   return {
     job: 'send_email_digests',
-    ok: true,
-    checkedAt: new Date().toISOString(),
-    sent: 0,
-    skipped: 0,
-    disabled: true,
-    reason: 'Daily digest emails are disabled. Companies receive email when their profile is first created and when a new tender match is found.',
-    errors: [],
+    ok: errors.length === 0,
+    checkedAt,
+    sent,
+    skipped,
+    matchesIncluded,
+    pendingMatches: notifications.length,
+    reason: 'Tender match emails are combined and delivered twice weekly. Urgent document expiry alerts are delivered immediately.',
+    errors,
   };
 }
 

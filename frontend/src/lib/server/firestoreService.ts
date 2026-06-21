@@ -440,6 +440,7 @@ export interface NotificationRecord {
   triggerDate: string;
   createdAt: string;
   dedupeKey: string;
+  actionUrl?: string;
   delivery?: {
     email: 'pending' | 'sent' | 'skipped' | 'failed';
     sms: 'pending' | 'sent' | 'skipped' | 'failed';
@@ -1577,6 +1578,58 @@ async function listNotificationsForUser(userId: string, unreadOnly = false, limi
     .slice(0, limit);
 }
 
+async function listPendingTenderMatchNotifications(): Promise<NotificationRecord[]> {
+  const notifications = isFirestoreAvailable()
+    ? (await getFirestore()!.collection(NOTIFICATIONS_COLLECTION).get()).docs.map(
+        (doc) => doc.data() as NotificationRecord,
+      )
+    : MEMORY_DB.notifications;
+
+  return notifications
+    .filter((notification) => (
+      notification.dedupeKey.startsWith('tender-match:')
+      && notification.delivery?.email !== 'sent'
+    ))
+    .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+}
+
+async function recordNotificationEmailDelivery(
+  notifications: NotificationRecord[],
+  status: 'sent' | 'skipped' | 'failed',
+  reason?: string,
+): Promise<void> {
+  if (notifications.length === 0) return;
+  const attemptedAt = new Date().toISOString();
+
+  for (const notification of notifications) {
+    const previous = notification.delivery ?? {
+      email: 'pending' as const,
+      sms: 'pending' as const,
+      errors: [],
+      attemptedAt: null,
+    };
+    notification.delivery = {
+      ...previous,
+      email: status,
+      attemptedAt,
+      errors: reason ? [...previous.errors, `email:${reason}`] : previous.errors,
+    };
+  }
+
+  if (isFirestoreAvailable()) {
+    const db = getFirestore()!;
+    const batch = db.batch();
+    for (const notification of notifications) {
+      batch.set(
+        db.collection(NOTIFICATIONS_COLLECTION).doc(notification.id),
+        { delivery: notification.delivery },
+        { merge: true },
+      );
+    }
+    await batch.commit();
+  }
+}
+
 async function createNotification(payload: Omit<NotificationRecord, 'id' | 'createdAt' | 'isRead'>): Promise<{ notification: NotificationRecord; created: boolean }> {
   const now = new Date().toISOString();
 
@@ -2074,6 +2127,8 @@ export {
   recordScheduledJobRun,
   listScheduledJobRuns,
   listNotificationsForUser,
+  listPendingTenderMatchNotifications,
+  recordNotificationEmailDelivery,
   createNotification,
   createNotificationsForCompany,
   markNotificationRead,

@@ -12,7 +12,12 @@ function appUrl(): string {
   return (process.env.NEXT_PUBLIC_APP_URL || process.env.URL || 'http://localhost:3000').replace(/\/$/, '');
 }
 
-async function sendEmail(to: string, notification: NotificationRecord): Promise<DeliveryResult> {
+function appLink(path?: string): string {
+  const safePath = path?.startsWith('/') && !path.startsWith('//') ? path : '/notifications';
+  return `${appUrl()}${safePath}`;
+}
+
+async function sendSendGridEmail(to: string, subject: string, message: string): Promise<DeliveryResult> {
   const apiKey = process.env.SENDGRID_API_KEY;
   const fromEmail = process.env.SENDGRID_FROM_EMAIL;
   const fromName = process.env.SENDGRID_FROM_NAME || 'Tender Guard Pro';
@@ -30,13 +35,11 @@ async function sendEmail(to: string, notification: NotificationRecord): Promise<
     body: JSON.stringify({
       personalizations: [{ to: [{ email: to }] }],
       from: { email: fromEmail, name: fromName },
-      subject: notification.title,
-      content: [
-        {
-          type: 'text/plain',
-          value: `${notification.message}\n\nOpen Tender Guard Pro: ${appUrl()}/notifications`,
-        },
-      ],
+      subject,
+      content: [{ type: 'text/plain', value: message }],
+      tracking_settings: {
+        click_tracking: { enable: false, enable_text: false },
+      },
     }),
   });
 
@@ -45,6 +48,38 @@ async function sendEmail(to: string, notification: NotificationRecord): Promise<
   }
 
   return { channel: 'email', recipient: to, status: 'sent' };
+}
+
+async function sendEmail(to: string, notification: NotificationRecord): Promise<DeliveryResult> {
+  return sendSendGridEmail(
+    to,
+    notification.title,
+    `${notification.message}\n\nOpen Tender Guard Pro: ${appLink(notification.actionUrl)}`,
+  );
+}
+
+export async function sendTenderMatchDigest(
+  to: string,
+  notifications: NotificationRecord[],
+): Promise<DeliveryResult> {
+  const matchCount = notifications.length;
+  const matches = notifications.map((notification, index) => [
+    `${index + 1}. ${notification.title.replace(/^New tender match:?\s*/i, '')}`,
+    notification.message,
+    `Review this tender: ${appLink(notification.actionUrl)}`,
+  ].join('\n')).join('\n\n');
+
+  const message = [
+    `You have ${matchCount} new tender match${matchCount === 1 ? '' : 'es'} from Tender Guard Pro.`,
+    matches,
+    `View all tender matches: ${appLink('/tenders')}`,
+  ].join('\n\n');
+
+  return sendSendGridEmail(
+    to,
+    `${matchCount} new tender match${matchCount === 1 ? '' : 'es'} for your company`,
+    message,
+  );
 }
 
 async function sendSms(to: string, notification: NotificationRecord): Promise<DeliveryResult> {

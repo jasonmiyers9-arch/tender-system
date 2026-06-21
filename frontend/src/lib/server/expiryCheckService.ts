@@ -107,6 +107,7 @@ export async function runExpiryCheck(dryRun = false): Promise<ExpiryCheckResult>
                 message: `${doc.name} expired on ${doc.expiryDate}. Renew it to keep tender readiness accurate.`,
                 triggerDate: result.checkedAt,
                 dedupeKey: `document-expiry:${doc.id}:expired`,
+                actionUrl: '/renewals',
               });
               result.notificationsCreated += notifications.length;
             } catch (err) {
@@ -134,6 +135,7 @@ export async function runExpiryCheck(dryRun = false): Promise<ExpiryCheckResult>
               message: `${doc.name} expires in ${days} days on ${doc.expiryDate}.`,
               triggerDate: result.checkedAt,
               dedupeKey: `document-expiry:${doc.id}:${days}`,
+              actionUrl: '/renewals',
             });
             result.notificationsCreated += notifications.length;
           } catch (err) {

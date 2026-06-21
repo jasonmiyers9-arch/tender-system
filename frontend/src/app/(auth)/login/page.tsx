@@ -28,6 +28,11 @@ const SESSION_MESSAGES: Record<string, BannerConfig> = {
     },
 };
 
+function safeDestination(value: string | null): string {
+    if (!value || !value.startsWith('/') || value.startsWith('//') || value.startsWith('/admin')) return '/home';
+    return value;
+}
+
 function LoginForm() {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -38,6 +43,7 @@ function LoginForm() {
     const { settoken, setCurrentUser } = useAppStore();
 
     const reason = searchParams.get('reason') ?? '';
+    const destination = safeDestination(searchParams.get('next'));
     const sessionBanner = SESSION_MESSAGES[reason] ?? null;
 
     const handleGoogleSignIn = async () => {
@@ -49,8 +55,10 @@ function LoginForm() {
             setCurrentUser(res.user);
             if (res.user.onboardingCompleted === false) {
                 router.push('/onboarding');
+            } else if (res.user.role === 'evaluator') {
+                router.push(destination.startsWith('/verify') || destination.startsWith('/evaluator') ? destination : '/evaluator/dashboard');
             } else {
-                router.push('/home');
+                router.push(destination);
             }
         } catch (e) {
             const msg = e instanceof Error ? e.message : 'Google sign-in failed';
@@ -62,7 +70,7 @@ function LoginForm() {
 
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
-        await signIn(email, password);
+        await signIn(email, password, destination);
     };
 
     const signIn = async (loginEmail: string, loginPassword: string, destination = '/home') => {
