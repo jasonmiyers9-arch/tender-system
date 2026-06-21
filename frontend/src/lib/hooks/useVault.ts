@@ -37,6 +37,25 @@ export function useUploadDocument() {
     });
 }
 
+export function useUploadBundle() {
+    const activeCompanyId = useAppStore((s) => s.activeCompanyId);
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: vault.uploadBundle,
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['vault', activeCompanyId] });
+            queryClient.invalidateQueries({ queryKey: ['score', activeCompanyId] });
+        },
+    });
+}
+
+export function useDownloadDocument() {
+    return useMutation({
+        mutationFn: ({ docId, filename }: { docId: string; filename?: string }) =>
+            vault.downloadDocument(docId, filename),
+    });
+}
+
 export function useRequestVerification() {
     const activeCompanyId = useAppStore((s) => s.activeCompanyId);
     const queryClient = useQueryClient();

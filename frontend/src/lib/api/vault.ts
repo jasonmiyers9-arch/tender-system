@@ -117,6 +117,38 @@ export const vault = {
         return res.json();
     },
 
+    async uploadBundle(data: { file: File }): Promise<{
+        documents: Array<{ id: string; name: string; category: DocumentCategory; expiryDate: string | null; confidence: number; pages: string | null }>;
+        detected: number;
+        aiAnalyzed: boolean;
+        model: string | null;
+        message: string;
+    }> {
+        const token = getToken();
+        const form = new FormData();
+        form.set('file', data.file, data.file.name || 'bundle.pdf');
+
+        const headers: Record<string, string> = {};
+        if (token) headers.Authorization = `Bearer ${token}`;
+
+        const res = await fetch(`${API_BASE}/documents/upload-bundle`, {
+            method: 'POST',
+            headers,
+            body: form,
+        });
+        if (!res.ok) {
+            let detail = '';
+            try {
+                const json = await res.json() as { detail?: string };
+                detail = json.detail ? `: ${json.detail}` : '';
+            } catch {
+                // ignore json parse errors and keep generic message
+            }
+            throw new Error(`Bundle upload failed (${res.status})${detail}`);
+        }
+        return res.json();
+    },
+
     async renewDocument(id: string, data: { issueDate?: string; expiryDate?: string }): Promise<{ success: boolean }> {
         await authFetch(`/documents/${id}/renew`, {
             method: 'PATCH',
@@ -147,6 +179,25 @@ export const vault = {
 
     getDownloadUrl(id: string): string {
         return `${API_BASE}/documents/${id}/download`;
+    },
+
+    // The download endpoint requires a Bearer token, so a plain anchor link returns 401.
+    // Fetch the file with auth, then trigger a browser download from the resulting blob.
+    async downloadDocument(id: string, filename?: string): Promise<void> {
+        const res = await authFetch(`/documents/${id}/download`);
+        const blob = await res.blob();
+        const objectUrl = URL.createObjectURL(blob);
+        try {
+            const anchor = document.createElement('a');
+            anchor.href = objectUrl;
+            anchor.download = filename || 'document';
+            anchor.rel = 'noopener';
+            document.body.appendChild(anchor);
+            anchor.click();
+            anchor.remove();
+        } finally {
+            URL.revokeObjectURL(objectUrl);
+        }
     },
 };
 
