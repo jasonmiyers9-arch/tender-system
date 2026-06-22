@@ -76,7 +76,7 @@ export async function GET(
   
   const readiness = await getTenderReadiness(tenderId, companyId);
   if (!readiness) {
-    const scraped = getScrapedTenders().find((item) => scrapedTenderId(item) === tenderId);
+    const scraped = (await getScrapedTenders()).find((item) => scrapedTenderId(item) === tenderId);
     if (scraped && companyId) {
       const documents = await listDocumentsForCompany(companyId);
       const profile = generateComplianceProfile(companyId, documents);

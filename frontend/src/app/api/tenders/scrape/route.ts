@@ -49,7 +49,7 @@ export async function GET(req: Request) {
     const page = Math.max(1, parseInt(url.searchParams.get('page') || '1', 10));
     const limit = Math.min(100, Math.max(1, parseInt(url.searchParams.get('limit') || '20', 10)));
 
-    let tenders = getScrapedTenders();
+    let tenders = await getScrapedTenders();
 
     if (category) {
       tenders = tenders.filter(t => t.category === category);
@@ -83,7 +83,7 @@ export async function GET(req: Request) {
   return NextResponse.json({
     sources: getScraperConfigs(),
     customSources: getCustomSources(),
-    totalScrapedTenders: getScrapedTenderCount(),
+    totalScrapedTenders: await getScrapedTenderCount(),
     history: getScrapeHistory().slice(0, 20),
     automationRuns: await listScheduledJobRuns(20),
     categories: TENDER_CATEGORIES,
@@ -109,7 +109,7 @@ export async function POST(req: Request) {
         return NextResponse.json({
           message: 'Scraping completed',
           results,
-          totalScrapedTenders: getScrapedTenderCount(),
+          totalScrapedTenders: await getScrapedTenderCount(),
           importedTenders: recommendationResult.importedTenderIds.length,
           skippedDuplicates: recommendationResult.skippedDuplicates,
           matchResult: null,
@@ -127,7 +127,7 @@ export async function POST(req: Request) {
         return NextResponse.json({
           message: `Scraped ${sourceName}`,
           result,
-          totalScrapedTenders: getScrapedTenderCount(),
+          totalScrapedTenders: await getScrapedTenderCount(),
           importedTenders: recommendationResult.importedTenderIds.length,
           skippedDuplicates: recommendationResult.skippedDuplicates,
           matchResult: null,

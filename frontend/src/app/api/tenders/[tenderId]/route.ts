@@ -132,7 +132,7 @@ export async function GET(
     });
   }
 
-  const scraped = getScrapedTenders().find((item) => scrapedTenderId(item) === tenderId);
+  const scraped = (await getScrapedTenders()).find((item) => scrapedTenderId(item) === tenderId);
   if (!scraped) {
     return NextResponse.json({ detail: 'Tender not found' }, { status: 404 });
   }

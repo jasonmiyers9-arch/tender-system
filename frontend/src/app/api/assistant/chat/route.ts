@@ -53,7 +53,7 @@ async function resolveTender(tenderId: string): Promise<TenderDetail | null> {
   const storedTender = await getTenderById(tenderId);
   if (storedTender) return storedTender.status === 'published' ? storedTender : null;
 
-  const scraped = getScrapedTenders().find((tender) => scrapedTenderId(tender) === tenderId);
+  const scraped = (await getScrapedTenders()).find((tender) => scrapedTenderId(tender) === tenderId);
   if (!scraped) return null;
   const requirements = inferScrapedRequirements(scraped);
 
