@@ -65,7 +65,7 @@ function normalizeRequiredCategories(tender: ScrapedTender): string[] {
 }
 
 export async function importScrapedTenders(options?: { scrapedSince?: string }): Promise<{ importedTenderIds: string[]; skippedDuplicates: number }> {
-  const scrapedTenders = getScrapedTenders().filter((tender) => !options?.scrapedSince || tender.scrapedAt >= options.scrapedSince);
+  const scrapedTenders = (await getScrapedTenders()).filter((tender) => !options?.scrapedSince || tender.scrapedAt >= options.scrapedSince);
   const existing = await listTenders();
   const existingByKey = new Map(existing.map((tender) => [tenderKey(tender), tender]));
   const importedTenderIds: string[] = [];

@@ -194,7 +194,7 @@ export async function GET(req: Request) {
       companyCategories,
       `${tender.title} ${tender.description ?? ''} ${(tender.requirements ?? []).join(' ')} ${(tender.eligibilityCriteria ?? []).join(' ')}`,
     ));
-  const scrapedMatches = getScrapedTenders()
+  const scrapedMatches = (await getScrapedTenders())
     .filter((tender) => categoryMatches(tender.category, companyCategories, tender.fullText || tender.description || tender.title))
     .map((tender) => mapScrapedTenderToMatch(tender, companyCategories));
   const deduplicated = new Map<string, TenderMatch>();

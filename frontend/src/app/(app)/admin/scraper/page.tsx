@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Card } from '@/components/ui/Card';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Badge } from '@/components/ui/Badge';
@@ -128,6 +128,7 @@ export default function ScraperPage() {
     const currentUser = useAppStore(s => s.currentUser);
     const [status, setStatus] = useState<ScraperStatus | null>(null);
     const [tenders, setTenders] = useState<ScrapedTender[]>([]);
+    const [tenderTotal, setTenderTotal] = useState(0);
     const [loading, setLoading] = useState(false);
     const [scraping, setScraping] = useState(false);
     const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -159,17 +160,32 @@ export default function ScraperPage() {
 
     const fetchTenders = useCallback(async () => {
         try {
-            const params = new URLSearchParams({ action: 'tenders', limit: '50' });
+            const params = new URLSearchParams({ action: 'tenders', limit: '100' });
             if (searchQuery) params.set('search', searchQuery);
             if (selectedCategory) params.set('category', selectedCategory);
             const res = await scraperFetch(`?${params}`);
             if (!res.ok) throw new Error('Failed to fetch tenders');
             const data = await res.json();
             setTenders(data.tenders);
+            setTenderTotal(typeof data.total === 'number' ? data.total : data.tenders.length);
         } catch (err) {
             showMessage('error', err instanceof Error ? err.message : 'Failed to load tenders');
         }
     }, [searchQuery, selectedCategory, showMessage]);
+
+    // Load scraper status once on mount.
+    useEffect(() => {
+        fetchStatus();
+    }, [fetchStatus]);
+
+    // Re-fetch tenders whenever the search query or selected category changes.
+    // Debounced so typing in the search box does not fire a request per keystroke.
+    // `fetchTenders` is re-created (via useCallback) whenever those filters change,
+    // so depending on it here guarantees the request always uses the current values.
+    useEffect(() => {
+        const id = setTimeout(fetchTenders, 250);
+        return () => clearTimeout(id);
+    }, [fetchTenders]);
 
     const runScrapeAll = async () => {
         setScraping(true);
@@ -284,12 +300,6 @@ export default function ScraperPage() {
                 />
             </div>
         );
-    }
-
-    // Initial load
-    if (!status && !loading) {
-        fetchStatus();
-        fetchTenders();
     }
 
     return (
@@ -565,7 +575,15 @@ export default function ScraperPage() {
             {/* Scraped Tenders */}
             <Card>
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-4">
-                    <h3 className="text-base font-semibold text-[--color-text-primary]">Scraped Tenders</h3>
+                    <h3 className="text-base font-semibold text-[--color-text-primary] flex items-center gap-2">
+                        Scraped Tenders
+                        {loading && <Loader2 size={14} className="animate-spin text-[--color-text-muted]" />}
+                        <span className="ml-2 text-xs font-normal text-[--color-text-muted]">
+                            {selectedCategory
+                                ? `${tenderTotal} in ${selectedCategory}`
+                                : `${tenderTotal} total`}
+                        </span>
+                    </h3>
                     <div className="flex items-center gap-2 w-full sm:w-auto">
                         <div className="relative flex-1 sm:w-64">
                             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[--color-text-muted]" />
@@ -580,7 +598,7 @@ export default function ScraperPage() {
                         </div>
                         <select
                             value={selectedCategory}
-                            onChange={e => { setSelectedCategory(e.target.value); setTimeout(fetchTenders, 0); }}
+                            onChange={e => setSelectedCategory(e.target.value)}
                             className="rounded-lg border border-[--color-border] bg-[--color-surface] px-3 py-2 text-sm outline-none cursor-pointer"
                         >
                             <option value="">All Categories</option>

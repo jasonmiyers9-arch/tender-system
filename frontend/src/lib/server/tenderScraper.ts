@@ -9,6 +9,11 @@ import path from 'node:path';
 import { normalizeTenderCategory } from './tenderCategories';
 import { extractPDFContent } from './pdfExtractor';
 import { enrichScrapedTender } from './tenderEnrichment';
+import {
+  isFirebaseStorageConfigured,
+  uploadDocumentToFirebase,
+  downloadDocumentFromFirebase,
+} from './firebaseStorage';
 
 // ─── Types ────────────────────────────────────
 
@@ -106,39 +111,88 @@ export interface ScrapeOptions {
   scrapeDetails?: boolean;     // Whether to scrape detail pages (default true)
 }
 
-// ─── Scrape History and Local Cache ───────────
+// ─── Scrape History and Persistent Cache ──────
+//
+// Scraped tenders are persisted to the Firebase Storage bucket as a single
+// JSON object so they survive serverless cold starts and are shared across
+// all function instances. An in-memory Map fronts the bucket for fast reads,
+// and a local JSON file is used only as a development fallback when Firebase
+// credentials are not configured.
 
 const scrapeHistory: ScrapeResult[] = [];
 const scrapedTenderCache: Map<string, ScrapedTender> = new Map();
 const scrapedTenderStoragePath = path.join(process.cwd(), 'storage', 'scraped-tenders.json');
+const SCRAPED_TENDERS_BLOB = 'scraped-tenders/scraped-tenders.json';
 
-function hydrateScrapedTenderCache(): void {
-  if (!existsSync(scrapedTenderStoragePath)) return;
+// Re-read the bucket at most once per window so reads pick up tenders written
+// by other function instances without a network round-trip on every call.
+const HYDRATE_TTL_MS = 30_000;
+let cacheHydrated = false;
+let lastHydratedAt = 0;
 
-  try {
-    const raw = readFileSync(scrapedTenderStoragePath, 'utf8');
-    const tenders = JSON.parse(raw) as ScrapedTender[];
-    if (!Array.isArray(tenders)) return;
+function mergeTenderIntoCache(tender: ScrapedTender): void {
+  if (!tender.category || tender.category === 'Other') {
+    tender.category = categorizeTender(tender.rawCategory, tender.title, tender.description, tender.fullText);
+  }
+  scrapedTenderCache.set(generateTenderKey(tender), tender);
+}
 
-    for (const tender of tenders) {
-      if (!tender.category || tender.category === 'Other') {
-        tender.category = categorizeTender(tender.rawCategory, tender.title, tender.description, tender.fullText);
+function loadTendersFromJson(raw: string): void {
+  const tenders = JSON.parse(raw) as ScrapedTender[];
+  if (!Array.isArray(tenders)) return;
+  for (const tender of tenders) {
+    mergeTenderIntoCache(tender);
+  }
+}
+
+async function hydrateScrapedTenderCache(force = false): Promise<void> {
+  const now = Date.now();
+  if (!force && cacheHydrated && now - lastHydratedAt < HYDRATE_TTL_MS) return;
+
+  if (isFirebaseStorageConfigured()) {
+    try {
+      const { buffer } = await downloadDocumentFromFirebase(SCRAPED_TENDERS_BLOB);
+      loadTendersFromJson(buffer.toString('utf8'));
+    } catch (error) {
+      // A missing blob just means nothing has been scraped to the bucket yet.
+      if (!(error instanceof Error && /not found/i.test(error.message))) {
+        console.warn('Failed to hydrate scraped tenders from Firebase:', error);
       }
-      scrapedTenderCache.set(generateTenderKey(tender), tender);
+    }
+    cacheHydrated = true;
+    lastHydratedAt = now;
+    return;
+  }
+
+  // Development fallback: local JSON file.
+  try {
+    if (existsSync(scrapedTenderStoragePath)) {
+      loadTendersFromJson(readFileSync(scrapedTenderStoragePath, 'utf8'));
     }
   } catch (error) {
     console.warn('Failed to hydrate scraped tender cache:', error);
   }
+  cacheHydrated = true;
+  lastHydratedAt = now;
 }
 
-function persistScrapedTenderCache(): void {
+async function persistScrapedTenderCache(): Promise<void> {
+  const json = JSON.stringify(Array.from(scrapedTenderCache.values()), null, 2);
+
+  if (isFirebaseStorageConfigured()) {
+    try {
+      await uploadDocumentToFirebase(SCRAPED_TENDERS_BLOB, Buffer.from(json, 'utf8'), 'application/json');
+      lastHydratedAt = Date.now();
+      return;
+    } catch (error) {
+      console.warn('Failed to persist scraped tenders to Firebase:', error);
+    }
+  }
+
+  // Development fallback: local JSON file.
   try {
     mkdirSync(path.dirname(scrapedTenderStoragePath), { recursive: true });
-    writeFileSync(
-      scrapedTenderStoragePath,
-      JSON.stringify(Array.from(scrapedTenderCache.values()), null, 2),
-      'utf8',
-    );
+    writeFileSync(scrapedTenderStoragePath, json, 'utf8');
   } catch (error) {
     console.warn('Failed to persist scraped tender cache:', error);
   }
@@ -167,25 +221,25 @@ export function getScrapeHistory(): ScrapeResult[] {
   return [...scrapeHistory].reverse();
 }
 
-export function getScrapedTenders(): ScrapedTender[] {
-  hydrateScrapedTenderCache();
+export async function getScrapedTenders(): Promise<ScrapedTender[]> {
+  await hydrateScrapedTenderCache();
   return Array.from(scrapedTenderCache.values());
 }
 
-export function getScrapedTendersByCategory(category: string): ScrapedTender[] {
-  hydrateScrapedTenderCache();
+export async function getScrapedTendersByCategory(category: string): Promise<ScrapedTender[]> {
+  await hydrateScrapedTenderCache();
   return Array.from(scrapedTenderCache.values()).filter(t => t.category === category);
 }
 
-export function getScrapedTendersForCompanyCategories(categories: string[]): ScrapedTender[] {
-  hydrateScrapedTenderCache();
-  if (!categories.length) return getScrapedTenders();
+export async function getScrapedTendersForCompanyCategories(categories: string[]): Promise<ScrapedTender[]> {
+  await hydrateScrapedTenderCache();
+  if (!categories.length) return Array.from(scrapedTenderCache.values());
   const set = new Set(categories);
   return Array.from(scrapedTenderCache.values()).filter(t => set.has(t.category));
 }
 
-export function getScrapedTenderCount(): number {
-  hydrateScrapedTenderCache();
+export async function getScrapedTenderCount(): Promise<number> {
+  await hydrateScrapedTenderCache();
   return scrapedTenderCache.size;
 }
 
@@ -1050,7 +1104,9 @@ export function toggleScraperSource(name: string, enabled: boolean) {
  * Scrape all enabled sources. Optionally filter by company tender categories.
  */
 export async function runScrapeAll(options?: ScrapeOptions): Promise<ScrapeResult[]> {
-  hydrateScrapedTenderCache();
+  // Force a fresh read so we merge with — rather than clobber — tenders other
+  // function instances may have persisted to the bucket since this one warmed.
+  await hydrateScrapedTenderCache(true);
   const results: ScrapeResult[] = [];
   let changed = false;
 
@@ -1133,7 +1189,7 @@ export async function runScrapeAll(options?: ScrapeOptions): Promise<ScrapeResul
   }
 
   scrapeHistory.push(...results);
-  if (changed) persistScrapedTenderCache();
+  if (changed) await persistScrapedTenderCache();
   return results;
 }
 
@@ -1141,7 +1197,9 @@ export async function runScrapeAll(options?: ScrapeOptions): Promise<ScrapeResul
  * Scrape a single source by name, optionally filtered by categories.
  */
 export async function runScrapeSingle(sourceName: string, options?: ScrapeOptions): Promise<ScrapeResult> {
-  hydrateScrapedTenderCache();
+  // Force a fresh read so we merge with — rather than clobber — tenders other
+  // function instances may have persisted to the bucket since this one warmed.
+  await hydrateScrapedTenderCache(true);
   const config = findScraperConfig(sourceName);
   let changed = false;
 
@@ -1192,7 +1250,7 @@ export async function runScrapeSingle(sourceName: string, options?: ScrapeOption
   }
 
   scrapeHistory.push(result);
-  if (changed) persistScrapedTenderCache();
+  if (changed) await persistScrapedTenderCache();
   return result;
 }
 
