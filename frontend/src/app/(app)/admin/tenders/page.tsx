@@ -470,7 +470,7 @@ export default function AdminTenderFeedPage() {
                                     value={search}
                                     onChange={(e) => setSearch(e.target.value)}
                                     placeholder="Search title, org, category"
-                                    className="pl-9 pr-3 py-2 text-sm rounded-lg bg-[--color-surface] border border-[--color-border] focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 w-[240px] transition-colors"
+                                    className="pl-9 pr-3 py-2 text-sm rounded-lg bg-[--color-surface] border border-[--color-border] focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 w-full sm:w-[240px] transition-colors"
                                 />
                             </div>
                             <div className="relative">

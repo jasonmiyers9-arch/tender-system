@@ -54,11 +54,11 @@ export function Table<T>({
     return (
         <div
             className={classNames(
-                'w-full overflow-x-auto rounded-2xl border border-[--color-border] card-shadow bg-[--color-surface]',
+                'w-full overflow-x-auto overscroll-x-contain rounded-xl border border-[--color-border] bg-[--color-surface] card-shadow sm:rounded-2xl',
                 className
             )}
         >
-            <table className="w-full text-sm text-left">
+            <table className="w-full min-w-[640px] text-left text-sm">
                 <thead className="bg-[--color-bg] border-b border-[--color-border]">
                     <tr>
                         {columns.map((col) => (
@@ -121,7 +121,7 @@ export function Table<T>({
                                 )}
                             >
                                 {columns.map((col) => (
-                                    <td key={col.key} className="px-4 py-3 text-[--color-text-primary]">
+                                    <td key={col.key} className="px-3 py-3 text-[--color-text-primary] sm:px-4">
                                         {col.render(row)}
                                     </td>
                                 ))}
@@ -139,11 +139,11 @@ export function Pagination({ page, pageSize, total, onPageChange }: PaginationPr
     if (totalPages <= 1) return null;
 
     return (
-        <div className="flex items-center justify-between px-2 py-3 text-sm text-[--color-text-muted]">
+        <div className="flex flex-col gap-3 px-2 py-3 text-sm text-[--color-text-muted] sm:flex-row sm:items-center sm:justify-between">
             <span>
                 Showing {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, total)} of {total}
             </span>
-            <div className="flex items-center gap-1">
+            <div className="flex flex-wrap items-center gap-1">
                 <button
                     onClick={() => onPageChange(page - 1)}
                     disabled={page === 1}

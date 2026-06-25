@@ -113,7 +113,7 @@ export default function ProviderDashboardPage() {
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
                 <Card
                     header={
-                        <div className="flex items-center justify-between gap-3">
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                             <div className="flex items-center gap-2">
                                 <Calendar size={16} className="text-[--color-primary]" />
                                 <h2 className="text-sm font-semibold text-[--color-text-primary]">Upcoming Tender Deadlines</h2>
@@ -146,7 +146,7 @@ export default function ProviderDashboardPage() {
 
                 <Card
                     header={
-                        <div className="flex items-center justify-between gap-3">
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                             <div className="flex items-center gap-2">
                                 <ClipboardList size={16} className="text-[--color-primary]" />
                                 <h2 className="text-sm font-semibold text-[--color-text-primary]">Recent Applications</h2>

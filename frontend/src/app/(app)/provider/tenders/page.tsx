@@ -48,7 +48,7 @@ export default function MyTendersPage() {
                     iconColor="#7C3AED"
                 />
                 <Card padding="none">
-                    <table className="w-full"><tbody>{[1,2,3].map(i => <TableRowSkeleton key={i} cols={5} />)}</tbody></table>
+                    <table className="w-full min-w-[720px]"><tbody>{[1,2,3].map(i => <TableRowSkeleton key={i} cols={5} />)}</tbody></table>
                 </Card>
             </div>
         );
@@ -81,7 +81,7 @@ export default function MyTendersPage() {
             ) : (
                 <Card padding="none">
                     <div className="overflow-x-auto">
-                        <table className="w-full text-sm text-left">
+                        <table className="w-full min-w-[720px] text-left text-sm">
                             <thead className="bg-[--color-bg] border-b border-[--color-border]">
                                 <tr>
                                     <th className="px-4 py-3 font-semibold">Title</th>

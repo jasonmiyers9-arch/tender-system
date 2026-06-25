@@ -133,7 +133,7 @@ function OverviewSection({ company, onSave, saving }: {
 
     return (
         <motion.div variants={fadeUp} initial="hidden" animate="show" className="rounded-2xl border border-[--color-border] bg-[--color-surface] p-5 card-shadow">
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4 mb-4">
                 <h3 className="text-sm font-bold text-[--color-text-primary]">Entity details</h3>
                 {editing ? (
                     <div className="flex items-center gap-2">
@@ -187,7 +187,7 @@ function MembersSection({ companyId, onResetPassword, busyUserId }: {
 
     return (
         <motion.div variants={fadeUp} initial="hidden" animate="show" className="rounded-2xl border border-[--color-border] bg-[--color-surface] p-5 card-shadow">
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4 mb-4">
                 <div className="flex items-center gap-2">
                     <div className="w-7 h-7 rounded-lg bg-indigo-500/10 text-indigo-600 flex items-center justify-center">
                         <UsersIcon size={14} />
@@ -247,7 +247,7 @@ function DocumentsSection({ companyId }: { companyId: string }) {
 
     return (
         <motion.div variants={fadeUp} initial="hidden" animate="show" className="rounded-2xl border border-[--color-border] bg-[--color-surface] p-5 card-shadow">
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4 mb-4">
                 <div className="flex items-center gap-2">
                     <div className="w-7 h-7 rounded-lg bg-emerald-500/10 text-emerald-600 flex items-center justify-center">
                         <FileText size={14} />
@@ -335,7 +335,7 @@ function LifecycleSection({ companyName }: { companyName: string }) {
 
     return (
         <motion.div variants={fadeUp} initial="hidden" animate="show" className="rounded-2xl border border-[--color-border] bg-[--color-surface] p-5 card-shadow">
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4 mb-4">
                 <div className="flex items-center gap-2">
                     <div className="w-7 h-7 rounded-lg bg-indigo-500/10 text-indigo-600 flex items-center justify-center">
                         <AlertCircle size={14} />

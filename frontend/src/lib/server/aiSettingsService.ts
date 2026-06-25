@@ -3,7 +3,6 @@ import { getFirestore, isFirestoreAvailable } from './firebaseAdmin';
 const SETTINGS_COLLECTION = 'app_settings';
 const AI_SETTINGS_DOC = 'ai_provider';
 const DEFAULT_GEMINI_MODEL = 'gemini-2.5-flash';
-
 // Models retired by the Generative Language API. generateContent returns
 // 404 NOT_FOUND for these even though ListModels may still echo them back.
 // Remap to a current equivalent so stored/admin/env values don't break the app.
@@ -52,11 +51,11 @@ async function readStoredAiSettings(): Promise<StoredAiSettings> {
 }
 
 function resolveGeminiKey(stored: StoredAiSettings): string | null {
-  return stored.geminiApiKey?.trim() || stored.openRouterApiKey?.trim() || process.env.GEMINI_API_KEY || process.env.OPENROUTER_API_KEY || null;
+  return stored.geminiApiKey?.trim() || process.env.GEMINI_API_KEY || null;
 }
 
 function resolveGeminiModel(stored: StoredAiSettings): string {
-  return sanitizeModel(stored.geminiModel || stored.openRouterModel || process.env.GEMINI_MODEL || process.env.OPENROUTER_MODEL);
+  return sanitizeModel(stored.geminiModel || process.env.GEMINI_MODEL);
 }
 
 export async function getAiSettingsPublic() {
@@ -69,7 +68,7 @@ export async function getAiSettingsPublic() {
     geminiKeyMasked: maskKey(effectiveKey),
     geminiModel: effectiveModel,
     updatedAt: stored.updatedAt ?? null,
-    source: stored.geminiApiKey || stored.openRouterApiKey ? 'admin' as const : process.env.GEMINI_API_KEY || process.env.OPENROUTER_API_KEY ? 'env' as const : 'none' as const,
+    source: stored.geminiApiKey ? 'admin' as const : process.env.GEMINI_API_KEY ? 'env' as const : 'none' as const,
   };
 }
 
@@ -96,13 +95,11 @@ export async function upsertAiSettings(payload: {
   if (payload.geminiApiKey !== undefined) {
     const key = (payload.geminiApiKey ?? '').trim();
     updates.geminiApiKey = key || undefined;
-    updates.openRouterApiKey = key || undefined;
   }
 
   if (payload.geminiModel !== undefined) {
     const model = sanitizeModel(payload.geminiModel);
     updates.geminiModel = model;
-    updates.openRouterModel = model;
   }
 
   if (isFirestoreAvailable()) {

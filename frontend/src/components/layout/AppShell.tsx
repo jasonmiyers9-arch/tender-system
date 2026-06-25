@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
@@ -24,6 +24,7 @@ function isAdminRole(role: string | null | undefined): boolean {
 export function AppShell({ children }: { children: React.ReactNode }) {
     const { token, _hasHydrated, currentUser, setCurrentUser, setActiveCompany, logout } = useAppStore();
     const [sessionReady, setSessionReady] = useState(false);
+    const [mobileNavOpen, setMobileNavOpen] = useState(false);
     const [dismissed, setDismissed] = useState<string[]>([]);
     const [idleWarning, setIdleWarning] = useState(false);   // show 2-min countdown warning
     const [idleCountdown, setIdleCountdown] = useState(120); // seconds remaining
@@ -283,11 +284,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     }
 
     return (
-        <div className="flex h-screen overflow-hidden" style={{ backgroundColor: 'var(--color-bg)' }}>
-            <Sidebar />
+        <div className="flex h-[100dvh] overflow-hidden" style={{ backgroundColor: 'var(--color-bg)' }}>
+            <Sidebar mobileOpen={mobileNavOpen} onCloseMobile={() => setMobileNavOpen(false)} />
             <div className="flex flex-col flex-1 overflow-hidden min-w-0">
-                <Topbar />
-                <main className="flex-1 overflow-auto p-6 lg:p-8" style={{ backgroundColor: 'var(--color-bg)' }}>
+                <Topbar onOpenMobileNav={() => setMobileNavOpen(true)} />
+                <main className="flex-1 overflow-auto p-4 sm:p-6 lg:p-8" style={{ backgroundColor: 'var(--color-bg)' }}>
                     <PageTransition>{children}</PageTransition>
                 </main>
             </div>
@@ -301,7 +302,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                         initial="hidden"
                         animate="show"
                         exit="exit"
-                        className="fixed bottom-5 right-5 z-50 w-[360px] rounded-xl border border-amber-500/30 p-4 opacity-100 shadow-xl card-shadow"
+                        className="fixed bottom-4 left-4 right-4 z-50 rounded-xl border border-amber-500/30 p-4 opacity-100 shadow-xl card-shadow sm:left-auto sm:bottom-5 sm:right-5 sm:w-[360px]"
                         style={{ backgroundColor: 'var(--color-surface)' }}
                     >
                         <p className="text-sm font-semibold text-[--color-text-primary]">{popup.title}</p>
@@ -335,7 +336,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                             initial="hidden"
                             animate="show"
                             exit="exit"
-                            className="w-[420px] rounded-2xl bg-[--color-surface] p-8 card-shadow border border-amber-500/30 text-center"
+                            className="mx-4 w-full max-w-[420px] rounded-2xl bg-[--color-surface] p-5 sm:p-8 card-shadow border border-amber-500/30 text-center"
                         >
                             <motion.div
                                 animate={{ rotate: [0, -8, 8, -6, 6, 0] }}

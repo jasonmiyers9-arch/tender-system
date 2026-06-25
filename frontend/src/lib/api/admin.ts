@@ -252,6 +252,11 @@ export const admin = {
         });
         return res.json();
     },
+
+    async testAiSettings(): Promise<{ ok: true; model: string }> {
+        const res = await authFetch('/admin/ai-settings', { method: 'POST' });
+        return res.json();
+    },
 };
 
 

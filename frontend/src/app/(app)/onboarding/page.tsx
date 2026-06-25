@@ -124,7 +124,7 @@ export default function OnboardingPage() {
             {/* Progress card */}
             {status && (
                 <Card accent>
-                    <div className="flex items-center justify-between mb-4">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4 mb-4">
                         <p className="text-sm font-semibold text-[--color-text-primary]">Onboarding Progress</p>
                         <span
                             className="text-xs font-bold px-3 py-1 rounded-full"

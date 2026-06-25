@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Bell, LogOut, ChevronDown, User, Settings } from 'lucide-react';
+import { Bell, LogOut, ChevronDown, User, Settings, Menu } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { AnimatePresence, motion } from 'motion/react';
@@ -24,7 +24,11 @@ function isAdminRole(role: string | null | undefined): boolean {
     return role === 'admin' || role === 'super_admin';
 }
 
-export function Topbar() {
+type TopbarProps = {
+    onOpenMobileNav?: () => void;
+};
+
+export function Topbar({ onOpenMobileNav }: TopbarProps) {
     const { currentUser, logout } = useAppStore();
     const [userMenuOpen, setUserMenuOpen] = useState(false);
     const unreadQuery = useUnreadNotifications(10);
@@ -39,14 +43,23 @@ export function Topbar() {
     const unreadCount = unreadQuery.data?.length ?? 0;
 
     return (
-        <header className="h-[60px] flex items-center justify-between px-6 bg-[--color-surface] border-b border-[--color-border] shadow-sm flex-shrink-0 gap-4">
-            {/* Left: Breadcrumbs */}
-            <div className="flex-1 min-w-0">
-                <Breadcrumbs />
+        <header className="h-[60px] flex items-center justify-between px-3 sm:px-6 bg-[--color-surface] border-b border-[--color-border] shadow-sm flex-shrink-0 gap-2 sm:gap-4">
+            <div className="flex items-center gap-2 min-w-0 flex-1">
+                <button
+                    type="button"
+                    onClick={onOpenMobileNav}
+                    className="md:hidden inline-flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg border border-[--color-border] bg-[--color-surface-raised] text-[--color-text-primary]"
+                    aria-label="Open navigation"
+                >
+                    <Menu size={19} />
+                </button>
+                <div className="min-w-0 overflow-hidden">
+                    <Breadcrumbs />
+                </div>
             </div>
 
             {/* Right: notifications + user (entity switcher hidden for admin — operator persona, not tenant) */}
-            <div className="flex items-center gap-3 flex-shrink-0">
+            <div className="flex items-center gap-1.5 sm:gap-3 flex-shrink-0">
                 <ThemeToggle />
 
                 {/* Notification bell */}
@@ -85,7 +98,7 @@ export function Topbar() {
                         whileHover={{ backgroundColor: 'var(--color-bg)' }}
                         whileTap={{ scale: 0.97 }}
                         onClick={() => setUserMenuOpen((o) => !o)}
-                        className="flex items-center gap-2 pl-3 pr-2 py-1.5 rounded-lg cursor-pointer"
+                        className="flex items-center gap-1.5 sm:gap-2 pl-1.5 sm:pl-3 pr-1.5 sm:pr-2 py-1.5 rounded-lg cursor-pointer"
                     >
                         <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: 'linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%)' }}>
                             <span className="text-white text-xs font-bold">

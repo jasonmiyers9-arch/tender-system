@@ -639,7 +639,7 @@ export default function AdminTodayPage() {
                             transition={{ ...T.smooth, delay: 0.15 }}
                             className="rounded-2xl border border-[--color-border] bg-[--color-surface] p-5 card-shadow"
                         >
-                            <div className="flex items-center justify-between mb-4">
+                            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4 mb-4">
                                 <div className="flex items-center gap-2">
                                     <div className="w-7 h-7 rounded-lg bg-indigo-500/10 text-indigo-600 flex items-center justify-center">
                                         <CalendarDays size={14} />

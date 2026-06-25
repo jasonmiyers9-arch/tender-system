@@ -493,7 +493,7 @@ export default function AdminSignupsPage() {
                                         value={search}
                                         onChange={(e) => setSearch(e.target.value)}
                                         placeholder="Name, email, company"
-                                        className="pl-9 pr-3 py-2 text-sm rounded-lg bg-[--color-surface] border border-[--color-border] focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 w-[220px] transition-colors"
+                                        className="pl-9 pr-3 py-2 text-sm rounded-lg bg-[--color-surface] border border-[--color-border] focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 w-full sm:w-[220px] transition-colors"
                                     />
                                 </div>
                                 <div className="relative">
@@ -550,7 +550,7 @@ export default function AdminSignupsPage() {
                             transition={{ ...T.smooth, delay: 0.1 }}
                             className="rounded-2xl border border-[--color-border] bg-[--color-surface] p-5 card-shadow"
                         >
-                            <div className="flex items-center justify-between mb-4">
+                            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4 mb-4">
                                 <div className="flex items-center gap-2">
                                     <div className="w-7 h-7 rounded-lg bg-indigo-500/10 text-indigo-600 flex items-center justify-center">
                                         <ShieldCheck size={14} />

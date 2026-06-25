@@ -37,6 +37,7 @@ export default function ComplianceAssistantPage() {
   const [question, setQuestion] = useState('');
   const [snapshot, setSnapshot] = useState<AdvisorSnapshot | null>(null);
   const [model, setModel] = useState('');
+  const [aiWarning, setAiWarning] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const conversationEndRef = useRef<HTMLDivElement>(null);
@@ -65,6 +66,7 @@ export default function ComplianceAssistantPage() {
     setQuestion('');
     setSnapshot(null);
     setModel('');
+    setAiWarning('');
     setError('');
   }
 
@@ -83,6 +85,7 @@ export default function ComplianceAssistantPage() {
     setQuestion('');
     setLoading(true);
     setError('');
+    setAiWarning('');
 
     try {
       const response = await fetch('/api/assistant/chat', {
@@ -101,6 +104,7 @@ export default function ComplianceAssistantPage() {
         answer?: string;
         model?: string;
         detail?: string;
+        aiWarning?: string | null;
         snapshot?: AdvisorSnapshot;
       };
       if (!response.ok) throw new Error(result.detail ?? `Request failed (${response.status})`);
@@ -108,6 +112,7 @@ export default function ComplianceAssistantPage() {
       setMessages((current) => [...current, { role: 'assistant', content: result.answer ?? 'No answer returned.' }]);
       setSnapshot(result.snapshot ?? null);
       setModel(result.model ?? 'unknown');
+      setAiWarning(result.aiWarning ?? '');
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : 'Unable to contact the compliance advisor');
     } finally {
@@ -154,7 +159,7 @@ export default function ComplianceAssistantPage() {
               ))}
             </select>
             {tendersQuery.isError && (
-              <div className="mt-3 flex items-center justify-between gap-3 text-xs text-[--color-danger]">
+              <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between text-xs text-[--color-danger]">
                 <span>Unable to load tender context.</span>
                 <button type="button" className="font-semibold underline" onClick={() => tendersQuery.refetch()}>Retry</button>
               </div>
@@ -209,7 +214,7 @@ export default function ComplianceAssistantPage() {
         <Card
           className="flex min-h-[650px] flex-col lg:col-span-8"
           header={(
-            <div className="flex w-full items-center justify-between gap-3">
+            <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <h2 className="text-sm font-semibold text-[--color-text-primary]">Advisor conversation</h2>
                 <p className="mt-0.5 max-w-xl truncate text-xs text-[--color-text-muted]">{selectedTender?.title ?? 'Company-wide compliance'}</p>
@@ -278,6 +283,7 @@ export default function ComplianceAssistantPage() {
               </Button>
             </form>
             {error && <p className="mt-2 text-xs text-[--color-danger]">{error}</p>}
+            {aiWarning && <p className="mt-2 text-xs text-[--color-warning]">AI unavailable: {aiWarning} A rules-based answer was shown.</p>}
             {model && <p className="mt-2 text-[11px] text-[--color-text-muted]">Assessment source: {model === 'rules-based' ? 'Tender Guard Pro rules engine' : model}</p>}
           </div>
         </Card>

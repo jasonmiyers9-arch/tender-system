@@ -147,7 +147,7 @@ export default function DashboardPage() {
                     ) : (
                         <ul className="divide-y divide-[--color-border]">
                             {expiringDocs.slice(0, 5).map((doc) => (
-                                <li key={doc.id} className="flex items-center justify-between px-6 py-3">
+                                <li key={doc.id} className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6">
                                     <div>
                                         <p className="text-sm font-medium text-[--color-text-primary]">{doc.name}</p>
                                         <p className="text-xs text-[--color-text-muted]">
@@ -191,7 +191,7 @@ export default function DashboardPage() {
                                 <li key={t.id}>
                                     <Link
                                         href={`/tenders/${t.id}`}
-                                        className="flex items-center justify-between px-6 py-3 hover:bg-[--color-bg] transition-colors"
+                                        className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6 hover:bg-[--color-bg] transition-colors"
                                     >
                                         <div className="flex-1 min-w-0 pr-4">
                                             <p className="text-sm font-medium text-[--color-text-primary] truncate">

@@ -966,7 +966,7 @@ export default function VaultPage() {
 
                     {docsQuery.isLoading ? (
                         <Card padding="none">
-                            <table className="w-full text-sm">
+                            <table className="w-full min-w-[720px] text-sm">
                                 <tbody>
                                     {[1, 2, 3].map((i) => <TableRowSkeleton key={i} cols={6} />)}
                                 </tbody>

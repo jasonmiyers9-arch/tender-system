@@ -41,7 +41,7 @@ export function Modal({ open, onClose, title, children, footer, size = 'md' }: M
                     initial="hidden"
                     animate="show"
                     exit="exit"
-                    className="fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-sm"
+                    className="fixed inset-0 z-50 flex items-end justify-center p-3 backdrop-blur-sm sm:items-center sm:p-4"
                     style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}
                     onClick={(e) => {
                         if (e.target === e.currentTarget) onClose();
@@ -54,13 +54,13 @@ export function Modal({ open, onClose, title, children, footer, size = 'md' }: M
                         animate="show"
                         exit="exit"
                         className={classNames(
-                            'relative w-full rounded-2xl shadow-2xl border border-[--color-border] bg-[var(--color-surface)]',
+                            'relative flex max-h-[92dvh] w-full flex-col overflow-hidden rounded-t-2xl border border-[--color-border] bg-[var(--color-surface)] shadow-2xl sm:rounded-2xl',
                             sizeClasses[size]
                         )}
                     >
                         {/* Header */}
-                        <div className="flex items-center justify-between px-6 py-4 border-b border-[--color-border]">
-                            <h2 className="text-base font-semibold text-[--color-text-primary]">{title}</h2>
+                        <div className="flex items-center justify-between gap-3 border-b border-[--color-border] px-4 py-3 sm:px-6 sm:py-4">
+                            <h2 className="min-w-0 break-words text-base font-semibold leading-snug text-[--color-text-primary]">{title}</h2>
                             <motion.button
                                 whileHover={{ rotate: 90, scale: 1.05 }}
                                 whileTap={{ scale: 0.92 }}
@@ -73,11 +73,11 @@ export function Modal({ open, onClose, title, children, footer, size = 'md' }: M
                         </div>
 
                         {/* Body */}
-                        <div className="px-6 py-5">{children}</div>
+                        <div className="overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">{children}</div>
 
                         {/* Footer */}
                         {footer && (
-                            <div className="px-6 py-4 border-t border-[--color-border] bg-[--color-bg] rounded-b-2xl flex items-center justify-end gap-3">
+                            <div className="flex flex-col-reverse gap-2 border-t border-[--color-border] bg-[--color-bg] px-4 py-3 sm:flex-row sm:items-center sm:justify-end sm:gap-3 sm:px-6 sm:py-4 sm:rounded-b-2xl">
                                 {footer}
                             </div>
                         )}

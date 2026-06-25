@@ -257,7 +257,7 @@ export default function TendersPage() {
             </div>
 
             {/* Stats row */}
-            <div className="grid grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                 {[
                     { label: 'Total Matches', value: matches.length, color: '#4F46E5' },
                     { label: 'Bid Ready', value: bidReadyCount, color: '#059669', icon: CheckCircle2 },

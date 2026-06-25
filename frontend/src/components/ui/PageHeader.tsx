@@ -23,7 +23,7 @@ export function PageHeader({ title, subtitle, icon, actions, iconColor = '#4F46E
             initial="hidden"
             animate="show"
             variants={fadeUp}
-            className="relative rounded-2xl overflow-hidden px-6 py-5 sm:px-8 sm:py-6"
+            className="relative overflow-hidden rounded-xl px-4 py-5 sm:rounded-2xl sm:px-8 sm:py-6"
             style={{
                 background: 'linear-gradient(135deg, #1E1B4B 0%, #312E81 50%, #1E3A5C 100%)',
             }}
@@ -51,14 +51,14 @@ export function PageHeader({ title, subtitle, icon, actions, iconColor = '#4F46E
                 <Shield size={120} color="white" />
             </motion.div>
 
-            <div className="relative z-10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                <div className="flex items-center gap-4">
+            <div className="relative z-10 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex min-w-0 items-start gap-3 sm:items-center sm:gap-4">
                     {icon && (
                         <motion.div
                             initial={{ scale: 0.6, opacity: 0, rotate: -10 }}
                             animate={{ scale: 1, opacity: 1, rotate: 0 }}
                             transition={{ ...T.softSpring, delay: 0.05 }}
-                            className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0"
+                            className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl sm:h-11 sm:w-11"
                             style={{ background: `${iconColor}30`, color: 'white' }}
                         >
                             {icon}
@@ -69,7 +69,7 @@ export function PageHeader({ title, subtitle, icon, actions, iconColor = '#4F46E
                             initial={{ opacity: 0, y: 8 }}
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ ...T.smooth, delay: 0.08 }}
-                            className="text-xl sm:text-2xl font-extrabold text-white tracking-tight"
+                            className="break-words text-lg font-extrabold leading-tight text-white sm:text-2xl"
                         >
                             {title}
                         </motion.h1>
@@ -78,7 +78,7 @@ export function PageHeader({ title, subtitle, icon, actions, iconColor = '#4F46E
                                 initial={{ opacity: 0, y: 6 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 transition={{ ...T.smooth, delay: 0.14 }}
-                                className="mt-0.5 text-sm"
+                                className="mt-1 text-sm leading-snug"
                                 style={{ color: '#C7D2FE' }}
                             >
                                 {subtitle}
@@ -91,7 +91,7 @@ export function PageHeader({ title, subtitle, icon, actions, iconColor = '#4F46E
                         initial={{ opacity: 0, x: 8 }}
                         animate={{ opacity: 1, x: 0 }}
                         transition={{ ...T.smooth, delay: 0.18 }}
-                        className="flex items-center gap-2 flex-shrink-0"
+                        className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:flex-shrink-0"
                     >
                         {actions}
                     </motion.div>

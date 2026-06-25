@@ -390,7 +390,7 @@ export default function ScraperPage() {
 
             {/* Sources Management */}
             <Card>
-                <div className="flex items-center justify-between mb-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4 mb-4">
                     <h3 className="text-base font-semibold text-[--color-text-primary]">Scraper Sources</h3>
                     <button
                         onClick={() => setShowAddSource(!showAddSource)}
@@ -437,7 +437,7 @@ export default function ScraperPage() {
                 {/* Built-in Sources */}
                 <div className="space-y-2">
                     {status?.sources.map(source => (
-                        <div key={source.name} className="flex items-center justify-between p-3 rounded-xl border border-[--color-border] bg-[--color-surface-alt]">
+                        <div key={source.name} className="flex flex-col gap-3 p-3 sm:flex-row sm:items-center sm:justify-between rounded-xl border border-[--color-border] bg-[--color-surface-alt]">
                             <div className="flex items-center gap-3">
                                 <button onClick={() => toggleSource(source.name, !source.enabled)} className="flex-shrink-0">
                                     {source.enabled ? (
@@ -467,7 +467,7 @@ export default function ScraperPage() {
 
                     {/* Custom Sources */}
                     {status?.customSources.map(source => (
-                        <div key={source.url} className="flex items-center justify-between p-3 rounded-xl border border-dashed border-[--color-border] bg-[--color-surface-alt]">
+                        <div key={source.url} className="flex flex-col gap-3 p-3 sm:flex-row sm:items-center sm:justify-between rounded-xl border border-dashed border-[--color-border] bg-[--color-surface-alt]">
                             <div className="flex items-center gap-3">
                                 <button onClick={() => toggleSource(source.name, !source.enabled)} className="flex-shrink-0">
                                     {source.enabled ? (
@@ -534,7 +534,7 @@ export default function ScraperPage() {
                     <h3 className="text-base font-semibold text-[--color-text-primary] mb-3">Recent Scrape History</h3>
                     <div className="space-y-2">
                         {status.history.slice(0, 10).map((run, i) => (
-                            <div key={i} className="flex items-center justify-between p-3 rounded-lg border border-[--color-border] bg-[--color-surface-alt]">
+                            <div key={i} className="flex flex-col gap-3 p-3 sm:flex-row sm:items-center sm:justify-between rounded-lg border border-[--color-border] bg-[--color-surface-alt]">
                                 <div className="flex items-center gap-3">
                                     {run.errors.length > 0 ? (
                                         <AlertCircle size={16} className="text-amber-500 flex-shrink-0" />
@@ -746,7 +746,7 @@ export default function ScraperPage() {
                                             <div className="space-y-1.5">
                                                 <p className="text-xs font-semibold text-[--color-text-primary]">Attached Documents ({tender.documents.length})</p>
                                                 {tender.documents.map((doc, di) => (
-                                                    <div key={di} className="flex items-center justify-between p-2 rounded-lg border border-[--color-border] bg-[--color-surface]">
+                                                    <div key={di} className="flex flex-col gap-2 p-2 sm:flex-row sm:items-center sm:justify-between rounded-lg border border-[--color-border] bg-[--color-surface]">
                                                         <div className="flex items-center gap-2 min-w-0">
                                                             <FileText size={14} className={`flex-shrink-0 ${
                                                                 doc.extractionStatus === 'success' ? 'text-emerald-500' :

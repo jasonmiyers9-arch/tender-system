@@ -80,5 +80,5 @@ function Metric({ label, value, icon, tone = 'text-[--color-primary]' }: { label
 }
 
 function SectionHeader({ title, href, label }: { title: string; href: string; label: string }) {
-    return <div className="flex w-full items-center justify-between gap-3"><h2 className="text-sm font-semibold text-[--color-text-primary]">{title}</h2><Link href={href} className="inline-flex items-center gap-1 text-xs font-semibold text-[--color-primary]">{label}<ArrowRight size={13} /></Link></div>;
+    return <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><h2 className="text-sm font-semibold text-[--color-text-primary]">{title}</h2><Link href={href} className="inline-flex items-center gap-1 text-xs font-semibold text-[--color-primary]">{label}<ArrowRight size={13} /></Link></div>;
 }

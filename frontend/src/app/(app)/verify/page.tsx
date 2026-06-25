@@ -152,7 +152,7 @@ export default function VerifySearchPage() {
                     />
                 ) : (
                     <div className="space-y-3">
-                        <div className="flex items-center justify-between gap-3">
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                             <h2 className="text-sm font-semibold text-[--color-text-secondary]">Search Results</h2>
                             <Badge variant="default" size="sm">{results.length} match{results.length === 1 ? '' : 'es'}</Badge>
                         </div>

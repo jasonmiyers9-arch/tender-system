@@ -1,32 +1,47 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Card } from '@/components/ui/Card';
 import { Select } from '@/components/ui/Select';
 import { Button } from '@/components/ui/Button';
 import { Save, Settings } from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';
 
+type LocalSettings = {
+    timezone: string;
+    dateFormat: string;
+};
+
+const defaultSettings: LocalSettings = {
+    timezone: 'Africa/Johannesburg',
+    dateFormat: 'DD/MM/YYYY',
+};
+
+function readLocalSettings(): LocalSettings {
+    if (typeof window === 'undefined') return defaultSettings;
+
+    const raw = window.localStorage.getItem('tenderguard-settings');
+    if (!raw) return defaultSettings;
+
+    try {
+        const parsed = JSON.parse(raw) as Partial<LocalSettings>;
+        return {
+            timezone: parsed.timezone || defaultSettings.timezone,
+            dateFormat: parsed.dateFormat || defaultSettings.dateFormat,
+        };
+    } catch {
+        window.localStorage.removeItem('tenderguard-settings');
+        return defaultSettings;
+    }
+}
+
 export default function SettingsPage() {
-    const [timezone, setTimezone] = useState('Africa/Johannesburg');
-    const [dateFormat, setDateFormat] = useState('DD/MM/YYYY');
+    const [settings, setSettings] = useState<LocalSettings>(readLocalSettings);
     const [saved, setSaved] = useState(false);
-
-    useEffect(() => {
-        const raw = window.localStorage.getItem('tenderguard-settings');
-        if (!raw) return;
-
-        try {
-            const parsed = JSON.parse(raw) as { timezone?: string; dateFormat?: string };
-            if (parsed.timezone) setTimezone(parsed.timezone);
-            if (parsed.dateFormat) setDateFormat(parsed.dateFormat);
-        } catch {
-            window.localStorage.removeItem('tenderguard-settings');
-        }
-    }, []);
+    const { timezone, dateFormat } = settings;
 
     function saveSettings() {
-        window.localStorage.setItem('tenderguard-settings', JSON.stringify({ timezone, dateFormat }));
+        window.localStorage.setItem('tenderguard-settings', JSON.stringify(settings));
         setSaved(true);
         window.setTimeout(() => setSaved(false), 2500);
     }
@@ -49,7 +64,7 @@ export default function SettingsPage() {
                             { value: 'UTC', label: 'Coordinated Universal Time (UTC)' }
                         ]}
                         value={timezone}
-                        onChange={(e) => setTimezone(e.target.value)}
+                        onChange={(e) => setSettings((current) => ({ ...current, timezone: e.target.value }))}
                     />
                     <Select
                         label="Date Format"
@@ -58,7 +73,7 @@ export default function SettingsPage() {
                             { value: 'YYYY-MM-DD', label: 'YYYY-MM-DD (e.g. 2025-12-30)' }
                         ]}
                         value={dateFormat}
-                        onChange={(e) => setDateFormat(e.target.value)}
+                        onChange={(e) => setSettings((current) => ({ ...current, dateFormat: e.target.value }))}
                     />
                 </div>
             </Card>

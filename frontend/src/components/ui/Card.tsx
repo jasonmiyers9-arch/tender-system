@@ -21,9 +21,9 @@ interface CardProps {
 
 const paddingClasses = {
     none: '',
-    sm: 'p-4',
-    md: 'p-6',
-    lg: 'p-8',
+    sm: 'p-3 sm:p-4',
+    md: 'p-4 sm:p-6',
+    lg: 'p-5 sm:p-8',
 };
 
 export function Card({
@@ -46,7 +46,7 @@ export function Card({
             transition={delay !== undefined ? { ...T.smooth, delay } : T.smooth}
             whileHover={onClick ? { y: -3, transition: T.snappy } : undefined}
             className={classNames(
-                'card-shadow bg-[--color-surface] border border-[--color-border] rounded-2xl overflow-hidden',
+                'card-shadow overflow-hidden rounded-xl border border-[--color-border] bg-[--color-surface] sm:rounded-2xl',
                 onClick ? 'cursor-pointer hover:border-[--color-border-strong] hover:shadow-lg' : '',
                 className
             )}
@@ -64,13 +64,13 @@ export function Card({
                 />
             )}
             {header && (
-                <div className="px-6 py-4 border-b border-[--color-border] flex items-center justify-between bg-[--color-surface-raised] rounded-t-2xl">
+                <div className="flex flex-col gap-3 border-b border-[--color-border] bg-[--color-surface-raised] px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6 sm:py-4 sm:rounded-t-2xl">
                     {header}
                 </div>
             )}
             <div className={paddingClasses[padding]}>{children}</div>
             {footer && (
-                <div className="px-6 py-4 border-t border-[--color-border] bg-[--color-surface-raised] rounded-b-2xl">
+                <div className="border-t border-[--color-border] bg-[--color-surface-raised] px-4 py-3 sm:px-6 sm:py-4 sm:rounded-b-2xl">
                     {footer}
                 </div>
             )}

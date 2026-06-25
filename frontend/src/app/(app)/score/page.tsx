@@ -261,7 +261,7 @@ export default function ScorePage() {
                 >
                     <ul className="divide-y divide-[--color-border] -mx-6 -mb-6">
                         {scoreQuery.data!.expiringDocuments.map((filename, i) => (
-                            <li key={i} className="flex items-center justify-between px-6 py-3">
+                            <li key={i} className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6">
                                 <div className="flex items-center gap-3">
                                     <AlertTriangle size={15} className="text-[--color-warning] flex-shrink-0" />
                                     <span className="text-sm text-[--color-text-primary] font-medium">{filename}</span>

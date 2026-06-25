@@ -99,7 +99,7 @@ function DocumentsModal({ appId, onClose }: { appId: string; onClose: () => void
                             {data.documents.map((doc) => (
                                 <div
                                     key={doc.id}
-                                    className="flex items-center justify-between gap-3 px-4 py-3 rounded-lg border border-[--color-border] bg-[--color-bg]"
+                                    className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between px-4 py-3 rounded-lg border border-[--color-border] bg-[--color-bg]"
                                 >
                                     <div className="flex items-center gap-2.5 min-w-0">
                                         <FileText size={15} className="text-[--color-text-muted] flex-shrink-0" />
@@ -165,7 +165,7 @@ export default function ProviderApplicationsPage() {
                     iconColor="#F59E0B"
                 />
                 <Card padding="none">
-                    <table className="w-full"><tbody>{[1,2,3].map(i => <TableRowSkeleton key={i} cols={6} />)}</tbody></table>
+                    <table className="w-full min-w-[720px]"><tbody>{[1,2,3].map(i => <TableRowSkeleton key={i} cols={6} />)}</tbody></table>
                 </Card>
             </div>
         );
@@ -212,7 +212,7 @@ export default function ProviderApplicationsPage() {
                 ) : (
                     <Card padding="none">
                         <div className="overflow-x-auto">
-                            <table className="w-full text-sm text-left">
+                            <table className="w-full min-w-[720px] text-left text-sm">
                                 <thead className="bg-[--color-bg] border-b border-[--color-border]">
                                     <tr>
                                         <th className="px-4 py-3 font-semibold">Company</th>

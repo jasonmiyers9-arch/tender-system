@@ -10,7 +10,7 @@ import {
 import { requireRole } from '@/lib/server/apiAuth';
 import { buildTenderRequirementsFromTender } from '@/lib/server/analystEngine';
 import { calculateTenderMatchScore, generateComplianceProfile } from '@/lib/server/complianceScoring';
-import { chatWithOpenRouter } from '@/lib/server/openRouterClient';
+import { chatWithOpenRouter, describeAiFailure } from '@/lib/server/openRouterClient';
 import { rateLimit, RateLimits } from '@/lib/server/rateLimiter';
 import { getScrapedTenders, type ScrapedTender } from '@/lib/server/tenderScraper';
 import type { TenderDetail } from '@/lib/api/types';
@@ -189,7 +189,18 @@ export async function POST(req: Request) {
     ],
   });
 
-  const fallbackAnswer = tenderScore && tender
+  const normalizedQuestion = question.toLowerCase();
+  const asksAboutTenderPurpose = Boolean(tender) && /what(?:\s+is|'s).*tender|tender.*(?:about|for|purpose)/i.test(normalizedQuestion);
+  const asksAboutDeadline = Boolean(tender) && /when|deadline|closing|close|bidding date|bid date/i.test(normalizedQuestion);
+  const fallbackAnswer = tender && asksAboutTenderPurpose
+    ? [
+        `This tender is for ${tender.title}.`,
+        tender.description || `It was published by ${tender.organization}.`,
+        `The issuing organization is ${tender.organization}, and the closing date is ${tender.deadline}.`,
+      ].join('\n\n')
+    : tender && asksAboutDeadline
+      ? `The closing date for “${tender.title}” is ${tender.deadline}. Check the tender notice before submitting in case the buyer publishes an amendment.`
+      : tenderScore && tender
     ? [
         `Your overall compliance score is ${profile.overallScore}%. Your match score for “${tender.title}” is ${tenderScore.matchScore}%.`,
         tenderScore.isEligible ? 'The rules-based assessment currently marks you as eligible.' : 'The rules-based assessment currently marks you as not yet eligible.',
@@ -211,6 +222,7 @@ export async function POST(req: Request) {
     answer: completion.ok ? completion.content : fallbackAnswer,
     source: completion.ok ? 'gemini' : 'deterministic-fallback',
     model: completion.ok ? completion.model : 'rules-based',
+    aiWarning: completion.ok ? null : describeAiFailure(completion),
     snapshot: {
       overallScore: profile.overallScore,
       tenderId: tender?.id ?? null,

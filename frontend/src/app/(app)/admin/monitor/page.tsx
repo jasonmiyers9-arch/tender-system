@@ -205,11 +205,13 @@ export default function AdminMonitorPage() {
     const [levelFilter, setLevelFilter] = useState<LevelKey>('all');
 
     const [geminiKey, setGeminiKey] = useState('');
-    const [geminiModel, setGeminiModel] = useState('gemini-2.0-flash');
+    const [geminiModel, setGeminiModel] = useState('gemini-2.5-flash');
     const [aiSource, setAiSource] = useState<'admin' | 'env' | 'none'>('none');
     const [maskedKey, setMaskedKey] = useState<string | null>(null);
     const [savingAi, setSavingAi] = useState(false);
+    const [testingAi, setTestingAi] = useState(false);
     const [aiMessage, setAiMessage] = useState<string | null>(null);
+    const [aiMessageError, setAiMessageError] = useState(false);
 
     useEffect(() => {
         if (role !== 'admin') return;
@@ -226,7 +228,7 @@ export default function AdminMonitorPage() {
                 const ai = await admin.getAiSettings();
                 setStatus(sJson);
                 setEvents(eJson.items ?? []);
-                setGeminiModel(ai.geminiModel || 'gemini-2.0-flash');
+                setGeminiModel(ai.geminiModel || 'gemini-2.5-flash');
                 setAiSource(ai.source);
                 setMaskedKey(ai.geminiKeyMasked);
                 setLastUpdatedAt(Date.now());
@@ -302,6 +304,7 @@ export default function AdminMonitorPage() {
     const handleSaveAi = async () => {
         setSavingAi(true);
         setAiMessage(null);
+        setAiMessageError(false);
         try {
             const updated = await admin.updateAiSettings({
                 geminiApiKey: geminiKey.trim() || undefined,
@@ -313,9 +316,33 @@ export default function AdminMonitorPage() {
             setGeminiKey('');
             setAiMessage('Saved. New uploads will use this configuration.');
         } catch (e) {
+            setAiMessageError(true);
             setAiMessage(e instanceof Error ? e.message : 'Failed to save AI settings');
         } finally {
             setSavingAi(false);
+        }
+    };
+
+    const handleTestAi = async () => {
+        setTestingAi(true);
+        setAiMessage(null);
+        setAiMessageError(false);
+        try {
+            const updated = await admin.updateAiSettings({
+                geminiApiKey: geminiKey.trim() || undefined,
+                geminiModel,
+            });
+            setAiSource(updated.source);
+            setMaskedKey(updated.geminiKeyMasked);
+            setGeminiModel(updated.geminiModel || geminiModel);
+            setGeminiKey('');
+            const result = await admin.testAiSettings();
+            setAiMessage(`Connection successful. Using ${result.model}.`);
+        } catch (e) {
+            setAiMessageError(true);
+            setAiMessage(e instanceof Error ? e.message : 'Gemini connection test failed');
+        } finally {
+            setTestingAi(false);
         }
     };
 
@@ -613,9 +640,9 @@ export default function AdminMonitorPage() {
                                     <Key size={16} />
                                 </div>
                                 <div>
-                                    <h3 className="text-sm font-semibold text-[--color-text-primary]">AI summaries · Gemini</h3>
+                                    <h3 className="text-sm font-semibold text-[--color-text-primary]">AI Compliance Advisor · Gemini</h3>
                                     <p className="text-xs text-[--color-text-muted] mt-0.5">
-                                        Powers document knowledge-base summaries across the app.
+                                        Powers compliance advice and document summaries across the app.
                                     </p>
                                 </div>
                             </div>
@@ -632,26 +659,27 @@ export default function AdminMonitorPage() {
                             <Input
                                 label="Gemini API key"
                                 type="password"
-                                placeholder={maskedKey ? `Current: ${maskedKey}` : 'AIza…'}
+                                placeholder={maskedKey ? `Current: ${maskedKey}` : 'Paste Gemini API key'}
                                 value={geminiKey}
                                 onChange={(e) => setGeminiKey(e.target.value)}
                                 hint="Leave empty to keep current key."
                             />
                             <Input
                                 label="Model"
-                                placeholder="gemini-2.0-flash"
+                                placeholder="gemini-2.5-flash"
                                 value={geminiModel}
                                 onChange={(e) => setGeminiModel(e.target.value)}
                             />
                         </div>
 
                         {aiMessage && (
-                            <p className={`relative mt-3 text-xs ${aiMessage.toLowerCase().includes('fail') ? 'text-red-600' : 'text-emerald-600'}`}>
+                            <p className={`relative mt-3 text-xs ${aiMessageError ? 'text-red-600' : 'text-emerald-600'}`}>
                                 {aiMessage}
                             </p>
                         )}
 
-                        <div className="relative mt-4 flex justify-end">
+                        <div className="relative mt-4 flex justify-end gap-2">
+                            <Button variant="outline" onClick={handleTestAi} loading={testingAi}>Save &amp; test connection</Button>
                             <Button onClick={handleSaveAi} loading={savingAi}>Save changes</Button>
                         </div>
                     </motion.div>

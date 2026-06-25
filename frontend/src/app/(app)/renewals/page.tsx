@@ -149,7 +149,7 @@ function RenewalCard({ item }: { item: RenewalItem }) {
                                     <Link 
                                         key={tender.tenderId} 
                                         href={`/tenders/${tender.tenderId}`}
-                                        className="flex items-center justify-between p-2 rounded-lg bg-[--color-surface] hover:bg-[--color-surface-raised] transition-colors group"
+                                        className="flex flex-col gap-2 p-2 sm:flex-row sm:items-center sm:justify-between rounded-lg bg-[--color-surface] hover:bg-[--color-surface-raised] transition-colors group"
                                     >
                                         <div className="flex-1 min-w-0">
                                             <p className="text-xs font-medium text-[--color-text-primary] truncate">
@@ -260,7 +260,7 @@ export default function RenewalsPage() {
             />
 
             {/* Summary Stats */}
-            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
                 {[
                     { label: 'Expired', value: summary?.expired ?? 0, color: '#DC2626', icon: FileX2 },
                     { label: 'Critical', value: summary?.critical ?? 0, color: '#EA580C', icon: AlertTriangle },

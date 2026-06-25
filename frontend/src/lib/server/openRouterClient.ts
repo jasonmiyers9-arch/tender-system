@@ -40,6 +40,31 @@ export type AiChatResult =
       error?: string;
     };
 
+function errorStatus(error: unknown): number | undefined {
+  if (error && typeof error === 'object') {
+    const candidate = error as { status?: unknown; response?: { status?: unknown } };
+    if (typeof candidate.status === 'number') return candidate.status;
+    if (typeof candidate.response?.status === 'number') return candidate.response.status;
+  }
+  const message = error instanceof Error ? error.message : String(error);
+  const match = message.match(/(?:\[|\b)(400|401|403|404|429|500|502|503)(?:\b|\s)/);
+  return match ? Number(match[1]) : undefined;
+}
+
+export function describeAiFailure(result: Extract<AiChatResult, { ok: false }>): string {
+  if (result.reason === 'no_api_key') return 'Gemini API key is not configured.';
+  if (result.reason === 'empty_response') return 'Gemini returned an empty response.';
+  if (result.status === 401 || result.status === 403) {
+    return 'Gemini rejected the API key. Check that the key belongs to a project with the Generative Language API enabled.';
+  }
+  if (result.status === 404) return `The configured Gemini model (${result.model}) is unavailable for this API key.`;
+  if (result.status === 429) {
+    return 'Gemini quota is exhausted. Confirm that billing is linked to the same Google project as this API key.';
+  }
+  if (result.status && result.status >= 500) return 'Gemini is temporarily unavailable. Try again shortly.';
+  return `Gemini request failed${result.status ? ` (${result.status})` : ''}. Check the API key, model, and project billing configuration.`;
+}
+
 function splitMessages(messages: AiMessage[]) {
   const systemMessages: string[] = [];
   const conversationMessages = messages.reduce<Array<{ role: 'user' | 'assistant'; content: string }>>((acc, message) => {
@@ -120,6 +145,7 @@ async function chatWithGemini(options: AiChatOptions): Promise<AiChatResult> {
       ok: false,
       reason: 'exception',
       model,
+      status: errorStatus(error),
       error: error instanceof Error ? error.message : 'Gemini request failed',
     };
   }

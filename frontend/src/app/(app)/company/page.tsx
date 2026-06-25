@@ -89,6 +89,9 @@ export default function CompanyProfilePage() {
     if (isLoading) return <div className="space-y-4"><CardSkeleton /><CardSkeleton /></div>;
     if (isError || !company) return <ErrorState onRetry={refetch} />;
 
+    const companyStatus = company.status ?? 'pending';
+    const companyStatusLabel = companyStatus.charAt(0).toUpperCase() + companyStatus.slice(1);
+
     return (
         <div key={company.id} className="space-y-6 max-w-3xl mx-auto">
             <PageHeader
@@ -98,10 +101,10 @@ export default function CompanyProfilePage() {
                 iconColor="#10B981"
                 actions={
                     <Badge
-                        variant={company.status === 'verified' ? 'success' : company.status === 'rejected' ? 'danger' : 'warning'}
+                        variant={companyStatus === 'verified' ? 'success' : companyStatus === 'rejected' ? 'danger' : 'warning'}
                         dot
                     >
-                        {company.status.charAt(0).toUpperCase() + company.status.slice(1)}
+                        {companyStatusLabel}
                     </Badge>
                 }
             />
@@ -203,7 +206,7 @@ export default function CompanyProfilePage() {
                 </div>
             </Card>
 
-            <div className="flex justify-end gap-3">
+            <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
                 <Button variant="ghost" onClick={() => refetch()}>Cancel</Button>
                 <Button
                     onClick={handleSave}
