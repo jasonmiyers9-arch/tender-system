@@ -56,7 +56,25 @@ describe('evidence-based tender matching', () => {
     expect(result.missingDocuments).toContain('certification');
     expect(result.gaps.some((gap) => gap.recommendation.includes('CIDB'))).toBe(true);
   });
+
+  it('never returns 100% when a required tender document is missing', () => {
+    const documents = [
+      doc({ name: 'SARS PIN.pdf', category: 'sars_pin', extractedText: 'SARS tax compliant pin' }),
+      doc({ name: 'CIPC.pdf', category: 'cipc_registration', extractedText: 'company registration certificate' }),
+      doc({ name: 'B-BBEE.pdf', category: 'bbbee_certificate', extractedText: 'B-BBEE certificate level 2' }),
+    ];
+    const profile = generateComplianceProfile('company-1', documents);
+    const result = calculateTenderMatchScore('company-1', 'tender-2', 'Construction tender', profile, {
+      requiredCategories: ['tax', 'registration', 'bbbee', 'certification'],
+      preferredCategories: [],
+    });
+
+    expect(result.missingDocuments).toContain('certification');
+    expect(result.isEligible).toBe(false);
+    expect(result.matchScore).toBeLessThan(100);
+  });
 });
+
 describe('Tender Readiness Score calculation rules', () => {
   const profile = {
     name: 'Acme Construction',

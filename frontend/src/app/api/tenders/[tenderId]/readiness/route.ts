@@ -89,7 +89,7 @@ export async function GET(
       );
       const company = await getCompanyById(companyId);
       const categoryHit = categoryMatches(scraped.category, company?.tenderCategories ?? [], scraped.fullText || scraped.description || scraped.title);
-      const readinessScore = Math.min(100, score.matchScore + (categoryHit ? 10 : 0));
+      const readinessScore = score.missingDocuments.length > 0 ? Math.min(99, score.matchScore + (categoryHit ? 10 : 0)) : Math.min(100, score.matchScore + (categoryHit ? 10 : 0));
       return NextResponse.json({
         tenderId,
         readyToSubmit: score.isEligible,

@@ -730,12 +730,13 @@ export function calculateTenderMatchScore(
   ));
 
   const hasCriticalGaps = gaps.some(g => g.severity === 'critical');
-  const isEligible = !hasCriticalGaps && matchScore >= 50;
   const missingDocuments = uniqueStrings(
     evidence
       .filter((item) => !item.documentId || !item.matched || !item.valid)
       .map((item) => item.category)
   );
+  const adjustedMatchScore = missingDocuments.length > 0 ? Math.min(matchScore, 99) : matchScore;
+  const isEligible = !hasCriticalGaps && adjustedMatchScore >= 50;
   const normalizedRequirements = { ...requirements, requiredCategories: normalizedRequired, preferredCategories: normalizedPreferred };
   const strengths = buildStrengths(profile, normalizedRequirements);
   const priorityActions = buildPriorityActions(gaps, profile, normalizedRequirements);
@@ -746,7 +747,7 @@ export function calculateTenderMatchScore(
     tenderId,
     tenderTitle,
     companyId,
-    matchScore,
+    matchScore: adjustedMatchScore,
     breakdown,
     gaps,
     recommendations,

@@ -106,7 +106,7 @@ async function mapScrapedTenderToDetail(tender: ScrapedTender, companyId?: strin
   const profile = generateComplianceProfile(companyId, documents);
   const score = calculateTenderMatchScore(companyId, detail.id, detail.title, profile, buildTenderRequirementsFromTender(detail));
   const categoryHit = categoryMatches(tender.category, companyCategories, tender.fullText || tender.description || tender.title);
-  const readinessScore = Math.min(100, score.matchScore + (categoryHit ? 10 : 0));
+  const readinessScore = score.missingDocuments.length > 0 ? Math.min(99, score.matchScore + (categoryHit ? 10 : 0)) : Math.min(100, score.matchScore + (categoryHit ? 10 : 0));
   return {
     ...detail,
     matchScore: readinessScore,

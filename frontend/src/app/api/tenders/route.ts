@@ -215,7 +215,7 @@ export async function GET(req: Request) {
           const score = calculateTenderMatchScore(companyId, tender.id, tender.title, profile, requirements);
           const categoryHit = categoryMatches(tender.category, companyCategories, `${tender.description ?? ''} ${(tender.requirements ?? []).join(' ')}`);
           const categoryBonus = categoryHit ? 10 : 0;
-          const readinessScore = Math.min(100, score.matchScore + categoryBonus);
+          const readinessScore = score.missingDocuments.length > 0 ? Math.min(99, score.matchScore + categoryBonus) : Math.min(100, score.matchScore + categoryBonus);
           return {
             ...tender,
             matchScore: readinessScore,

@@ -34,8 +34,8 @@ function ScoreGauge({ score }: { score: number }) {
         score >= 85 ? '#22c55e' : score >= 65 ? '#f59e0b' : '#ef4444';
 
     return (
-        <div className="relative flex items-center justify-center" style={{ width: 200, height: 140 }}>
-            <svg width={200} height={200} style={{ position: 'absolute', top: -30 }}>
+        <div className="relative flex items-center justify-center w-[160px] h-[120px] sm:w-[200px] sm:h-[140px]">
+            <svg viewBox="0 0 200 200" className="absolute inset-0 h-full w-full">
                 <circle
                     cx={100} cy={100} r={normalizedRadius}
                     fill="none" stroke="var(--color-border)" strokeWidth={stroke}
@@ -53,7 +53,7 @@ function ScoreGauge({ score }: { score: number }) {
                 />
             </svg>
             <div className="text-center z-10">
-                <p className="text-[72px] leading-none font-extrabold" style={{ color }}>{score}</p>
+                <p className="text-5xl sm:text-[72px] leading-none font-extrabold" style={{ color }}>{score}</p>
                 <p className="text-xs text-[--color-text-muted] font-medium tracking-wide">/ 100</p>
             </div>
         </div>
@@ -127,7 +127,7 @@ export default function ScorePage() {
     };
 
     return (
-        <div className="space-y-6 max-w-5xl mx-auto">
+        <div className="space-y-6 max-w-5xl mx-auto overflow-x-clip">
             <PageHeader
                 title="Tender Readiness Score™"
                 subtitle="Your compliance posture, missing documents, and improvement path"
@@ -138,7 +138,7 @@ export default function ScorePage() {
             {/* Score + History row */}
             <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
                 {/* Gauge */}
-                <Card accent className="lg:col-span-2">
+                <Card accent noAnimate className="lg:col-span-2">
                     {scoreQuery.isLoading ? (
                         <div className="flex flex-col items-center gap-4 py-4">
                             <Skeleton className="w-40 h-32 rounded-full" />
