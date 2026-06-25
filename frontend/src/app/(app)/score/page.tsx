@@ -1,6 +1,6 @@
 'use client';
 
-import { useScore, useScoreHistory } from '@/lib/hooks/useScore';
+import { useScore } from '@/lib/hooks/useScore';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
@@ -60,29 +60,34 @@ function ScoreGauge({ score }: { score: number }) {
     );
 }
 
-// --- History bar chart ---
+// --- Score breakdown ---
 
-function HistoryChart({ points }: { points: { date: string; score: number }[] }) {
-    const maxScore = 100;
+const SCORE_BREAKDOWN_DIMENSIONS = [
+    { key: 'documentCompleteness', label: 'Document Completeness', max: 30, color: '#2563eb' },
+    { key: 'verificationCoverage', label: 'Verification Coverage', max: 25, color: '#059669' },
+    { key: 'csdProfileCompleteness', label: 'CSD Profile Score', max: 20, color: '#7c3aed' },
+    { key: 'complianceConsistency', label: 'Compliance Consistency', max: 15, color: '#d97706' },
+] as const;
+
+function ScoreBreakdownBars({ breakdown }: { breakdown?: Partial<Record<(typeof SCORE_BREAKDOWN_DIMENSIONS)[number]['key'], number>> }) {
     return (
-        <div className="flex items-end gap-1.5 h-24 w-full">
-            {points.map((p, i) => {
-                const heightPct = Math.max(4, (p.score / maxScore) * 100);
-                const color =
-                    p.score >= 85 ? '#22c55e'
-                    : p.score >= 65 ? '#f59e0b'
-                    : '#ef4444';
-                const label = p.date.slice(5);
+        <div className="space-y-4">
+            {SCORE_BREAKDOWN_DIMENSIONS.map(({ key, label, max, color }) => {
+                const value = Math.max(0, Math.min(max, breakdown?.[key] ?? 0));
+                const percent = Math.round((value / max) * 100);
+                const tone = percent >= 80 ? 'var(--color-success)' : percent >= 50 ? 'var(--color-warning)' : 'var(--color-danger)';
                 return (
-                    <div key={i} className="flex-1 flex flex-col items-center gap-1 group" title={`${p.date}: ${p.score}%`}>
-                        <span className="text-[9px] text-[--color-text-muted] opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
-                            {p.score}%
-                        </span>
-                        <div
-                            className="w-full rounded-t-sm transition-all duration-300"
-                            style={{ height: `${heightPct}%`, background: color }}
-                        />
-                        <span className="text-[9px] text-[--color-text-muted] leading-none">{label}</span>
+                    <div key={key} className="space-y-1.5">
+                        <div className="flex items-center justify-between gap-3">
+                            <span className="text-sm font-medium text-[--color-text-primary]">{label}</span>
+                            <span className="text-sm font-semibold" style={{ color: tone }}>{percent}%</span>
+                        </div>
+                        <div className="h-2.5 rounded-full bg-[--color-border] overflow-hidden">
+                            <div
+                                className="h-full rounded-full transition-all duration-500"
+                                style={{ width: `${percent}%`, backgroundColor: color }}
+                            />
+                        </div>
                     </div>
                 );
             })}
@@ -114,7 +119,6 @@ const CATEGORY_DETAILS: Record<string, string> = {
 
 export default function ScorePage() {
     const scoreQuery = useScore();
-    const historyQuery = useScoreHistory();
 
     const bandConfig = {
         'tender-ready': { label: 'Tender Ready', variant: 'success' as const, icon: <CheckCircle2 size={14} /> },
@@ -171,30 +175,43 @@ export default function ScorePage() {
                     ) : null}
                 </Card>
 
-                {/* History chart */}
+                {/* Score breakdown */}
                 <Card
                     accent
                     className="lg:col-span-3"
                     header={
                         <div className="flex items-center gap-2">
                             <TrendingUp size={15} className="text-[--color-primary]" />
-                            <h3 className="text-sm font-semibold text-[--color-text-primary]">Score History (30 days)</h3>
+                            <h3 className="text-sm font-semibold text-[--color-text-primary]">Score Breakdown</h3>
                         </div>
                     }
                 >
-                    {historyQuery.isLoading ? (
-                        <Skeleton className="h-24 w-full" />
-                    ) : historyQuery.isError ? (
-                        <p className="text-sm text-[--color-text-muted]">History unavailable</p>
-                    ) : historyQuery.data && historyQuery.data.length > 0 ? (
-                        <HistoryChart points={historyQuery.data} />
-                    ) : (
-                        <div className="h-24 flex items-center justify-center text-sm text-[--color-text-muted]">
-                            Not enough history yet - check back tomorrow
+                    {scoreQuery.isLoading ? (
+                        <div className="space-y-4">
+                            {[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-8 w-full" />)}
                         </div>
+                    ) : scoreQuery.isError ? (
+                        <p className="text-sm text-[--color-text-muted]">Score breakdown unavailable</p>
+                    ) : (
+                        <ScoreBreakdownBars breakdown={scoreQuery.data?.scoreBreakdown} />
                     )}
                 </Card>
             </div>
+
+            {/* Score history */}
+            <Card
+                accent
+                header={
+                    <div className="flex items-center gap-2">
+                        <TrendingUp size={15} className="text-[--color-primary]" />
+                        <h3 className="text-sm font-semibold text-[--color-text-primary]">Score History</h3>
+                    </div>
+                }
+            >
+                <div className="h-24 flex items-center justify-center text-sm text-[--color-text-muted]">
+                    Score history available after 30 days
+                </div>
+            </Card>
 
             {/* Missing documents */}
             <Card

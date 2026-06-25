@@ -163,6 +163,7 @@ export async function POST(req: Request) {
       gaps: tenderScore.gaps,
       strengths: tenderScore.strengths,
       priorityActions: tenderScore.priorityActions,
+      evidence: tenderScore.evidence,
       recommendation: tenderScore.recommendation,
     } : null,
   };
@@ -204,9 +205,10 @@ export async function POST(req: Request) {
     ? [
         `Your overall compliance score is ${profile.overallScore}%. Your match score for “${tender.title}” is ${tenderScore.matchScore}%.`,
         tenderScore.isEligible ? 'The rules-based assessment currently marks you as eligible.' : 'The rules-based assessment currently marks you as not yet eligible.',
-        tenderScore.missingDocuments.length ? `Missing documents: ${tenderScore.missingDocuments.join(', ')}.` : 'No required document categories are currently missing.',
+        tenderScore.missingDocuments.length ? `Missing or unsupported uploaded document evidence: ${tenderScore.missingDocuments.join(', ')}.` : 'Uploaded company documents support the required tender evidence categories.',
+        tenderScore.evidence.length ? "Evidence checked: " + tenderScore.evidence.map((item) => `${item.category}: ${item.documentName ?? item.reason}`).join("; ") + "." : "",
         tenderScore.recommendation,
-      ].join('\n\n')
+      ].filter(Boolean).join('\n\n')
     : [
         `Your current compliance score is ${profile.overallScore}%.`,
         profile.missingCategories.length ? `Missing categories: ${profile.missingCategories.join(', ')}.` : 'No required compliance categories are currently missing.',

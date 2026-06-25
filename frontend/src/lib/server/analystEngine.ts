@@ -59,10 +59,62 @@ function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
 }
 
+function tenderRequirementText(tender: TenderDetail | TenderMatch): string {
+  return [
+    tender.title,
+    tender.category,
+    tender.description,
+    ...(tender.requirements ?? []),
+    ...(tender.eligibilityCriteria ?? []),
+    ...(tender.recommendedDocuments ?? []),
+    ...(tender.required_categories ?? []),
+  ].filter(Boolean).join(' ').toLowerCase();
+}
+
+function inferMinBbbeeLevel(text: string): number | undefined {
+  const match = text.match(/(?:b-bbee|bbbee|bee)[^\d]{0,30}(?:level|lvl)?\s*([1-8])|(?:level|lvl)\s*([1-8])[^a-z0-9]{0,30}(?:b-bbee|bbbee|bee)/i);
+  const level = Number(match?.[1] ?? match?.[2]);
+  return level >= 1 && level <= 8 ? level : undefined;
+}
+
+function inferMinCidbGrade(text: string): string | undefined {
+  const match = text.match(/(?:cidb|contractor grading|grading designation)[^\d]{0,40}(?:grade|grading)?\s*([1-9])\s*(gb|ce|eb|ep|me|so|sq|sn|sb)?/i);
+  if (!match?.[1]) return undefined;
+  return `Grade ${match[1]}${match[2] ? ` ${match[2].toUpperCase()}` : ''}`;
+}
+
+function inferRequiredCertifications(text: string): string[] {
+  const certifications = new Set<string>();
+  if (/\bcidb\b|contractor grading|grading designation/i.test(text)) certifications.add('CIDB');
+  if (/\bnhbrc\b/i.test(text)) certifications.add('NHBRC');
+  if (/iso\s*9001|quality management/i.test(text)) certifications.add('ISO 9001');
+  if (/iso\s*14001|environmental management/i.test(text)) certifications.add('ISO 14001');
+  if (/iso\s*45001|ohsas\s*18001|occupational health|health and safety|\bohs\b/i.test(text)) certifications.add('ISO 45001');
+  return [...certifications];
+}
+
 export function buildTenderRequirementsFromTender(tender: TenderDetail | TenderMatch): TenderRequirements {
+  const text = tenderRequirementText(tender);
+  const required = new Set<string>(tender.required_categories?.length ? tender.required_categories : ['tax', 'registration']);
+  const preferred = new Set<string>(tender.recommendedDocuments ?? []);
+
+  if (/\bbbbee\b|\bb-bbee\b|\bbee\b|sworn affidavit/i.test(text)) required.add('bbbee');
+  if (/\bcidb\b|\bnhbrc\b|iso\s*\d{4,5}|construction|civil works|engineering|quality management|environmental management|health and safety|\bohs\b/i.test(text)) required.add('certification');
+  if (/financial statement|annual financial|bank statement|bank confirmation|turnover/i.test(text)) required.add('financial');
+  if (/insurance|public liability|professional indemnity|letter of good standing|coida|safety file/i.test(text)) required.add('legal');
+
+  const requiredCertifications = inferRequiredCertifications(text);
+  const minBBBEELevel = inferMinBbbeeLevel(text);
+  const minCIDBGrade = inferMinCidbGrade(text);
+  const requiresCsd = /\bcsd\b|central supplier database|supplier number|supplier registration/i.test(text);
+
   return {
-    requiredCategories: tender.required_categories || ['tax', 'registration'],
-    preferredCategories: tender.recommendedDocuments || [],
+    requiredCategories: [...required],
+    preferredCategories: [...preferred],
+    ...(minBBBEELevel ? { minBBBEELevel } : {}),
+    ...(minCIDBGrade ? { minCIDBGrade } : {}),
+    ...(requiredCertifications.length ? { requiredCertifications } : {}),
+    ...(requiresCsd ? { requiresCsd: true } : {}),
   };
 }
 

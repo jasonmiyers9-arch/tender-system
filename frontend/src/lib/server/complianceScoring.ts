@@ -75,6 +75,7 @@ export interface TenderMatchScore {
   recommendation: string;
   confidenceScore: number;
   priorityActions: PriorityAction[];
+  evidence: RequirementEvidence[];
   isEligible: boolean;
   calculatedAt: string;
 }
@@ -94,6 +95,19 @@ export interface ComplianceGap {
   recommendation: string;
 }
 
+export interface RequirementEvidence {
+  category: string;
+  requirement: string;
+  matched: boolean;
+  valid: boolean;
+  verified: boolean;
+  documentId: string | null;
+  documentName: string | null;
+  documentStatus: string | null;
+  expiryDate: string | null;
+  reason: string;
+}
+
 export interface PriorityAction {
   title: string;
   severity: 'critical' | 'major' | 'minor';
@@ -107,6 +121,7 @@ export interface TenderRequirements {
   minBBBEELevel?: number;
   minCIDBGrade?: string;
   requiredCertifications?: string[];
+  requiresCsd?: boolean;
   minCompanyAge?: number;
   minAnnualTurnover?: number;
 }
@@ -154,6 +169,25 @@ function complianceGroup(category: string): string {
   return DOCUMENT_CATEGORY_GROUPS[category as DocumentCategory] ?? category;
 }
 
+function documentMatchesExpectedType(doc: DocumentWithAnalysis, expectedType: string): boolean {
+  const expected = expectedType.toLowerCase().trim();
+  const category = doc.category.toLowerCase();
+  const group = complianceGroup(doc.category);
+  const text = documentEvidenceText(doc);
+
+  if (expected === 'cidb') {
+    return category === 'cidb_certificate' || /\bcidb\b|contractor grading|grading designation/.test(text);
+  }
+  if (expected === 'nhbrc') {
+    return category === 'nhbrc_certificate' || /\bnhbrc\b/.test(text);
+  }
+  if (expected.startsWith('iso')) {
+    return category === 'iso_certificate' || text.includes(expected.replace(/\s+/g, ' '));
+  }
+
+  return group === complianceGroup(expected);
+}
+
 /**
  * Sector-based expected document categories
  * Used by Document Completeness scoring to determine expected doc count per sector
@@ -174,7 +208,7 @@ export const SECTOR_DOCUMENT_REQUIREMENTS: Record<string, string[]> = {
 export function getExpectedDocumentsForSector(sector?: string): string[] {
   const normalized = (sector ?? '').toLowerCase().trim();
   const scmSector = getScmSectorForText(normalized);
-  return scmSector?.expectedDocumentGroups ?? SECTOR_DOCUMENT_REQUIREMENTS[normalized] ?? SECTOR_DOCUMENT_REQUIREMENTS.default;
+  return SECTOR_DOCUMENT_REQUIREMENTS[normalized] ?? scmSector?.expectedDocumentGroups ?? SECTOR_DOCUMENT_REQUIREMENTS.default;
 }
 
 // ─── Scoring Functions ────────────────────────────────────────────────────────
@@ -432,6 +466,177 @@ function pickPrimaryRecommendation(
 /**
  * Calculate tender match score for a company
  */
+function normalizeEvidenceText(value: string | null | undefined): string {
+  return (value ?? '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function documentEvidenceText(doc: DocumentWithAnalysis): string {
+  const analysis = doc.documentAnalysis ?? doc.analysis;
+  const csd = analysis?.csdSupplierSummary;
+  return normalizeEvidenceText([
+    doc.name,
+    doc.category,
+    doc.status,
+    doc.extractedText,
+    doc.aiSummary,
+    doc.analysis?.extractedText,
+    analysis?.documentType,
+    ...(analysis?.keywords ?? []),
+    csd?.supplierNumber,
+    csd?.legalName,
+    csd?.registrationNumber,
+    csd?.taxNumber,
+    csd?.vatNumber,
+    csd?.bbbeeLevel,
+    csd?.cidbGrade,
+    csd?.taxCompliant === true ? 'tax compliant' : csd?.taxCompliant === false ? 'tax not compliant' : '',
+    csd?.active === true ? 'active supplier' : csd?.active === false ? 'inactive supplier' : '',
+  ].filter(Boolean).join(' '));
+}
+
+function parseLevel(value: string | null | undefined): number | null {
+  const match = (value ?? '').match(/(?:level\s*)?([1-8])\b/i);
+  if (!match) return null;
+  const level = Number(match[1]);
+  return Number.isFinite(level) ? level : null;
+}
+
+function parseGrade(value: string | null | undefined): number | null {
+  const match = (value ?? '').match(/(?:cidb\s*)?(?:grade|grading)?\s*([1-9])\b/i);
+  if (!match) return null;
+  const grade = Number(match[1]);
+  return Number.isFinite(grade) ? grade : null;
+}
+
+function isDocumentCurrent(doc: DocumentWithAnalysis): boolean {
+  const days = daysUntilExpiry(doc.expiryDate);
+  return days === null || days >= 0;
+}
+
+function bestDocumentForCategory(documents: DocumentWithAnalysis[], category: string): DocumentWithAnalysis | null {
+  const grouped = documents.filter((doc) => complianceGroup(doc.category) === category);
+  if (grouped.length === 0) return null;
+  return grouped.sort((a, b) => {
+    const score = (doc: DocumentWithAnalysis) =>
+      (isDocumentCurrent(doc) ? 100 : 0) +
+      (doc.status === 'verified' ? 20 : 0) +
+      ((doc.documentAnalysis ?? doc.analysis) ? 5 : 0);
+    return score(b) - score(a);
+  })[0];
+}
+
+function docHasCsdEvidence(doc: DocumentWithAnalysis): boolean {
+  const analysis = doc.documentAnalysis ?? doc.analysis;
+  const text = documentEvidenceText(doc);
+  return Boolean(
+    analysis?.csdSupplierSummary?.isCsdSupplierSummary ||
+    /\b(csd|central supplier database|supplier number|maaa\d{6,})\b/i.test(text)
+  );
+}
+
+function docHasCidbEvidence(doc: DocumentWithAnalysis): boolean {
+  const text = documentEvidenceText(doc);
+  return /\b(cidb|construction industry development board|contractor grading|contractor registration)\b/i.test(text);
+}
+
+function docHasBbbeeEvidence(doc: DocumentWithAnalysis): boolean {
+  const analysis = doc.documentAnalysis ?? doc.analysis;
+  const text = documentEvidenceText(doc);
+  return Boolean(
+    analysis?.csdSupplierSummary?.bbbeeLevel ||
+    analysis?.hasBBBEELevel ||
+    /\b(b-bbee|bbbee|bee certificate|sworn affidavit|black economic empowerment)\b/i.test(text)
+  );
+}
+
+function documentMeetsSpecificRequirement(doc: DocumentWithAnalysis, category: string, requirements: TenderRequirements): { ok: boolean; reason: string } {
+  const analysis = doc.documentAnalysis ?? doc.analysis;
+  const text = documentEvidenceText(doc);
+
+  if (category === 'registration' && requirements.requiresCsd && !docHasCsdEvidence(doc)) {
+    return { ok: false, reason: 'Uploaded registration document does not prove CSD supplier registration.' };
+  }
+
+  if (category === 'bbbee') {
+    if (!docHasBbbeeEvidence(doc)) {
+      return { ok: false, reason: 'Uploaded B-BBEE document could not be confirmed from its extracted text.' };
+    }
+    if (requirements.minBBBEELevel) {
+      const level = parseLevel(analysis?.csdSupplierSummary?.bbbeeLevel) ?? parseLevel(text);
+      if (level === null) return { ok: false, reason: `B-BBEE level ${requirements.minBBBEELevel} or better is required, but no level was found in the uploaded document.` };
+      if (level > requirements.minBBBEELevel) return { ok: false, reason: `B-BBEE level ${level} does not meet required level ${requirements.minBBBEELevel} or better.` };
+    }
+  }
+
+  if (category === 'certification') {
+    if (requirements.minCIDBGrade) {
+      if (!docHasCidbEvidence(doc)) return { ok: false, reason: 'Tender requires CIDB evidence, but the uploaded certification does not appear to be a CIDB document.' };
+      const requiredGrade = parseGrade(requirements.minCIDBGrade);
+      const actualGrade = parseGrade(analysis?.csdSupplierSummary?.cidbGrade) ?? parseGrade(text);
+      if (requiredGrade !== null && actualGrade === null) return { ok: false, reason: `CIDB grade ${requiredGrade} or higher is required, but no grade was found in the uploaded document.` };
+      if (requiredGrade !== null && actualGrade !== null && actualGrade < requiredGrade) return { ok: false, reason: `CIDB grade ${actualGrade} is below required grade ${requiredGrade}.` };
+    }
+
+    if (requirements.requiredCertifications?.length) {
+      const missing = requirements.requiredCertifications.filter((cert) => !text.includes(normalizeEvidenceText(cert)));
+      if (missing.length === requirements.requiredCertifications.length) {
+        return { ok: false, reason: `Uploaded certification does not show required certification evidence: ${requirements.requiredCertifications.join(', ')}.` };
+      }
+    }
+  }
+
+  return { ok: true, reason: 'Uploaded document evidence supports this requirement.' };
+}
+
+function evaluateRequirementEvidence(profile: CompanyComplianceProfile, category: string, requirements: TenderRequirements): RequirementEvidence {
+  const doc = bestDocumentForCategory(profile.documents, category);
+  const requirement = `${category.toUpperCase()} evidence required`;
+
+  if (!doc) {
+    return {
+      category,
+      requirement,
+      matched: false,
+      valid: false,
+      verified: false,
+      documentId: null,
+      documentName: null,
+      documentStatus: null,
+      expiryDate: null,
+      reason: `No uploaded ${category.toUpperCase()} document was found for this company.`,
+    };
+  }
+
+  const valid = isDocumentCurrent(doc);
+  if (!valid) {
+    return {
+      category,
+      requirement,
+      matched: true,
+      valid: false,
+      verified: doc.status === 'verified',
+      documentId: doc.id,
+      documentName: doc.name,
+      documentStatus: doc.status,
+      expiryDate: doc.expiryDate,
+      reason: `${doc.name} is uploaded but expired.`,
+    };
+  }
+
+  const specific = documentMeetsSpecificRequirement(doc, category, requirements);
+  return {
+    category,
+    requirement,
+    matched: specific.ok,
+    valid,
+    verified: doc.status === 'verified',
+    documentId: doc.id,
+    documentName: doc.name,
+    documentStatus: doc.status,
+    expiryDate: doc.expiryDate,
+    reason: specific.ok ? `${doc.name} supports ${category.toUpperCase()} requirement.` : specific.reason,
+  };
+}
 export function calculateTenderMatchScore(
   companyId: string,
   tenderId: string,
@@ -439,125 +644,83 @@ export function calculateTenderMatchScore(
   profile: CompanyComplianceProfile,
   requirements: TenderRequirements
 ): TenderMatchScore {
+  const normalizedRequired = uniqueStrings(
+    (requirements.requiredCategories.length > 0 ? requirements.requiredCategories : ['tax', 'registration'])
+      .map(complianceGroup)
+  );
+  const normalizedPreferred = uniqueStrings(requirements.preferredCategories.map(complianceGroup));
+  const evidence = normalizedRequired.map((category) => evaluateRequirementEvidence(profile, category, requirements));
   const gaps: ComplianceGap[] = [];
   const recommendations: string[] = [];
-  
-  // 1. Document Completeness (25%)
-  let completenessScore = 100;
-  for (const required of requirements.requiredCategories) {
-    const catScore = profile.categoryScores[required as keyof CategoryScores];
-    if (!catScore?.hasDocument) {
-      completenessScore -= 100 / requirements.requiredCategories.length;
+
+  for (const item of evidence) {
+    if (!item.documentId) {
       gaps.push({
-        category: required,
-        requirement: `${required.toUpperCase()} document required`,
+        category: item.category,
+        requirement: item.requirement,
         severity: 'critical',
-        recommendation: `Upload a valid ${required} document`,
+        recommendation: `Upload a valid ${item.category.toUpperCase()} document`,
       });
+      continue;
     }
-  }
-  completenessScore = Math.max(0, completenessScore);
-  
-  // 2. Document Validity (25%)
-  let validityScore = 100;
-  const requiredCats = new Set(requirements.requiredCategories);
-  for (const [category, catScore] of Object.entries(profile.categoryScores)) {
-    if (!catScore) continue;
-    if (requiredCats.has(category)) {
-      if (catScore.isExpired) {
-        validityScore -= 100 / requirements.requiredCategories.length;
-        gaps.push({
-          category,
-          requirement: `Valid ${category} document`,
-          severity: 'critical',
-          recommendation: `Renew your expired ${category} document`,
-        });
-      } else if (catScore.expiresInDays !== null && catScore.expiresInDays <= EXPIRY_WARNING_DAYS) {
-        validityScore -= 10; // Penalty for expiring soon
-        recommendations.push(`Your ${category} document expires in ${catScore.expiresInDays} days`);
-      }
-    }
-  }
-  validityScore = Math.max(0, validityScore);
-  
-  // 3. Requirement Matching (30%)
-  let requirementScore = 100;
-  
-  // Check B-BBEE level
-  if (requirements.minBBBEELevel) {
-    const bbbeeDoc = profile.documents.find(d => d.category === 'bbbee' && d.analysis);
-    if (!bbbeeDoc) {
-      requirementScore -= 30;
+
+    if (!item.valid) {
       gaps.push({
-        category: 'bbbee',
-        requirement: `B-BBEE Level ${requirements.minBBBEELevel} or better`,
+        category: item.category,
+        requirement: `Current ${item.category.toUpperCase()} document`,
         severity: 'critical',
-        recommendation: 'Upload your B-BBEE certificate',
+        recommendation: `Renew ${item.documentName ?? item.category} before bidding`,
       });
+      continue;
     }
-    // In a real implementation, we'd check the actual level from the document
-  }
-  
-  // Check CIDB grade
-  if (requirements.minCIDBGrade) {
-    const cidbDoc = profile.documents.find(d => 
-      d.category === 'registration' && 
-      d.analysis?.extractedText.toLowerCase().includes('cidb')
-    );
-    if (!cidbDoc) {
-      requirementScore -= 20;
+
+    if (!item.matched) {
       gaps.push({
-        category: 'registration',
-        requirement: `CIDB Grade ${requirements.minCIDBGrade} or higher`,
-        severity: 'major',
-        recommendation: 'Upload your CIDB registration certificate',
+        category: item.category,
+        requirement: item.requirement,
+        severity: 'critical',
+        recommendation: item.reason,
       });
+      continue;
+    }
+
+    if (!item.verified) {
+      recommendations.push(`Request verification for ${item.documentName ?? item.category}`);
     }
   }
-  
-  // Check preferred categories (bonus, not penalty)
+
+  for (const doc of profile.expiringDocuments) {
+    if (normalizedRequired.includes(complianceGroup(doc.category))) {
+      recommendations.push(`${doc.documentName} expires in ${doc.daysUntilExpiry} days`);
+    }
+  }
+
+  const denominator = Math.max(evidence.length, 1);
+  const matchedCount = evidence.filter((item) => item.documentId && item.matched).length;
+  const validCount = evidence.filter((item) => item.documentId && item.matched && item.valid).length;
+  const verifiedCount = evidence.filter((item) => item.documentId && item.matched && item.valid && item.verified).length;
+
+  const completenessScore = Math.round((matchedCount / denominator) * 100);
+  const validityScore = Math.round((validCount / denominator) * 100);
+  const requirementScore = Math.round((validCount / denominator) * 100);
+  const verificationScore = Math.round((verifiedCount / denominator) * 100);
+
   let bonusPoints = 0;
-  for (const preferred of requirements.preferredCategories) {
-    const catScore = profile.categoryScores[preferred as keyof CategoryScores];
-    if (catScore?.hasDocument && catScore.isVerified) {
+  for (const preferred of normalizedPreferred) {
+    const preferredDoc = evaluateRequirementEvidence(profile, preferred, requirements);
+    if (preferredDoc.documentId && preferredDoc.valid && preferredDoc.verified && preferredDoc.matched) {
       bonusPoints += 5;
     }
   }
-  
-  requirementScore = Math.max(0, requirementScore);
-  
-  // 4. Verification Status (20%)
-  let verificationScore = 0;
-  let verifiedCount = 0;
-  let requiredCount = 0;
-  
-  for (const category of requirements.requiredCategories) {
-    const catScore = profile.categoryScores[category as keyof CategoryScores];
-    if (catScore?.hasDocument) {
-      requiredCount++;
-      if (catScore.isVerified) {
-        verifiedCount++;
-      }
-    }
-  }
-  
-  if (requiredCount > 0) {
-    verificationScore = (verifiedCount / requiredCount) * 100;
-  }
-  
-  if (verifiedCount < requiredCount) {
-    recommendations.push(`${requiredCount - verifiedCount} required document(s) pending verification`);
-  }
-  
-  // Calculate final score
+
   const breakdown: TenderScoreBreakdown = {
-    documentCompleteness: Math.round(completenessScore),
-    documentValidity: Math.round(validityScore),
-    requirementMatch: Math.round(requirementScore),
-    verificationStatus: Math.round(verificationScore),
+    documentCompleteness: completenessScore,
+    documentValidity: validityScore,
+    requirementMatch: requirementScore,
+    verificationStatus: verificationScore,
     bonusPoints: Math.min(bonusPoints, 10),
   };
-  
+
   const matchScore = Math.min(100, Math.round(
     breakdown.documentCompleteness * TENDER_SCORE_WEIGHTS.documentCompleteness +
     breakdown.documentValidity * TENDER_SCORE_WEIGHTS.documentValidity +
@@ -565,21 +728,20 @@ export function calculateTenderMatchScore(
     breakdown.verificationStatus * TENDER_SCORE_WEIGHTS.verificationStatus +
     breakdown.bonusPoints
   ));
-  
-  // Determine eligibility
+
   const hasCriticalGaps = gaps.some(g => g.severity === 'critical');
   const isEligible = !hasCriticalGaps && matchScore >= 50;
-
   const missingDocuments = uniqueStrings(
-    gaps
-      .filter(gap => gap.severity === 'critical')
-      .map(gap => gap.category)
+    evidence
+      .filter((item) => !item.documentId || !item.matched || !item.valid)
+      .map((item) => item.category)
   );
-  const strengths = buildStrengths(profile, requirements);
-  const priorityActions = buildPriorityActions(gaps, profile, requirements);
-  const confidenceScore = calculateConfidenceScore(profile, requirements);
+  const normalizedRequirements = { ...requirements, requiredCategories: normalizedRequired, preferredCategories: normalizedPreferred };
+  const strengths = buildStrengths(profile, normalizedRequirements);
+  const priorityActions = buildPriorityActions(gaps, profile, normalizedRequirements);
+  const confidenceScore = calculateConfidenceScore(profile, normalizedRequirements);
   const recommendation = pickPrimaryRecommendation(isEligible, priorityActions, recommendations);
-  
+
   return {
     tenderId,
     tenderTitle,
@@ -593,11 +755,11 @@ export function calculateTenderMatchScore(
     recommendation,
     confidenceScore,
     priorityActions,
+    evidence,
     isEligible,
     calculatedAt: new Date().toISOString(),
   };
 }
-
 /**
  * Generate human-readable compliance report
  */
@@ -758,12 +920,13 @@ export function calculateTenderReadinessScore(
   // Valid (non-expired, uploaded) docs ÷ expected for sector × 30
   const validDocs = documents.filter(doc => {
     const days = daysUntilExpiry(doc.expiryDate);
-    const isValid = days === null || days >= 0;
-    const categoryMatch = expectedCategories.includes(complianceGroup(doc.category));
-    return isValid && categoryMatch;
+    return days === null || days >= 0;
   });
+  const validExpectedTypes = expectedCategories.filter(expected =>
+    validDocs.some(doc => documentMatchesExpectedType(doc, expected))
+  );
   const validDocCategories = new Set(validDocs.map(d => complianceGroup(d.category)));
-  const validDocCount = validDocCategories.size;
+  const validDocCount = validExpectedTypes.length;
   const documentCompletenessScore = Math.round((validDocCount / Math.max(expectedCount, 1)) * TENDER_READINESS_WEIGHTS.documentCompleteness);
   
   // 2. Verification Coverage (25pts)
@@ -789,14 +952,12 @@ export function calculateTenderReadinessScore(
   const complianceConsistencyScore = calculateComplianceConsistency(expiredInPast12Months, isNewAccount);
   
   // 5. Tender Fit Bonus (10pts) - optional, based on tender requirements match
-  let tenderFitBonusScore = 0;
+  let tenderFitBonusScore = TENDER_READINESS_WEIGHTS.tenderFitBonus;
   if (tenderRequirements) {
     const requiredCategories = tenderRequirements.requiredCategories.map(complianceGroup);
     if (requiredCategories.length > 0) {
       const matchedRequired = requiredCategories.filter(cat => validDocCategories.has(cat)).length;
       tenderFitBonusScore = Math.round((matchedRequired / requiredCategories.length) * TENDER_READINESS_WEIGHTS.tenderFitBonus);
-    } else {
-      tenderFitBonusScore = TENDER_READINESS_WEIGHTS.tenderFitBonus; // Full bonus if no specific requirements
     }
   }
   
@@ -805,7 +966,7 @@ export function calculateTenderReadinessScore(
   // Determine bid-ready status (100% = all expected docs valid + verified)
   const missingForBidReady: string[] = [];
   for (const category of expectedCategories) {
-    const doc = documents.find(d => complianceGroup(d.category) === category);
+    const doc = documents.find(d => documentMatchesExpectedType(d, category));
     if (!doc) {
       missingForBidReady.push(`Missing ${category.toUpperCase()} document`);
     } else if (doc.status !== 'verified') {

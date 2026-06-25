@@ -1,3 +1,5 @@
+import { DOCUMENT_CATEGORY_GROUPS, type DocumentCategory } from '@/lib/api/types';
+
 // Calculates the Tender Readiness Score from a company's compliance documents.
 // Each of the 6 required categories contributes 100/6 ≈ 16.67%.
 // Valid doc (exists + not expired) → full weight
@@ -13,7 +15,6 @@ const REQUIRED_CATEGORIES = [
   'registration',
 ] as const;
 
-type RequiredCategory = (typeof REQUIRED_CATEGORIES)[number];
 
 interface ScoredDocument {
   category: string;
@@ -21,12 +22,16 @@ interface ScoredDocument {
   status?: string;
 }
 
+function documentGroup(category: string): string {
+  return DOCUMENT_CATEGORY_GROUPS[category as DocumentCategory] ?? category;
+}
+
 export function calculateReadinessScore(documents: ScoredDocument[]): number {
   const weight = 100 / REQUIRED_CATEGORIES.length;
   let score = 0;
 
   for (const category of REQUIRED_CATEGORIES) {
-    const doc = documents.find((d) => d.category === category);
+    const doc = documents.find((d) => documentGroup(d.category) === category);
 
     if (doc) {
       const isValid =
@@ -43,7 +48,7 @@ export function buildComplianceScore(documents: ScoredDocument[]) {
   const now = new Date();
   const score = calculateReadinessScore(documents);
 
-  const presentCategories = new Set(documents.map((d) => d.category));
+  const presentCategories = new Set(documents.map((d) => documentGroup(d.category)));
   const missingDocuments = REQUIRED_CATEGORIES.filter(
     (c) => !presentCategories.has(c)
   );
@@ -58,7 +63,7 @@ export function buildComplianceScore(documents: ScoredDocument[]) {
     .map((d) => (d as { name?: string; category: string }).name ?? d.category);
 
   const completedDocuments = REQUIRED_CATEGORIES.filter((c) => {
-    const doc = documents.find((d) => d.category === c);
+    const doc = documents.find((d) => documentGroup(d.category) === c);
     return doc && doc.expiryDate && new Date(doc.expiryDate) > now;
   }).length;
 

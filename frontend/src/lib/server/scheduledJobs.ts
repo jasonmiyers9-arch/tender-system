@@ -1,4 +1,3 @@
-import { buildComplianceScore } from '@/lib/utils/calculateReadinessScore';
 import {
   applyHybridScoreAdjustment,
   buildTenderRequirementsFromTender,
@@ -6,6 +5,7 @@ import {
 } from './analystEngine';
 import {
   calculateTenderMatchScore,
+  calculateTenderReadinessScore,
   generateComplianceProfile,
 } from './complianceScoring';
 import {
@@ -23,6 +23,7 @@ import {
   upsertTenderMatch,
   purgeUsersScheduledForDeletion,
 } from './firestoreService';
+import { getExpiredInPast12Months, isNewAccount } from './expiryCheckService';
 import { getScrapedTenders, runScrapeAll, type ScrapedTender } from './tenderScraper';
 import { sendTenderMatchDigest } from './notificationDelivery';
 
@@ -385,16 +386,38 @@ export async function runGenerateScoreSnapshotsJob(): Promise<ScheduledJobResult
 
   for (const company of companies) {
     try {
-      const documents = await listDocumentsForCompany(company.id);
-      const score = buildComplianceScore(documents);
+      const [documents, expiredInPast12Months, newAccount] = await Promise.all([
+        listDocumentsForCompany(company.id),
+        getExpiredInPast12Months(company.id),
+        isNewAccount(company.id),
+      ]);
+      const score = calculateTenderReadinessScore(
+        company.id,
+        documents,
+        {
+          name: company.name,
+          registrationNumber: company.registrationNumber,
+          vatNumber: company.vatNumber,
+          industry: company.industry,
+          province: company.province ?? undefined,
+          address: company.address,
+          contactEmail: company.email,
+          contactPhone: company.phone,
+          bbbeeLevel: company.bbbeeLevel ? Number(String(company.bbbeeLevel).replace(/[^0-9]/g, '')) || undefined : undefined,
+          cidbGrade: company.cidbGrade ?? undefined,
+        },
+        company.industry,
+        expiredInPast12Months,
+        newAccount
+      );
       await createScoreHistoryRecord({
         companyId: company.id,
-        score: score.score,
-        band: score.band,
-        completedDocuments: score.completedDocuments,
-        totalDocuments: score.totalDocuments,
-        missingDocuments: score.missingDocuments,
-        expiringDocuments: score.expiringDocuments,
+        score: score.totalScore,
+        band: score.totalScore >= 85 ? 'tender-ready' : score.totalScore >= 65 ? 'partially-ready' : 'high-risk',
+        completedDocuments: score.breakdown.validDocuments,
+        totalDocuments: score.breakdown.expectedDocuments,
+        missingDocuments: score.missingForBidReady,
+        expiringDocuments: [],
         snapshotDate,
       });
       snapshotsCreated++;

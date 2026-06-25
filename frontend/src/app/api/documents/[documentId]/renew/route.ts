@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getDocumentById, getUserByToken, listCompaniesForUser, renewDocument } from '../../../../../lib/server/firestoreService';
+import { publishRescoreEvent } from '@/lib/server/analystEngine';
 
 function parseToken(req: Request): string | null {
   const header = req.headers.get('authorization');
@@ -42,6 +43,12 @@ export async function PATCH(
     const body = await req.json();
     const expiryDate = body.expiry_date ? String(body.expiry_date) : null;
     const updated = await renewDocument(documentId, expiryDate);
+    await publishRescoreEvent({
+      eventType: 'document.renewed',
+      companyId: updated.companyId,
+      actorUserId: user.id,
+      metadata: { documentId: updated.id, expiryDate: updated.expiryDate },
+    });
     return NextResponse.json(updated);
   } catch (error) {
     console.error('PATCH /api/documents/[documentId]/renew error:', error);

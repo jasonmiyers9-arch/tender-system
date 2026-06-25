@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getUserByToken, getCompanyById, listCompaniesForUser, ensureUserCompanyContext, updateCompanyProfile } from '@/lib/server/firestoreService';
 import { isAdminRole } from '@/lib/server/apiAuth';
+import { publishRescoreEvent } from '@/lib/server/analystEngine';
 
 function parseToken(req: Request): string | null {
   const header = req.headers.get('authorization');
@@ -95,6 +96,12 @@ export async function PATCH(req: Request) {
     }
 
     const company = await updateCompanyProfile(companyId, payload);
+    await publishRescoreEvent({
+      eventType: 'company.profile.updated',
+      companyId,
+      actorUserId: user.id,
+      metadata: { updatedFields: Object.keys(payload) },
+    });
     return NextResponse.json(company);
   } catch (error) {
     return NextResponse.json(

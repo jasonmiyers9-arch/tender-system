@@ -195,6 +195,7 @@ export interface ComplianceScore {
     missingDocuments: string[];
     expiringDocuments: string[];
     lastCalculated: string;
+    scoreBreakdown?: TenderReadinessScoreBreakdown;
 }
 
 export interface ScoreHistoryPoint {
