@@ -298,7 +298,8 @@ export default function TendersPage() {
                 <div className="space-y-3">
                     {filteredMatches.map((t) => {
                     const score = t.readinessScore ?? t.matchScore;
-                    const isBidReady = t.isBidReady;
+                    const isBidReady = Boolean(t.isBidReady && score >= 100 && (t.scoreBreakdown?.tenderFitBonus ?? 0) >= 10);
+                    const displayScore = isBidReady ? score : Math.min(score, 99);
 
                     return (
                         <Link key={t.id} href={`/tenders/${t.id}`} className="block group">
@@ -352,7 +353,7 @@ export default function TendersPage() {
                                                 variant={score >= 85 ? 'success' : score >= 65 ? 'warning' : 'danger'}
                                                 size="md"
                                             >
-                                                {score}/100
+                                                {displayScore}/100
                                             </Badge>
                                             <span className="text-[10px] text-[--color-text-muted]">Readiness Score™</span>
                                             <ArrowRight
