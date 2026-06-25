@@ -227,7 +227,7 @@ export async function GET(req: Request) {
               complianceConsistency: Math.round(score.breakdown.documentValidity * 0.15),
               tenderFitBonus: categoryHit ? 10 : Math.round(score.breakdown.bonusPoints),
             },
-            isBidReady: score.isEligible && readinessScore >= 75,
+            isBidReady: score.missingDocuments.length === 0 && readinessScore >= 100,
             gaps: score.gaps.map((gap) => gap.recommendation),
             recommendationReason: categoryHit
               ? `${score.recommendation}. Category match: ${tender.category}.`

@@ -92,9 +92,9 @@ export async function GET(
       const readinessScore = score.missingDocuments.length > 0 ? Math.min(99, score.matchScore + (categoryHit ? 10 : 0)) : Math.min(100, score.matchScore + (categoryHit ? 10 : 0));
       return NextResponse.json({
         tenderId,
-        readyToSubmit: score.isEligible,
+        readyToSubmit: score.missingDocuments.length === 0 && readinessScore >= 100,
         readinessScore,
-        isBidReady: score.isEligible && readinessScore >= 75,
+        isBidReady: score.missingDocuments.length === 0 && readinessScore >= 100,
         blockers: score.gaps.map((gap) => gap.recommendation),
         missingCategories: score.missingDocuments,
         gaps: score.gaps.map((gap) => gap.recommendation),

@@ -111,7 +111,7 @@ async function mapScrapedTenderToDetail(tender: ScrapedTender, companyId?: strin
     ...detail,
     matchScore: readinessScore,
     readinessScore,
-    isBidReady: score.isEligible && readinessScore >= 75,
+    isBidReady: score.missingDocuments.length === 0 && readinessScore >= 100,
     gaps: score.gaps.map((gap) => gap.recommendation),
     recommendationReason: `${score.recommendation}. Category: ${tender.category}.`,
   };

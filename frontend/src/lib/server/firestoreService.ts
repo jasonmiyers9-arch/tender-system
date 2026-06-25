@@ -370,10 +370,10 @@ async function buildReadinessWithCompany(
   
   return {
     tenderId: tender.id,
-    readyToSubmit: readinessScore.isBidReady,
+    readyToSubmit: readinessScore.missingForBidReady.length === 0,
     readinessScore: readinessScore.totalScore,
     scoreBreakdown,
-    isBidReady: readinessScore.isBidReady,
+    isBidReady: readinessScore.missingForBidReady.length === 0,
     blockers: readinessScore.missingForBidReady,
     missingCategories,
     gaps: readinessScore.missingForBidReady,
