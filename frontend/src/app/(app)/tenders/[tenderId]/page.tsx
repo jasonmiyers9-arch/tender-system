@@ -1,15 +1,17 @@
 'use client';
 
-import { use } from 'react';
+import { use, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTender } from '@/lib/hooks/useTenders';
+import { tenders as tendersApi } from '@/lib/api/tenders';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { CardSkeleton } from '@/components/ui/Skeleton';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { formatDate } from '@/lib/utils/formatters';
-import { Calendar, Building2, CheckCircle2, AlertCircle, ArrowRight, Bot, Clock, FileCheck, MapPin, Users } from 'lucide-react';
+import { matchLabel, matchBadgeVariant } from '@/lib/utils/tenderMatch';
+import { Calendar, Building2, CheckCircle2, AlertCircle, ArrowRight, Bot, Clock, FileCheck, MapPin, Users, Download } from 'lucide-react';
 
 
 function documentLabel(category: string): string {
@@ -28,6 +30,34 @@ export default function TenderDetailPage({ params }: { params: Promise<{ tenderI
     const { tenderId } = use(params);
     const router = useRouter();
     const { data: tender, isLoading, isError, refetch } = useTender(tenderId);
+    const [isDownloading, setIsDownloading] = useState(false);
+    const [downloadError, setDownloadError] = useState<string | null>(null);
+    const [downloadingDoc, setDownloadingDoc] = useState<number | null>(null);
+
+    async function handleDownload() {
+        setDownloadError(null);
+        setIsDownloading(true);
+        try {
+            await tendersApi.downloadTenderDocument(tenderId);
+        } catch {
+            setDownloadError('Could not download the tender document. Please try again.');
+        } finally {
+            setIsDownloading(false);
+        }
+    }
+
+    async function handleAttachmentDownload(index: number) {
+        setDownloadError(null);
+        setDownloadingDoc(index);
+        try {
+            await tendersApi.downloadTenderDocument(tenderId, index);
+        } catch {
+            setDownloadError('Could not download that attached document. Please try again.');
+        } finally {
+            setDownloadingDoc(null);
+        }
+    }
+
 
     if (isLoading) return <div className="space-y-4"><CardSkeleton /><CardSkeleton /></div>;
     if (isError || !tender) return <ErrorState onRetry={refetch} />;
@@ -35,7 +65,7 @@ export default function TenderDetailPage({ params }: { params: Promise<{ tenderI
         ...(tender.required_categories ?? []),
         ...(tender.recommendedDocuments ?? []),
     ].filter(Boolean)));
-    const matchLabel = tender.matchScore >= 85 ? 'Strong Match' : tender.matchScore >= 65 ? 'Matched' : 'Low Match';
+    const matchLabelText = matchLabel(tender.matchScore);
 
     return (
         <div className="space-y-6 max-w-4xl mx-auto">
@@ -44,10 +74,11 @@ export default function TenderDetailPage({ params }: { params: Promise<{ tenderI
                     <div className="flex items-center gap-2 mb-2">
                         <Badge variant="default">{tender.category}</Badge>
                         <Badge
-                            variant={tender.matchScore >= 85 ? 'success' : tender.matchScore >= 65 ? 'warning' : 'danger'}
+                            variant={matchBadgeVariant(tender.matchScore)}
                         >
-                            {matchLabel}
+                            {matchLabelText}
                         </Badge>
+                        <span className="text-xs text-[--color-text-muted]">{tender.matchScore}% match</span>
                     </div>
                     <h1 className="text-2xl font-bold text-[--color-text-primary]">{tender.title}</h1>
                     <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-sm text-[--color-text-muted]">
@@ -57,6 +88,14 @@ export default function TenderDetailPage({ params }: { params: Promise<{ tenderI
                     </div>
                 </div>
                 <div className="flex flex-wrap justify-end gap-2">
+                    <Button
+                        variant="secondary"
+                        leftIcon={<Download size={15} />}
+                        onClick={handleDownload}
+                        disabled={isDownloading}
+                    >
+                        {isDownloading ? 'Preparing…' : 'Download Tender PDF'}
+                    </Button>
                     <Button
                         variant="secondary"
                         leftIcon={<Bot size={15} />}
@@ -69,6 +108,10 @@ export default function TenderDetailPage({ params }: { params: Promise<{ tenderI
                     </Button>
                 </div>
             </div>
+
+            {downloadError && (
+                <p className="text-xs text-[--color-danger]">{downloadError}</p>
+            )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
                 <Card padding="sm">
@@ -142,6 +185,36 @@ export default function TenderDetailPage({ params }: { params: Promise<{ tenderI
                                     <li key={g} className="flex items-start gap-2 text-xs text-[--color-text-muted]">
                                         <AlertCircle size={12} className="text-[--color-warning] mt-0.5 flex-shrink-0" />
                                         {g}
+                                    </li>
+                                ))}
+                            </ul>
+                        </Card>
+                    )}
+
+                    {tender.attachments && tender.attachments.length > 0 && (
+                        <Card>
+                            <h3 className="text-sm font-semibold text-[--color-text-primary] mb-1 flex items-center gap-2">
+                                <FileCheck size={15} className="text-[--color-primary]" /> Tender Documents
+                            </h3>
+                            <p className="text-xs text-[--color-text-muted] mb-3">
+                                Documents attached to this tender. Download each to review.
+                            </p>
+                            <ul className="space-y-2">
+                                {tender.attachments.map((doc) => (
+                                    <li key={doc.index} className="flex items-center justify-between gap-2">
+                                        <span className="text-xs text-[--color-text-primary] truncate flex items-center gap-2 min-w-0">
+                                            <FileCheck size={12} className="text-[--color-primary] flex-shrink-0" />
+                                            <span className="truncate">{doc.filename}</span>
+                                        </span>
+                                        <button
+                                            type="button"
+                                            onClick={() => handleAttachmentDownload(doc.index)}
+                                            disabled={downloadingDoc === doc.index}
+                                            className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium text-[--color-primary] hover:bg-[--color-bg] transition-colors disabled:opacity-50 flex-shrink-0 cursor-pointer"
+                                        >
+                                            <Download size={12} />
+                                            {downloadingDoc === doc.index ? 'Downloading…' : 'Download'}
+                                        </button>
                                     </li>
                                 ))}
                             </ul>

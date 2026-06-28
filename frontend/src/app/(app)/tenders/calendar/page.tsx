@@ -13,6 +13,7 @@ import { CardSkeleton } from '@/components/ui/Skeleton';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { useTenderCalendar } from '@/lib/hooks/useTenders';
 import type { TenderCalendarItem } from '@/lib/api/types';
+import { matchBadgeVariant } from '@/lib/utils/tenderMatch';
 import { tenders } from '@/lib/api/tenders';
 
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -106,7 +107,7 @@ function DayCell({
                             <p className="text-[10px] text-[--color-text-muted] mt-0.5">{item.organization}</p>
                             <div className="flex items-center gap-1.5 mt-1.5">
                                 <Badge
-                                    variant={item.matchScore >= 85 ? 'success' : item.matchScore >= 65 ? 'warning' : 'danger'}
+                                    variant={matchBadgeVariant(item.matchScore)}
                                     size="sm"
                                 >
                                     {item.matchScore}%

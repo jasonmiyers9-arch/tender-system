@@ -1,11 +1,28 @@
 import { createHash } from 'node:crypto';
-import type { TenderDetail } from '@/lib/api/types';
+import type { TenderDetail, TenderAttachment } from '@/lib/api/types';
 import { getTenderById } from './firestoreService';
 import { getScrapedTenders, type ScrapedTender } from './tenderScraper';
 
 export function scrapedTenderId(tender: ScrapedTender): string {
   const raw = `${tender.sourceSite}|${tender.tenderNumber || tender.referenceNumber || tender.title}|${tender.deadline}`;
   return `scraped-${createHash('sha256').update(raw).digest('hex').slice(0, 24)}`;
+}
+
+// Maps the PDF documents captured on a scraped tender to the lightweight,
+// URL-free attachment list the company portal can render and download by index.
+// The `index` is the position in the original `documents` array so the download
+// proxy can resolve the exact file. Only fetchable http(s) documents are listed.
+export function toTenderAttachments(documents: ScrapedTender['documents'] | undefined): TenderAttachment[] {
+  if (!documents?.length) return [];
+  return documents
+    .map((doc, index) => ({ doc, index }))
+    .filter(({ doc }) => /^https?:\/\//i.test(doc.url))
+    .map(({ doc, index }) => ({
+      index,
+      filename: doc.filename || `tender-document-${index + 1}.pdf`,
+      extractionStatus: doc.extractionStatus,
+      pageCount: doc.pageCount || undefined,
+    }));
 }
 
 export function inferRequiredCategoriesFromTenderText(text: string): string[] {
@@ -65,6 +82,7 @@ export function mapScrapedTenderToDetail(tender: ScrapedTender): TenderDetail {
     required_categories: requiredCategories,
     status: 'published',
     createdAt: tender.scrapedAt,
+    attachments: toTenderAttachments(tender.documents),
   };
 }
 

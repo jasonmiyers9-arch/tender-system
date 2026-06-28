@@ -1,31 +1,9 @@
 import { NextResponse } from 'next/server';
-import { createHash } from 'node:crypto';
 import { getTenderReadiness, getUserByToken, listDocumentsForCompany, getCompanyById } from '@/lib/server/firestoreService';
 import { requireAuth, parseBearerToken } from '@/lib/server/apiAuth';
 import { getScrapedTenders, type ScrapedTender } from '@/lib/server/tenderScraper';
 import { calculateTenderMatchScore, generateComplianceProfile, type TenderRequirements } from '@/lib/server/complianceScoring';
-import { normalizeTenderCategory } from '@/lib/server/tenderCategories';
-
-function scrapedTenderId(tender: ScrapedTender): string {
-  const raw = `${tender.sourceSite}|${tender.tenderNumber || tender.referenceNumber || tender.title}|${tender.deadline}`;
-  return `scraped-${createHash('sha256').update(raw).digest('hex').slice(0, 24)}`;
-}
-
-function normalizeCategory(value: string): string {
-  const normalized = normalizeTenderCategory(value);
-  return normalized === 'Other' ? value.trim().toLowerCase() : normalized.toLowerCase();
-}
-
-function categoryMatches(tenderCategory: string, companyCategories: string[], tenderText = ''): boolean {
-  if (companyCategories.length === 0) return true;
-  const tender = normalizeCategory(tenderCategory);
-  const haystack = `${tenderCategory} ${tenderText}`.toLowerCase();
-  return companyCategories.some((category) => {
-    const selected = normalizeCategory(category);
-    const rawSelected = category.toLowerCase();
-    return tender === selected || tender.includes(selected) || selected.includes(tender) || haystack.includes(rawSelected) || haystack.includes(selected);
-  });
-}
+import { categoryMatches, scrapedTenderId, applyReadinessBonus } from '@/lib/server/tenderScoring';
 
 function inferRequiredCategoriesFromScrapedTender(tender: ScrapedTender): TenderRequirements {
   const text = [
@@ -89,7 +67,7 @@ export async function GET(
       );
       const company = await getCompanyById(companyId);
       const categoryHit = categoryMatches(scraped.category, company?.tenderCategories ?? [], scraped.fullText || scraped.description || scraped.title);
-      const readinessScore = score.missingDocuments.length > 0 ? Math.min(99, score.matchScore + (categoryHit ? 10 : 0)) : Math.min(100, score.matchScore + (categoryHit ? 10 : 0));
+      const readinessScore = applyReadinessBonus(score.matchScore, score.missingDocuments.length > 0, categoryHit);
       return NextResponse.json({
         tenderId,
         readyToSubmit: score.missingDocuments.length === 0 && readinessScore >= 100,
