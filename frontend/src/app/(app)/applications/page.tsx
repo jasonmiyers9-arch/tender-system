@@ -13,8 +13,8 @@ import { ClipboardList } from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';
 
 function statusVariant(status: string) {
-    if (status === 'approved') return 'success';
-    if (status === 'rejected') return 'danger';
+    if (status === 'approved' || status === 'awarded' || status === 'shortlisted') return 'success';
+    if (status === 'rejected' || status === 'lost') return 'danger';
     return 'warning';
 }
 

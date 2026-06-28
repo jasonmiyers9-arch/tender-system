@@ -3,7 +3,7 @@
 import { use, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, ArrowRight, Building2, Calendar, CheckCircle2, ClipboardCheck, FileCheck, Shield, Building, History, Target, Info } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Building2, Calendar, CheckCircle2, ClipboardCheck, Download, FileArchive, FileCheck, FileText, Shield, Building, History, Target, Info } from 'lucide-react';
 
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
@@ -11,6 +11,7 @@ import { Card } from '@/components/ui/Card';
 import { CardSkeleton } from '@/components/ui/Skeleton';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { useTender, useTenderReadiness } from '@/lib/hooks/useTenders';
+import { tenders } from '@/lib/api/tenders';
 import { formatDate } from '@/lib/utils/formatters';
 
 // Score dimension configuration with max points and icons
@@ -28,6 +29,8 @@ export default function TenderApplyWorkflowPage({ params }: { params: Promise<{ 
     const { data: tender, isLoading, isError, refetch } = useTender(tenderId);
     const readinessQuery = useTenderReadiness(tenderId);
     const [submitting, setSubmitting] = useState(false);
+    const [generatingSbd, setGeneratingSbd] = useState(false);
+    const [generatingBidPack, setGeneratingBidPack] = useState(false);
 
     const checklist = useMemo(() => {
         const ready = readinessQuery.data;
@@ -71,6 +74,26 @@ export default function TenderApplyWorkflowPage({ params }: { params: Promise<{ 
         return reasons;
     }, [tender, readinessQuery.data, scoreBreakdown, readinessScore]);
 
+    const handleDownloadBidPack = async () => {
+        try {
+            setGeneratingBidPack(true);
+            await tenders.downloadBidPack(tenderId);
+        } catch (error) {
+            window.alert(error instanceof Error ? error.message : 'Failed to generate bid pack');
+        } finally {
+            setGeneratingBidPack(false);
+        }
+    };
+    const handleDownloadSbdPack = async () => {
+        try {
+            setGeneratingSbd(true);
+            await tenders.downloadSbdPack(tenderId);
+        } catch (error) {
+            window.alert(error instanceof Error ? error.message : 'Failed to generate SBD pack');
+        } finally {
+            setGeneratingSbd(false);
+        }
+    };
     const handleSubmitApplication = async () => {
         if (!canSubmit) {
             window.alert('Please fix compliance gaps before submitting this application.');
@@ -206,6 +229,17 @@ export default function TenderApplyWorkflowPage({ params }: { params: Promise<{ 
                         </Button>
                         <Button variant="secondary" className="w-full" onClick={() => router.push('/company')}>
                             Complete Company Profile
+                        </Button>
+                        <Button
+                            variant="success"
+                            className="w-full"
+                            leftIcon={<FileText size={14} />}
+                            rightIcon={<Download size={14} />}
+                            onClick={handleDownloadSbdPack}
+                            loading={generatingSbd}
+                            title="Generate pre-filled SBD forms from your company profile and vault documents"
+                        >
+                            Generate SBD Pack
                         </Button>
                         <Button
                             className="w-full"

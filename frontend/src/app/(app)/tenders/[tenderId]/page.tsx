@@ -9,8 +9,21 @@ import { Badge } from '@/components/ui/Badge';
 import { CardSkeleton } from '@/components/ui/Skeleton';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { formatDate } from '@/lib/utils/formatters';
-import { Calendar, Building2, CheckCircle2, AlertCircle, ArrowRight, Bot, Clock, MapPin, Users } from 'lucide-react';
+import { Calendar, Building2, CheckCircle2, AlertCircle, ArrowRight, Bot, Clock, FileCheck, MapPin, Users } from 'lucide-react';
 
+
+function documentLabel(category: string): string {
+    const labels: Record<string, string> = {
+        tax: 'Tax compliance / SARS TCS',
+        registration: 'Company registration / CIPC / CSD',
+        bbbee: 'B-BBEE certificate or affidavit',
+        financial: 'Financial statements / bank confirmation',
+        legal: 'Legal, insurance or good standing documents',
+        certification: 'Industry certification / CIDB / ISO',
+        policy: 'Policy documents',
+    };
+    return labels[category] ?? category.replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase());
+}
 export default function TenderDetailPage({ params }: { params: Promise<{ tenderId: string }> }) {
     const { tenderId } = use(params);
     const router = useRouter();
@@ -18,6 +31,11 @@ export default function TenderDetailPage({ params }: { params: Promise<{ tenderI
 
     if (isLoading) return <div className="space-y-4"><CardSkeleton /><CardSkeleton /></div>;
     if (isError || !tender) return <ErrorState onRetry={refetch} />;
+    const requiredDocuments = Array.from(new Set([
+        ...(tender.required_categories ?? []),
+        ...(tender.recommendedDocuments ?? []),
+    ].filter(Boolean)));
+    const matchLabel = tender.matchScore >= 85 ? 'Strong Match' : tender.matchScore >= 65 ? 'Matched' : 'Low Match';
 
     return (
         <div className="space-y-6 max-w-4xl mx-auto">
@@ -28,7 +46,7 @@ export default function TenderDetailPage({ params }: { params: Promise<{ tenderI
                         <Badge
                             variant={tender.matchScore >= 85 ? 'success' : tender.matchScore >= 65 ? 'warning' : 'danger'}
                         >
-                            {tender.matchScore}% Match
+                            {matchLabel}
                         </Badge>
                     </div>
                     <h1 className="text-2xl font-bold text-[--color-text-primary]">{tender.title}</h1>
@@ -132,12 +150,12 @@ export default function TenderDetailPage({ params }: { params: Promise<{ tenderI
 
                     <Card>
                         <h3 className="text-sm font-semibold text-[--color-text-primary] mb-3">
-                            Recommended Documents
+                            Required Documents
                         </h3>
                         <ul className="space-y-2">
-                            {tender.recommendedDocuments.map((d) => (
+                            {(requiredDocuments.length ? requiredDocuments : tender.recommendedDocuments).map((d) => (
                                 <li key={d} className="text-xs text-[--color-text-muted] flex items-center gap-2">
-                                    <ArrowRight size={12} className="text-[--color-primary]" /> {d}
+                                    <FileCheck size={12} className="text-[--color-primary]" /> {documentLabel(d)}
                                 </li>
                             ))}
                         </ul>

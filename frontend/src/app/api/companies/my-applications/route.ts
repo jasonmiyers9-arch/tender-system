@@ -2,9 +2,9 @@ import { NextResponse } from 'next/server';
 import {
   getUserByToken,
   listApplicationsForCompany,
-  getTenderById,
   getCompanyById,
 } from '@/lib/server/firestoreService';
+import { resolveTender } from '@/lib/server/tenderResolver';
 
 function parseToken(req: Request): string | null {
   const header = req.headers.get('authorization');
@@ -13,9 +13,13 @@ function parseToken(req: Request): string | null {
   return type.toLowerCase() === 'bearer' ? token : null;
 }
 
-function mapStatus(status: string): 'pending' | 'approved' | 'rejected' {
+function mapStatus(status: string): 'pending' | 'submitted' | 'shortlisted' | 'awarded' | 'lost' | 'approved' | 'rejected' {
   if (status === 'approved') return 'approved';
   if (status === 'rejected') return 'rejected';
+  if (status === 'submitted') return 'submitted';
+  if (status === 'shortlisted') return 'shortlisted';
+  if (status === 'awarded') return 'awarded';
+  if (status === 'lost') return 'lost';
   return 'pending';
 }
 
@@ -36,7 +40,7 @@ export async function GET(req: Request) {
   // Enrich each application with tender details
   const enrichedApps = await Promise.all(
     applications.map(async (app) => {
-      const tender = await getTenderById(app.tenderId);
+      const { tender } = await resolveTender(app.tenderId);
       return {
         id: app.id,
         tenderId: app.tenderId,
@@ -53,6 +57,8 @@ export async function GET(req: Request) {
         reviewedBy: app.reviewedBy ?? undefined,
         reviewedAt: app.reviewedAt ?? undefined,
         rejectionReason: app.rejectionReason ?? undefined,
+        outcomeReason: app.outcomeReason ?? undefined,
+        awardValue: app.awardValue ?? undefined,
       };
     })
   );

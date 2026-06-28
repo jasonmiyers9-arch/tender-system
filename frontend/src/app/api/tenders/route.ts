@@ -218,7 +218,7 @@ export async function GET(req: Request) {
           const readinessScore = score.missingDocuments.length > 0 ? Math.min(99, score.matchScore + categoryBonus) : Math.min(100, score.matchScore + categoryBonus);
           return {
             ...tender,
-            matchScore: readinessScore,
+            matchScore: score.matchScore,
             readinessScore,
             scoreBreakdown: {
               documentCompleteness: Math.round(score.breakdown.documentCompleteness * 0.3),
@@ -227,7 +227,7 @@ export async function GET(req: Request) {
               complianceConsistency: Math.round(score.breakdown.documentValidity * 0.15),
               tenderFitBonus: categoryHit ? 10 : Math.round(score.breakdown.bonusPoints),
             },
-            isBidReady: score.missingDocuments.length === 0 && readinessScore >= 100,
+            isBidReady: false,
             gaps: score.gaps.map((gap) => gap.recommendation),
             recommendationReason: categoryHit
               ? `${score.recommendation}. Category match: ${tender.category}.`
@@ -238,7 +238,7 @@ export async function GET(req: Request) {
         if (readiness) {
           return {
             ...tender,
-            matchScore: readiness.readinessScore, // Use new readiness score
+            matchScore: tender.matchScore,
             readinessScore: readiness.readinessScore,
             scoreBreakdown: readiness.scoreBreakdown,
             isBidReady: readiness.isBidReady,

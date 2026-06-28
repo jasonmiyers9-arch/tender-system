@@ -14,10 +14,12 @@ export interface TenderApplication {
     companyName: string;
     appliedBy: string;
     appliedAt: string;
-    status: 'pending' | 'approved' | 'rejected';
+    status: 'pending' | 'submitted' | 'shortlisted' | 'awarded' | 'lost' | 'approved' | 'rejected';
     reviewedBy?: string;
     reviewedAt?: string;
     rejectionReason?: string;
+    outcomeReason?: string;
+    awardValue?: string;
 }
 
 function getToken(): string | null {
@@ -88,6 +90,13 @@ export const applicationsApi = {
         return res.json();
     },
 
+    async recordOutcome(appId: string, payload: { status: 'shortlisted' | 'awarded' | 'lost' | 'rejected'; reason?: string; awardValue?: string }): Promise<{ ok: boolean }> {
+        const res = await authFetch(`/applications/${appId}/outcome`, {
+            method: 'POST',
+            body: JSON.stringify(payload),
+        });
+        return res.json();
+    },
     async rejectApplication(appId: string, reason?: string): Promise<{ ok: boolean }> {
         const res = await authFetch(`/applications/${appId}/reject`, {
             method: 'POST',

@@ -65,7 +65,7 @@ export default function TendersPage() {
         const q = query.trim().toLowerCase();
         const minScore = Number(threshold) || 0;
         return (matches ?? []).filter((t) => {
-            const score = t.readinessScore ?? t.matchScore;
+            const score = t.matchScore;
             if (score < minScore) return false;
             if (q) {
                 const haystack = [t.title, t.organization, t.category, t.tenderNumber, t.description, t.sourceSite, t.requiredAt]
@@ -170,14 +170,14 @@ export default function TendersPage() {
         );
 
     const bidReadyCount = filteredMatches.filter(t => t.isBidReady).length;
-    const highMatchCount = filteredMatches.filter(t => (t.readinessScore ?? t.matchScore) >= 85).length;
+    const highMatchCount = filteredMatches.filter(t => t.matchScore >= 85).length;
     const gapsCount = filteredMatches.filter(t => t.gaps.length > 0).length;
 
     return (
         <div className="space-y-6 max-w-5xl mx-auto">
             <PageHeader
                 title="Tender Match Intelligence"
-                subtitle={`${filteredMatches.length} opportunities scored against your Tender Readiness Score™`}
+                subtitle={`${filteredMatches.length} opportunities scored against your company profile and tender requirements`}
                 icon={<FileSearch size={22} />}
                 iconColor="#D97706"
             />
@@ -297,9 +297,10 @@ export default function TendersPage() {
             ) : (
                 <div className="space-y-3">
                     {filteredMatches.map((t) => {
-                    const score = t.readinessScore ?? t.matchScore;
-                    const isBidReady = Boolean(t.isBidReady && score >= 100 && (t.scoreBreakdown?.tenderFitBonus ?? 0) >= 10);
-                    const displayScore = isBidReady ? score : Math.min(score, 99);
+                    const matchScore = t.matchScore;
+                    const readinessScore = t.readinessScore ?? t.matchScore;
+                    const isBidReady = Boolean(t.isBidReady && t.readinessScore !== undefined && readinessScore >= 100 && (t.scoreBreakdown?.tenderFitBonus ?? 0) >= 10);
+                    const matchLabel = matchScore >= 85 ? 'Strong Match' : matchScore >= 65 ? 'Matched' : 'Low Match';
 
                     return (
                         <Link key={t.id} href={`/tenders/${t.id}`} className="block group">
@@ -350,12 +351,15 @@ export default function TendersPage() {
                                         </div>
                                         <div className="flex flex-col items-end gap-2 flex-shrink-0">
                                             <Badge
-                                                variant={score >= 85 ? 'success' : score >= 65 ? 'warning' : 'danger'}
+                                                variant={matchScore >= 85 ? 'success' : matchScore >= 65 ? 'warning' : 'danger'}
                                                 size="md"
                                             >
-                                                {displayScore}/100
+                                                {matchLabel}
                                             </Badge>
-                                            <span className="text-[10px] text-[--color-text-muted]">Readiness Score™</span>
+                                            <span className="text-[10px] text-[--color-text-muted]">Tender Match</span>
+                                            {t.readinessScore !== undefined && (
+                                                <span className="text-[10px] text-[--color-text-muted]">Readiness: {readinessScore}/100</span>
+                                            )}
                                             <ArrowRight
                                                 size={14}
                                                 className="text-[--color-text-muted] opacity-0 group-hover:opacity-100 transition-opacity mt-1"

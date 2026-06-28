@@ -136,6 +136,52 @@ export const tenders = {
         window.URL.revokeObjectURL(url);
     },
 
+    async downloadBidPack(tenderId: string) {
+        const token = getToken();
+        const res = await fetch(`${API_BASE}/tenders/${tenderId}/bid-pack?format=html`, {
+            headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+            cache: 'no-store',
+        });
+        if (!res.ok) {
+            const text = await res.text();
+            throw new Error(`Request failed (${res.status}): ${text || 'Bid pack generation failed'}`);
+        }
+        const blob = await res.blob();
+        const disposition = res.headers.get('Content-Disposition') ?? '';
+        const filename = disposition.match(/filename="([^"]+)"/)?.[1] ?? 'bid-pack.html';
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(url);
+    },
+    async downloadSbdPack(tenderId?: string) {
+        const token = getToken();
+        const params = new URLSearchParams();
+        if (tenderId) params.set('tenderId', tenderId);
+        const res = await fetch(`${API_BASE}/sbd-forms${params.size ? `?${params}` : ''}`, {
+            headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+            cache: 'no-store',
+        });
+        if (!res.ok) {
+            const text = await res.text();
+            throw new Error(`Request failed (${res.status}): ${text || 'SBD pack generation failed'}`);
+        }
+        const blob = await res.blob();
+        const disposition = res.headers.get('Content-Disposition') ?? '';
+        const filename = disposition.match(/filename="([^"]+)"/)?.[1] ?? 'sbd-pack.html';
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(url);
+    },
     async createTender(payload: CreateTenderPayload) {
         const res = await authFetch('/tenders', {
             method: 'POST',

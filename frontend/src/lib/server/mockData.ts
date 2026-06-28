@@ -36,11 +36,13 @@ export interface InternalApplication {
   tenderId: string;
   companyId: string;
   userId: string;
-  status: 'draft' | 'submitted' | 'under-review' | 'approved' | 'rejected';
+  status: 'draft' | 'submitted' | 'under-review' | 'shortlisted' | 'awarded' | 'lost' | 'approved' | 'rejected';
   submittedAt: string | null;
   reviewedAt: string | null;
   reviewedBy: string | null;
   rejectionReason: string | null;
+  outcomeReason?: string | null;
+  awardValue?: string | null;
   documents: string[];
   createdAt: string;
 }

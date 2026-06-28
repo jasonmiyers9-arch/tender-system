@@ -1328,6 +1328,39 @@ async function reviewApplication(
   return app;
 }
 
+async function recordApplicationOutcome(
+  applicationId: string,
+  payload: {
+    status: 'shortlisted' | 'awarded' | 'lost' | 'rejected';
+    reviewedBy: string;
+    outcomeReason?: string | null;
+    awardValue?: string | null;
+  },
+): Promise<InternalApplication> {
+  const app = await getApplicationById(applicationId);
+  if (!app) throw new Error('Application not found');
+
+  app.status = payload.status;
+  app.reviewedAt = new Date().toISOString();
+  app.reviewedBy = payload.reviewedBy;
+  app.outcomeReason = payload.outcomeReason ?? null;
+  app.awardValue = payload.awardValue ?? null;
+  app.rejectionReason = payload.status === 'rejected' || payload.status === 'lost' ? payload.outcomeReason ?? null : app.rejectionReason;
+
+  if (isFirestoreAvailable()) {
+    const db = getFirestore()!;
+    await db.collection(APPLICATIONS_COLLECTION).doc(applicationId).set({
+      status: app.status,
+      reviewedAt: app.reviewedAt,
+      reviewedBy: app.reviewedBy,
+      outcomeReason: app.outcomeReason,
+      awardValue: app.awardValue,
+      rejectionReason: app.rejectionReason,
+    }, { merge: true });
+  }
+
+  return app;
+}
 async function listDocumentsForCompany(companyId: string): Promise<InternalDocument[]> {
   if (isFirestoreAvailable()) {
     const db = getFirestore()!;
@@ -2104,6 +2137,7 @@ export {
   createApplication,
   submitApplication,
   reviewApplication,
+  recordApplicationOutcome,
   listDocumentsForCompany,
   listAllDocuments,
   getDocumentById,
