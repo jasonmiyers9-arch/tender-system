@@ -1,39 +1,19 @@
 import { NextResponse } from 'next/server';
-import { createHash } from 'node:crypto';
-import { getTenderById, getUserByToken, updateTender, deleteTender, listDocumentsForCompany, getCompanyById } from '@/lib/server/firestoreService';
-import { buildTenderRequirementsFromTender, publishRescoreEvent } from '@/lib/server/analystEngine';
+import { getTenderById, getUserByToken, updateTender, deleteTender, getCompanyById } from '@/lib/server/firestoreService';
+import { publishRescoreEvent } from '@/lib/server/analystEngine';
 import { getScrapedTenders, type ScrapedTender } from '@/lib/server/tenderScraper';
 import type { TenderDetail } from '@/lib/api/types';
 import { isAdminRole } from '@/lib/server/apiAuth';
-import { calculateTenderMatchScore, generateComplianceProfile, type TenderRequirements } from '@/lib/server/complianceScoring';
-import { normalizeTenderCategory } from '@/lib/server/tenderCategories';
+import { type TenderRequirements } from '@/lib/server/complianceScoring';
+import { enrichTenderWithCompanyScore, scrapedTenderId } from '@/lib/server/tenderScoring';
+import { toTenderAttachments } from '@/lib/server/tenderResolver';
+import { resolveStoredTenderDocuments, sourceDocumentsToAttachments } from '@/lib/server/tenderSourceDocuments';
 
 function parseToken(req: Request): string | null {
   const header = req.headers.get('authorization');
   if (!header) return null;
   const [type, token] = header.split(' ');
   return type.toLowerCase() === 'bearer' ? token : null;
-}
-
-function scrapedTenderId(tender: ScrapedTender): string {
-  const raw = `${tender.sourceSite}|${tender.tenderNumber || tender.referenceNumber || tender.title}|${tender.deadline}`;
-  return `scraped-${createHash('sha256').update(raw).digest('hex').slice(0, 24)}`;
-}
-
-function normalizeCategory(value: string): string {
-  const normalized = normalizeTenderCategory(value);
-  return normalized === 'Other' ? value.trim().toLowerCase() : normalized.toLowerCase();
-}
-
-function categoryMatches(tenderCategory: string, companyCategories: string[], tenderText = ''): boolean {
-  if (companyCategories.length === 0) return true;
-  const tender = normalizeCategory(tenderCategory);
-  const haystack = `${tenderCategory} ${tenderText}`.toLowerCase();
-  return companyCategories.some((category) => {
-    const selected = normalizeCategory(category);
-    const rawSelected = category.toLowerCase();
-    return tender === selected || tender.includes(selected) || selected.includes(tender) || haystack.includes(rawSelected) || haystack.includes(selected);
-  });
 }
 
 function inferRequiredCategoriesFromScrapedTender(tender: ScrapedTender): TenderRequirements {
@@ -98,23 +78,13 @@ async function mapScrapedTenderToDetail(tender: ScrapedTender, companyId?: strin
     required_categories: requirements.requiredCategories,
     status: 'published',
     createdAt: tender.scrapedAt,
+    attachments: toTenderAttachments(tender.documents),
   };
 
   if (!companyId) return detail;
 
-  const documents = await listDocumentsForCompany(companyId);
-  const profile = generateComplianceProfile(companyId, documents);
-  const score = calculateTenderMatchScore(companyId, detail.id, detail.title, profile, buildTenderRequirementsFromTender(detail));
-  const categoryHit = categoryMatches(tender.category, companyCategories, tender.fullText || tender.description || tender.title);
-  const readinessScore = score.missingDocuments.length > 0 ? Math.min(99, score.matchScore + (categoryHit ? 10 : 0)) : Math.min(100, score.matchScore + (categoryHit ? 10 : 0));
-  return {
-    ...detail,
-    matchScore: readinessScore,
-    readinessScore,
-    isBidReady: score.missingDocuments.length === 0 && readinessScore >= 100,
-    gaps: score.gaps.map((gap) => gap.recommendation),
-    recommendationReason: `${score.recommendation}. Category: ${tender.category}.`,
-  };
+  // Score through the single source of truth so the detail page agrees with the list.
+  return enrichTenderWithCompanyScore(detail, companyId, companyCategories);
 }
 
 export async function GET(
@@ -122,12 +92,32 @@ export async function GET(
   { params }: { params: Promise<{ tenderId: string }> }
 ) {
   const { tenderId } = await params;
+
+  // Resolve the viewer's company so the match/readiness score is computed the
+  // same way it is in the matches list. Without it, fall back to the raw tender.
+  const token = parseToken(req);
+  const user = token ? await getUserByToken(token) : null;
+  const companyId = user?.activeCompanyId ?? undefined;
+  const company = companyId ? await getCompanyById(companyId) : null;
+
   const tender = await getTenderById(tenderId);
   if (tender) {
-    return NextResponse.json(tender, {
+    const scored = companyId
+      ? await enrichTenderWithCompanyScore(tender, companyId, company?.tenderCategories ?? [])
+      : tender;
+    // Stored tenders carry no document URLs of their own. Re-resolve the official
+    // documents from the source release so the company sees and can download the
+    // actual published tender, not only the generated summary.
+    if (!scored.attachments?.length) {
+      const sourceDocs = await resolveStoredTenderDocuments(scored);
+      if (sourceDocs.length) scored.attachments = sourceDocumentsToAttachments(sourceDocs);
+    }
+    return NextResponse.json(scored, {
       status: 200,
       headers: {
-        'Cache-Control': 'public, max-age=60, stale-while-revalidate=120',
+        'Cache-Control': companyId
+          ? 'private, max-age=30, stale-while-revalidate=60'
+          : 'public, max-age=60, stale-while-revalidate=120',
       },
     });
   }
@@ -137,13 +127,12 @@ export async function GET(
     return NextResponse.json({ detail: 'Tender not found' }, { status: 404 });
   }
 
-  const token = parseToken(req);
-  const user = token ? await getUserByToken(token) : null;
-  const company = user?.activeCompanyId ? await getCompanyById(user.activeCompanyId) : null;
-  return NextResponse.json(await mapScrapedTenderToDetail(scraped, user?.activeCompanyId ?? undefined, company?.tenderCategories ?? []), {
+  return NextResponse.json(await mapScrapedTenderToDetail(scraped, companyId, company?.tenderCategories ?? []), {
     status: 200,
     headers: {
-      'Cache-Control': 'public, max-age=60, stale-while-revalidate=120',
+      'Cache-Control': companyId
+        ? 'private, max-age=30, stale-while-revalidate=60'
+        : 'public, max-age=60, stale-while-revalidate=120',
     },
   });
 }

@@ -1,45 +1,18 @@
 import { NextResponse } from 'next/server';
-import { createHash } from 'node:crypto';
-import { listTenders, createTender, getCompanyById, getUserByToken, getTenderReadiness, listDocumentsForCompany } from '@/lib/server/firestoreService';
-import { buildTenderRequirementsFromTender, publishRescoreEvent } from '@/lib/server/analystEngine';
+import { listTenders, createTender, getCompanyById, getUserByToken, listDocumentsForCompany } from '@/lib/server/firestoreService';
+import { publishRescoreEvent } from '@/lib/server/analystEngine';
 import type { TenderMatch } from '@/lib/api/types';
 import { getScrapedTenders, type ScrapedTender } from '@/lib/server/tenderScraper';
 import { isAdminRole } from '@/lib/server/apiAuth';
-import { calculateTenderMatchScore, generateComplianceProfile, type TenderRequirements } from '@/lib/server/complianceScoring';
-import { normalizeTenderCategory } from '@/lib/server/tenderCategories';
+import { generateComplianceProfile, type TenderRequirements } from '@/lib/server/complianceScoring';
+import { categoryMatches, enrichTenderWithCompanyScore, scrapedTenderId } from '@/lib/server/tenderScoring';
+import { toTenderAttachments } from '@/lib/server/tenderResolver';
 
 function parseToken(req: Request): string | null {
   const header = req.headers.get('authorization');
   if (!header) return null;
   const [type, token] = header.split(' ');
   return type.toLowerCase() === 'bearer' ? token : null;
-}
-
-function normalizeCategory(value: string): string {
-  const normalized = normalizeTenderCategory(value);
-  return normalized === 'Other' ? value.trim().toLowerCase() : normalized.toLowerCase();
-}
-
-function categoryMatches(tenderCategory: string, companyCategories: string[], tenderText = ''): boolean {
-  if (companyCategories.length === 0) return true;
-  const tender = normalizeCategory(tenderCategory);
-  const haystack = `${tenderCategory} ${tenderText}`.toLowerCase();
-  return companyCategories.some((category) => {
-    const selected = normalizeCategory(category);
-    const rawSelected = category.toLowerCase();
-    return (
-      tender === selected ||
-      tender.includes(selected) ||
-      selected.includes(tender) ||
-      haystack.includes(rawSelected) ||
-      haystack.includes(selected)
-    );
-  });
-}
-
-function scrapedTenderId(tender: ScrapedTender): string {
-  const raw = `${tender.sourceSite}|${tender.tenderNumber || tender.referenceNumber || tender.title}|${tender.deadline}`;
-  return `scraped-${createHash('sha256').update(raw).digest('hex').slice(0, 24)}`;
 }
 
 function numericTenderValue(value: string): number | null {
@@ -151,6 +124,7 @@ function mapScrapedTenderToMatch(tender: ScrapedTender, companyCategories: strin
     required_categories: requirements.requiredCategories,
     status: 'published',
     createdAt: tender.scrapedAt,
+    attachments: toTenderAttachments(tender.documents),
   };
 }
 
@@ -209,44 +183,7 @@ export async function GET(req: Request) {
     const documents = await listDocumentsForCompany(companyId);
     const profile = generateComplianceProfile(companyId, documents);
     const enrichedItems: TenderMatch[] = await Promise.all(
-      allItems.map(async (tender) => {
-        if (tender.isScraped) {
-          const requirements = buildTenderRequirementsFromTender(tender);
-          const score = calculateTenderMatchScore(companyId, tender.id, tender.title, profile, requirements);
-          const categoryHit = categoryMatches(tender.category, companyCategories, `${tender.description ?? ''} ${(tender.requirements ?? []).join(' ')}`);
-          const categoryBonus = categoryHit ? 10 : 0;
-          const readinessScore = score.missingDocuments.length > 0 ? Math.min(99, score.matchScore + categoryBonus) : Math.min(100, score.matchScore + categoryBonus);
-          return {
-            ...tender,
-            matchScore: score.matchScore,
-            readinessScore,
-            scoreBreakdown: {
-              documentCompleteness: Math.round(score.breakdown.documentCompleteness * 0.3),
-              verificationCoverage: Math.round(score.breakdown.verificationStatus * 0.25),
-              csdProfileCompleteness: Math.round(score.breakdown.requirementMatch * 0.2),
-              complianceConsistency: Math.round(score.breakdown.documentValidity * 0.15),
-              tenderFitBonus: categoryHit ? 10 : Math.round(score.breakdown.bonusPoints),
-            },
-            isBidReady: false,
-            gaps: score.gaps.map((gap) => gap.recommendation),
-            recommendationReason: categoryHit
-              ? `${score.recommendation}. Category match: ${tender.category}.`
-              : score.recommendation,
-          };
-        }
-        const readiness = await getTenderReadiness(tender.id, companyId);
-        if (readiness) {
-          return {
-            ...tender,
-            matchScore: tender.matchScore,
-            readinessScore: readiness.readinessScore,
-            scoreBreakdown: readiness.scoreBreakdown,
-            isBidReady: readiness.isBidReady,
-            gaps: readiness.gaps,
-          };
-        }
-        return tender;
-      })
+      allItems.map((tender) => enrichTenderWithCompanyScore(tender, companyId!, companyCategories, { profile })),
     );
     
     enrichedItems.sort((a, b) => {

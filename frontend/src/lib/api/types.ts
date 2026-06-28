@@ -215,6 +215,16 @@ export interface ScoreHistoryPoint {
 
 // ─── Tenders ──────────────────────────────────
 
+// A document attached to a tender (e.g. the official PDF captured from the
+// source portal). Companies download these through the authenticated proxy by
+// index, so the external URL is never exposed to the browser.
+export interface TenderAttachment {
+    index: number;
+    filename: string;
+    extractionStatus?: 'pending' | 'success' | 'failed' | 'skipped';
+    pageCount?: number;
+}
+
 export interface TenderMatch {
     id: string;
     title: string;
@@ -261,6 +271,8 @@ export interface TenderMatch {
     readinessScore?: number;
     scoreBreakdown?: TenderReadinessScoreBreakdown;
     isBidReady?: boolean;
+    // Documents attached to the tender (official source PDFs, etc.)
+    attachments?: TenderAttachment[];
 }
 
 export interface TenderDetail extends TenderMatch {

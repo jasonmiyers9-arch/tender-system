@@ -10,6 +10,7 @@ import { ErrorState } from '@/components/ui/ErrorState';
 import { CardSkeleton } from '@/components/ui/Skeleton';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { formatDate } from '@/lib/utils/formatters';
+import { matchLabel, matchBadgeVariant } from '@/lib/utils/tenderMatch';
 import { FileSearch, Calendar, Building2, AlertCircle, ArrowRight, CheckCircle2, FileCheck, Shield, Clock, Target, MapPin, Users, Search, Filter, BellPlus } from 'lucide-react';
 import Link from 'next/link';
 import type { TenderReadinessScoreBreakdown } from '@/lib/api/types';
@@ -300,7 +301,6 @@ export default function TendersPage() {
                     const matchScore = t.matchScore;
                     const readinessScore = t.readinessScore ?? t.matchScore;
                     const isBidReady = Boolean(t.isBidReady && t.readinessScore !== undefined && readinessScore >= 100 && (t.scoreBreakdown?.tenderFitBonus ?? 0) >= 10);
-                    const matchLabel = matchScore >= 85 ? 'Strong Match' : matchScore >= 65 ? 'Matched' : 'Low Match';
 
                     return (
                         <Link key={t.id} href={`/tenders/${t.id}`} className="block group">
@@ -351,10 +351,10 @@ export default function TendersPage() {
                                         </div>
                                         <div className="flex flex-col items-end gap-2 flex-shrink-0">
                                             <Badge
-                                                variant={matchScore >= 85 ? 'success' : matchScore >= 65 ? 'warning' : 'danger'}
+                                                variant={matchBadgeVariant(matchScore)}
                                                 size="md"
                                             >
-                                                {matchLabel}
+                                                {matchLabel(matchScore)}
                                             </Badge>
                                             <span className="text-[10px] text-[--color-text-muted]">Tender Match</span>
                                             {t.readinessScore !== undefined && (

@@ -136,6 +136,30 @@ export const tenders = {
         window.URL.revokeObjectURL(url);
     },
 
+    async downloadTenderDocument(tenderId: string, index?: number) {
+        const token = getToken();
+        const query = typeof index === 'number' ? `?index=${index}` : '';
+        const res = await fetch(`${API_BASE}/tenders/${tenderId}/document${query}`, {
+            headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+            cache: 'no-store',
+        });
+        if (!res.ok) {
+            const text = await res.text();
+            throw new Error(`Request failed (${res.status}): ${text || 'Tender document download failed'}`);
+        }
+        const blob = await res.blob();
+        const disposition = res.headers.get('Content-Disposition') ?? '';
+        const filename = disposition.match(/filename="([^"]+)"/)?.[1] ?? 'tender.pdf';
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(url);
+    },
+
     async downloadBidPack(tenderId: string) {
         const token = getToken();
         const res = await fetch(`${API_BASE}/tenders/${tenderId}/bid-pack?format=html`, {
