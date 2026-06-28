@@ -78,7 +78,7 @@ export const COMPETITOR_CAPABILITIES: CompetitorCapability[] = [
   },
   {
     capability: 'SBD form pre-population',
-    tenderGuard: 'Phase 2: SBD 1, SBD 6, SBD 9',
+    tenderGuard: 'SBD 1, SBD 6, SBD 9',
     tenderFlow: 'No',
     ariscu: 'No',
   },
@@ -151,7 +151,7 @@ export const SCM_UNIQUE_SELLING_POINTS: ScmUsp[] = [
   {
     title: 'SCM SBD form pre-population',
     summary:
-      'Phase 2 generates pre-filled SBD forms from company profile, B-BBEE, director, tax, and registration data.',
+      'Generates pre-filled SBD forms from company profile, B-BBEE, director, tax, and registration data.',
   },
   {
     title: 'Multi-entity portfolio dashboard',
@@ -169,7 +169,7 @@ export const SBD_FORMS: SbdForm[] = [
   {
     form: 'SBD 1',
     title: 'Invitation to Bid',
-    value: 'Company details and contact information. Phase 2: auto-filled from company profile.',
+    value: 'Company details and contact information auto-filled from company profile.',
   },
   {
     form: 'SBD 2',

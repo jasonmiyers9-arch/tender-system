@@ -217,11 +217,10 @@ export default function LandingPage() {
                                 Built for South Africa&apos;s SCM framework.
                             </h2>
                             <p className="mt-3 text-sm leading-relaxed" style={{ color: 'var(--color-text-muted)' }}>
-                                TenderFlow helps manage tenders after the bid decision. Tender Guard Pro answers the earlier
-                                question: are we qualified to bid right now?
+                                Tender Guard Pro checks tender requirements against your company profile, documents, and compliance evidence before you commit to a bid.
                             </p>
                             <p className="mt-4 text-sm font-semibold" style={{ color: '#0F766E' }}>
-                                It does not just manage tenders. It tells you whether you are ready to win them.
+                                It tells you whether you are matched, compliant, and ready to submit with confidence.
                             </p>
                         </div>
 
