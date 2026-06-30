@@ -38,7 +38,7 @@ interface OcdsRelease {
 async function fetchOcdsSourceDocuments(sourceUrl: string): Promise<SourceDocument[]> {
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 12000);
+    const timeout = setTimeout(() => controller.abort(), 6000);
     const res = await fetch(sourceUrl, {
       signal: controller.signal,
       redirect: 'follow',
@@ -84,4 +84,80 @@ export function sourceDocumentsToAttachments(documents: SourceDocument[]): Tende
     index,
     filename: doc.filename || `tender-document-${index + 1}.pdf`,
   }));
+}
+
+// A tender document fetched and base64-encoded so it can be sent to the AI model
+// for direct reading (multimodal). Mirrors the AiAttachment shape plus a filename
+// used in the grounding facts.
+export interface TenderDocumentAttachment {
+  filename: string;
+  mimeType: string;
+  data: string;
+}
+
+// Caps that keep the AI request within Claude's limits and, crucially, keep the
+// whole document-fetch phase short enough that the serverless function still has
+// time to make the Claude call within its execution budget. The downloads run
+// sequentially, so per-fetch timeouts plus the overall budget bound total time.
+const MAX_AI_TENDER_DOCS = 2;
+const MAX_AI_DOC_BYTES = 4.5 * 1024 * 1024;
+const MAX_AI_TOTAL_BYTES = 9 * 1024 * 1024;
+// Overall wall-clock budget for fetching tender PDFs. Once exceeded, stop fetching
+// and let the advisor answer with whatever documents were retrieved (or none) so
+// the request always leaves enough of the function's budget for the Claude call.
+const MAX_AI_FETCH_BUDGET_MS = 9000;
+
+function looksLikePdf(doc: SourceDocument): boolean {
+  return /\.pdf($|\?)/i.test(doc.url) || /\.pdf$/i.test(doc.filename);
+}
+
+async function fetchPdfBytes(url: string): Promise<ArrayBuffer | null> {
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 6000);
+    const res = await fetch(url, {
+      signal: controller.signal,
+      redirect: 'follow',
+      headers: { 'User-Agent': 'TenderGuardPro/1.0 (+https://tender-gaurd-pro.netlify.app)' },
+    });
+    clearTimeout(timeout);
+    if (!res.ok) return null;
+    const contentType = res.headers.get('content-type') ?? '';
+    const isPdf = contentType.includes('pdf') || contentType.includes('octet-stream') || /\.pdf($|\?)/i.test(url);
+    if (!isPdf) return null;
+    const body = await res.arrayBuffer();
+    if (body.byteLength === 0 || body.byteLength > MAX_AI_DOC_BYTES) return null;
+    return body;
+  } catch {
+    return null;
+  }
+}
+
+// Fetches a tender's official PDF documents and returns them base64-encoded so the
+// AI can read the actual tender requirements directly and check them against the
+// company's compliance documents. Bounded in count and size to stay within model
+// limits; failures are skipped so the advisor always still answers.
+export async function fetchTenderDocumentsForAi(
+  documents: SourceDocument[],
+): Promise<TenderDocumentAttachment[]> {
+  const pdfs = documents.filter((doc) => /^https?:\/\//i.test(doc.url) && looksLikePdf(doc)).slice(0, MAX_AI_TENDER_DOCS);
+
+  const attachments: TenderDocumentAttachment[] = [];
+  let totalBytes = 0;
+  const deadline = Date.now() + MAX_AI_FETCH_BUDGET_MS;
+  for (const doc of pdfs) {
+    // Stop fetching once the budget is spent so the caller keeps enough of the
+    // function's execution time to actually call the model.
+    if (Date.now() >= deadline) break;
+    const bytes = await fetchPdfBytes(doc.url);
+    if (!bytes) continue;
+    if (totalBytes + bytes.byteLength > MAX_AI_TOTAL_BYTES) break;
+    totalBytes += bytes.byteLength;
+    attachments.push({
+      filename: doc.filename || `tender-document-${attachments.length + 1}.pdf`,
+      mimeType: 'application/pdf',
+      data: Buffer.from(bytes).toString('base64'),
+    });
+  }
+  return attachments;
 }

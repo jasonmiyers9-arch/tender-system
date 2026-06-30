@@ -13,6 +13,12 @@ import { logFileUpload, logSuspiciousActivity } from '../../../../lib/server/sec
 import { calculateSha256 } from '../../../../lib/server/documentIntegrity';
 import { DOCUMENT_UPLOAD_CATEGORIES, type DocumentUploadCategory } from '../../../../lib/api/types';
 
+// Document upload runs AI extraction, expiry detection and summarisation against
+// Claude, which can exceed the default serverless timeout. Allow the full Netlify
+// Pro execution budget so the upload completes instead of the function being
+// killed mid-request (a bare 500).
+export const maxDuration = 26;
+
 const ALLOWED_EXTENSIONS = new Set([
   '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.png', '.jpg', '.jpeg', '.txt', '.csv', '.zip',
 ]);
@@ -135,10 +141,10 @@ export async function POST(req: Request) {
       try {
         const {
           extractPDFContent,
-          transcribeDocumentWithGemini,
+          transcribeDocumentWithAI,
         } = await import('../../../../lib/server/pdfExtractor');
 
-        let extractor = 'gemini-vision';
+        let extractor = 'claude-vision';
 
         // 1. Digital PDFs: pull the text layer first (fast, free, exact).
         if (ext === '.pdf') {
@@ -148,13 +154,13 @@ export async function POST(req: Request) {
           extractor = pdfResult.extractor;
         }
 
-        // 2. OCR fallback via Gemini for scanned PDFs (no/weak text layer) and
+        // 2. OCR fallback via Claude for scanned PDFs (no/weak text layer) and
         //    image uploads — recovers text that parsing cannot.
         if (!extractedText || extractedText.trim().length < 200) {
-          const ocrText = await transcribeDocumentWithGemini(buffer, inlineMime);
+          const ocrText = await transcribeDocumentWithAI(buffer, inlineMime);
           if (ocrText.trim().length > (extractedText?.trim().length ?? 0)) {
             extractedText = ocrText;
-            extractor = ext === '.pdf' ? 'gemini-ocr' : 'gemini-vision';
+            extractor = ext === '.pdf' ? 'claude-ocr' : 'claude-vision';
             if (!pageCount) pageCount = 1;
           }
         }

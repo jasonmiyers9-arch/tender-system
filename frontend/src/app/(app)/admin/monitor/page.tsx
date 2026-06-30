@@ -204,8 +204,8 @@ export default function AdminMonitorPage() {
 
     const [levelFilter, setLevelFilter] = useState<LevelKey>('all');
 
-    const [geminiKey, setGeminiKey] = useState('');
-    const [geminiModel, setGeminiModel] = useState('gemini-2.5-flash');
+    const [aiKey, setAiKey] = useState('');
+    const [aiModel, setAiModel] = useState('claude-sonnet-4-5');
     const [aiSource, setAiSource] = useState<'admin' | 'env' | 'none'>('none');
     const [maskedKey, setMaskedKey] = useState<string | null>(null);
     const [savingAi, setSavingAi] = useState(false);
@@ -228,9 +228,9 @@ export default function AdminMonitorPage() {
                 const ai = await admin.getAiSettings();
                 setStatus(sJson);
                 setEvents(eJson.items ?? []);
-                setGeminiModel(ai.geminiModel || 'gemini-2.5-flash');
+                setAiModel(ai.model || 'claude-sonnet-4-5');
                 setAiSource(ai.source);
-                setMaskedKey(ai.geminiKeyMasked);
+                setMaskedKey(ai.apiKeyMasked);
                 setLastUpdatedAt(Date.now());
                 setError(null);
             } catch (e) {
@@ -307,13 +307,13 @@ export default function AdminMonitorPage() {
         setAiMessageError(false);
         try {
             const updated = await admin.updateAiSettings({
-                geminiApiKey: geminiKey.trim() || undefined,
-                geminiModel,
+                apiKey: aiKey.trim() || undefined,
+                model: aiModel,
             });
             setAiSource(updated.source);
-            setMaskedKey(updated.geminiKeyMasked);
-            setGeminiModel(updated.geminiModel || geminiModel);
-            setGeminiKey('');
+            setMaskedKey(updated.apiKeyMasked);
+            setAiModel(updated.model || aiModel);
+            setAiKey('');
             setAiMessage('Saved. New uploads will use this configuration.');
         } catch (e) {
             setAiMessageError(true);
@@ -329,18 +329,18 @@ export default function AdminMonitorPage() {
         setAiMessageError(false);
         try {
             const updated = await admin.updateAiSettings({
-                geminiApiKey: geminiKey.trim() || undefined,
-                geminiModel,
+                apiKey: aiKey.trim() || undefined,
+                model: aiModel,
             });
             setAiSource(updated.source);
-            setMaskedKey(updated.geminiKeyMasked);
-            setGeminiModel(updated.geminiModel || geminiModel);
-            setGeminiKey('');
+            setMaskedKey(updated.apiKeyMasked);
+            setAiModel(updated.model || aiModel);
+            setAiKey('');
             const result = await admin.testAiSettings();
             setAiMessage(`Connection successful. Using ${result.model}.`);
         } catch (e) {
             setAiMessageError(true);
-            setAiMessage(e instanceof Error ? e.message : 'Gemini connection test failed');
+            setAiMessage(e instanceof Error ? e.message : 'Claude connection test failed');
         } finally {
             setTestingAi(false);
         }
@@ -640,9 +640,9 @@ export default function AdminMonitorPage() {
                                     <Key size={16} />
                                 </div>
                                 <div>
-                                    <h3 className="text-sm font-semibold text-[--color-text-primary]">AI Compliance Advisor · Gemini</h3>
+                                    <h3 className="text-sm font-semibold text-[--color-text-primary]">AI Compliance Advisor · Claude</h3>
                                     <p className="text-xs text-[--color-text-muted] mt-0.5">
-                                        Powers compliance advice and document summaries across the app.
+                                        Powers compliance advice and document analysis across the app.
                                     </p>
                                 </div>
                             </div>
@@ -657,18 +657,18 @@ export default function AdminMonitorPage() {
 
                         <div className="relative grid grid-cols-1 md:grid-cols-2 gap-4">
                             <Input
-                                label="Gemini API key"
+                                label="Claude API key"
                                 type="password"
-                                placeholder={maskedKey ? `Current: ${maskedKey}` : 'Paste Gemini API key'}
-                                value={geminiKey}
-                                onChange={(e) => setGeminiKey(e.target.value)}
-                                hint="Leave empty to keep current key."
+                                placeholder={maskedKey ? `Current: ${maskedKey}` : 'Paste Anthropic API key'}
+                                value={aiKey}
+                                onChange={(e) => setAiKey(e.target.value)}
+                                hint="Leave empty to keep current key or use the Netlify AI Gateway key."
                             />
                             <Input
                                 label="Model"
-                                placeholder="gemini-2.5-flash"
-                                value={geminiModel}
-                                onChange={(e) => setGeminiModel(e.target.value)}
+                                placeholder="claude-sonnet-4-5"
+                                value={aiModel}
+                                onChange={(e) => setAiModel(e.target.value)}
                             />
                         </div>
 

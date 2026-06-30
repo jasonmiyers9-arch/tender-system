@@ -1,7 +1,7 @@
 /**
  * Compliance Bundle Analyzer
  *
- * Uses the configured Gemini multimodal model to read a single uploaded file that
+ * Uses the configured Claude multimodal model to read a single uploaded file that
  * may bundle several compliance documents (e.g. a scan containing a CIPC
  * registration, a SARS Tax Clearance and a B-BBEE certificate) and split it into
  * individually categorised documents.
@@ -11,8 +11,7 @@
  * certificates (JPG / PNG) — no separate OCR step is required.
  */
 
-import { GoogleGenerativeAI } from '@google/generative-ai';
-import { getAiRuntimeConfig } from './aiSettingsService';
+import { chatWithOpenRouter } from './openRouterClient';
 import { DOCUMENT_UPLOAD_CATEGORIES, type DocumentUploadCategory } from '../api/types';
 
 export interface DetectedBundleDocument {
@@ -136,67 +135,51 @@ export async function analyzeComplianceBundle(
   buffer: Buffer,
   mimeType: string,
 ): Promise<BundleAnalysisResult> {
-  const { apiKey, model } = await getAiRuntimeConfig();
-  if (!apiKey) {
-    return { ok: false, reason: 'no_api_key' };
-  }
-
   const effectiveMime = BUNDLE_SUPPORTED_MIME_TYPES.has(mimeType)
     ? (mimeType === 'image/jpg' ? 'image/jpeg' : mimeType)
     : 'application/pdf';
 
-  try {
-    const client = new GoogleGenerativeAI(apiKey);
-    const modelClient = client.getGenerativeModel({
-      model,
-      systemInstruction: SYSTEM_INSTRUCTION,
-      generationConfig: {
-        temperature: 0,
-        maxOutputTokens: 2048,
-        responseMimeType: 'application/json',
-      },
-    });
-
-    const response = await modelClient.generateContent([
+  const result = await chatWithOpenRouter({
+    temperature: 0,
+    maxTokens: 2048,
+    messages: [
+      { role: 'system', content: SYSTEM_INSTRUCTION },
       {
-        inlineData: {
-          data: buffer.toString('base64'),
-          mimeType: effectiveMime,
-        },
+        role: 'user',
+        content:
+          'Identify every distinct compliance document in the attached file and return ONLY the JSON described in your instructions.',
       },
-      {
-        text: 'Identify every distinct compliance document in this file and return the JSON described in your instructions.',
-      },
-    ]);
+    ],
+    attachments: [{ mimeType: effectiveMime, data: buffer.toString('base64') }],
+  });
 
-    const content = response.response.text().trim();
-    if (!content) {
-      return { ok: false, reason: 'empty_response' };
+  if (!result.ok) {
+    if (result.reason === 'no_api_key') {
+      return { ok: false, reason: 'no_api_key' };
     }
-
-    const cleaned = content
-      .replace(/^```(?:json)?\n?/, '')
-      .replace(/\n?```$/, '')
-      .trim();
-
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(cleaned);
-    } catch {
-      return { ok: false, reason: 'invalid_response', error: 'Model did not return valid JSON' };
-    }
-
-    const documents = coerceDocuments(parsed);
-    if (documents.length === 0) {
-      return { ok: false, reason: 'invalid_response', error: 'No documents detected in bundle' };
-    }
-
-    return { ok: true, documents, model };
-  } catch (error) {
     return {
       ok: false,
       reason: 'exception',
-      error: error instanceof Error ? error.message : 'Bundle analysis failed',
+      error: result.error ?? 'Bundle analysis request failed',
     };
   }
+
+  const cleaned = result.content
+    .replace(/^```(?:json)?\n?/, '')
+    .replace(/\n?```$/, '')
+    .trim();
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(cleaned);
+  } catch {
+    return { ok: false, reason: 'invalid_response', error: 'Model did not return valid JSON' };
+  }
+
+  const documents = coerceDocuments(parsed);
+  if (documents.length === 0) {
+    return { ok: false, reason: 'invalid_response', error: 'No documents detected in bundle' };
+  }
+
+  return { ok: true, documents, model: result.model };
 }

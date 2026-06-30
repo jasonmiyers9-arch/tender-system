@@ -48,7 +48,7 @@ export async function summarizeDocumentForKnowledgeBase(text: string): Promise<S
 
   if (!response.ok) {
     if (response.reason !== 'no_api_key') {
-      console.warn('Gemini summary generation failed, using local fallback.', response);
+      console.warn('Claude summary generation failed, using local fallback.', response);
     }
     const fallback = localFallbackSummary(normalized);
     return { summary: fallback || null, model: 'local-fallback' };

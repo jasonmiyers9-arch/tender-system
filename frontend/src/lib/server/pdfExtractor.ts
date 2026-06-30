@@ -11,9 +11,9 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { chatWithOpenRouter } from './openRouterClient';
 
-// How much extracted text to feed the model. gemini-2.5-flash has a very large
-// context window, so the old 8000-char cap (~2-4 pages) needlessly truncated
-// long compliance documents. Raised so multi-page docs are analyzed whole.
+// How much extracted text to feed the model. Claude has a very large context
+// window, so long compliance documents are analyzed whole rather than truncated
+// to a couple of pages.
 const AI_ANALYSIS_TEXT_LIMIT = 24_000;
 const AI_EXPIRY_TEXT_LIMIT = 12_000;
 
@@ -681,7 +681,7 @@ const OCR_USER_PROMPT =
  * OCR a scanned or image-based document by sending the raw bytes to the model.
  * Recovers text that pdfjs/pdf-parse cannot (no text layer). Returns '' on failure.
  */
-export async function transcribeDocumentWithGemini(buffer: Buffer, mimeType: string): Promise<string> {
+export async function transcribeDocumentWithAI(buffer: Buffer, mimeType: string): Promise<string> {
   if (!isInlineAnalyzable(mimeType)) return '';
 
   const result = await chatWithOpenRouter({
@@ -699,7 +699,7 @@ export async function transcribeDocumentWithGemini(buffer: Buffer, mimeType: str
 }
 
 /**
- * Analyse document content using the configured Gemini model.
+ * Analyse document content using the configured Claude model.
  * Always runs the regex baseline first; AI result enriches it.
  * When `file` is an inline-analyzable PDF/image, the raw bytes are sent to the
  * model so it reads layout, tables, and scanned pages directly (multimodal),
@@ -758,13 +758,13 @@ export async function analyzeDocumentWithAI(
       keywords:              ai.keywords?.length       ? ai.keywords        : baseline.keywords,
     };
   } catch (err) {
-    console.warn('Gemini document analysis failed; using regex baseline:', err);
+    console.warn('Claude document analysis failed; using regex baseline:', err);
     return baseline;
   }
 }
 
 /**
- * Extract expiry date using the configured Gemini model. Falls back to regex if AI unavailable or fails.
+ * Extract expiry date using the configured Claude model. Falls back to regex if AI unavailable or fails.
  */
 export async function extractExpiryDateWithAI(text: string): Promise<string | null> {
   if (!text.trim()) return extractExpiryDate(text);

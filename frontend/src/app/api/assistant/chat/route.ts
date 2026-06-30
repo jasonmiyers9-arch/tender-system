@@ -13,10 +13,17 @@ import { calculateTenderMatchScore, generateComplianceProfile } from '@/lib/serv
 import { buildComplianceAdvisorSystemPrompt } from '@/lib/server/aiPrompts';
 import { tenderFitScore } from '@/lib/server/tenderScoring';
 import { chatWithOpenRouter, describeAiFailure } from '@/lib/server/openRouterClient';
+import { resolveStoredTenderDocuments, fetchTenderDocumentsForAi } from '@/lib/server/tenderSourceDocuments';
 import { rateLimit, RateLimits } from '@/lib/server/rateLimiter';
 import { getScrapedTenders, type ScrapedTender } from '@/lib/server/tenderScraper';
 import type { TenderDetail } from '@/lib/api/types';
 import type { TenderRequirements } from '@/lib/server/complianceScoring';
+
+// The advisor fetches a tender's official PDFs and sends them to Claude for
+// multimodal reading, which can exceed the default serverless timeout. Allow the
+// full Netlify Pro execution budget so the request finishes instead of the
+// function being killed mid-request (which the browser sees as a bare 500).
+export const maxDuration = 26;
 
 type ChatMessage = {
   role: 'user' | 'assistant';
@@ -146,6 +153,14 @@ export async function POST(req: Request) {
       })
     : null;
 
+  // Pull the tender's official published PDF documents (when available) so the AI
+  // reads the real requirements and checks them against the company's compliance
+  // documents, rather than relying on scraped summary text alone.
+  const tenderSourceDocuments = tender ? await resolveStoredTenderDocuments(tender) : [];
+  const tenderAiDocuments = tenderSourceDocuments.length
+    ? await fetchTenderDocumentsForAi(tenderSourceDocuments)
+    : [];
+
   const facts = {
     company: {
       name: company?.name ?? 'Company',
@@ -167,6 +182,7 @@ export async function POST(req: Request) {
       category: document.category,
       status: document.status,
       expiryDate: document.expiryDate ?? null,
+      summary: document.aiSummary?.slice(0, 500) ?? null,
     })),
     tender: tender && tenderScore && requirements ? {
       id: tender.id,
@@ -197,6 +213,7 @@ export async function POST(req: Request) {
       priorityActions: tenderScore.priorityActions,
       evidence: tenderScore.evidence,
       recommendation: tenderScore.recommendation,
+      officialDocumentsAttached: tenderAiDocuments.map((doc) => doc.filename),
     } : null,
   };
 
@@ -206,11 +223,14 @@ export async function POST(req: Request) {
     messages: [
       {
         role: 'system',
-        content: buildComplianceAdvisorSystemPrompt(JSON.stringify(facts)),
+        content: buildComplianceAdvisorSystemPrompt(JSON.stringify(facts), tenderAiDocuments.length > 0),
       },
       ...history,
       { role: 'user', content: question },
     ],
+    attachments: tenderAiDocuments.length
+      ? tenderAiDocuments.map(({ mimeType, data }) => ({ mimeType, data }))
+      : undefined,
   });
 
   const normalizedQuestion = question.toLowerCase();
@@ -259,7 +279,7 @@ export async function POST(req: Request) {
 
   return NextResponse.json({
     answer: completion.ok ? completion.content : fallbackAnswer,
-    source: completion.ok ? 'gemini' : 'deterministic-fallback',
+    source: completion.ok ? 'claude' : 'deterministic-fallback',
     model: completion.ok ? completion.model : 'rules-based',
     aiWarning: completion.ok ? null : describeAiFailure(completion),
     snapshot: {
