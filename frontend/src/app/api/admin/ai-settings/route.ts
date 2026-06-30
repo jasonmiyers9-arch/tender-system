@@ -37,13 +37,16 @@ export async function PUT(req: Request) {
 
   try {
     const body = await req.json() as {
+      apiKey?: string | null;
+      model?: string | null;
+      // Accept legacy field names so older clients keep working.
       geminiApiKey?: string | null;
       geminiModel?: string | null;
     };
 
     const settings = await upsertAiSettings({
-      geminiApiKey: body.geminiApiKey,
-      geminiModel: body.geminiModel,
+      apiKey: body.apiKey ?? body.geminiApiKey,
+      model: body.model ?? body.geminiModel,
       updatedBy: user.id,
     });
 
@@ -63,11 +66,11 @@ export async function POST(req: Request) {
   const result = await chatWithOpenRouter({
     maxTokens: 30,
     temperature: 0,
-    messages: [{ role: 'user', content: 'Reply with exactly: Gemini connection successful' }],
+    messages: [{ role: 'user', content: 'Reply with exactly: Claude connection successful' }],
   });
 
   if (!result.ok) {
-    console.warn('Gemini connection test failed:', result);
+    console.warn('Claude connection test failed:', result);
     return NextResponse.json({
       ok: false,
       detail: describeAiFailure(result),

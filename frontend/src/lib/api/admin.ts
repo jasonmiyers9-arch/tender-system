@@ -226,9 +226,10 @@ export const admin = {
     },
 
     async getAiSettings(): Promise<{
-        hasGeminiKey: boolean;
-        geminiKeyMasked: string | null;
-        geminiModel: string;
+        provider: 'anthropic';
+        hasApiKey: boolean;
+        apiKeyMasked: string | null;
+        model: string;
         updatedAt: string | null;
         source: 'admin' | 'env' | 'none';
     }> {
@@ -237,12 +238,13 @@ export const admin = {
     },
 
     async updateAiSettings(payload: {
-        geminiApiKey?: string;
-        geminiModel?: string;
+        apiKey?: string;
+        model?: string;
     }): Promise<{
-        hasGeminiKey: boolean;
-        geminiKeyMasked: string | null;
-        geminiModel: string;
+        provider: 'anthropic';
+        hasApiKey: boolean;
+        apiKeyMasked: string | null;
+        model: string;
         updatedAt: string | null;
         source: 'admin' | 'env' | 'none';
     }> {

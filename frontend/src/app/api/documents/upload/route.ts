@@ -135,10 +135,10 @@ export async function POST(req: Request) {
       try {
         const {
           extractPDFContent,
-          transcribeDocumentWithGemini,
+          transcribeDocumentWithAI,
         } = await import('../../../../lib/server/pdfExtractor');
 
-        let extractor = 'gemini-vision';
+        let extractor = 'claude-vision';
 
         // 1. Digital PDFs: pull the text layer first (fast, free, exact).
         if (ext === '.pdf') {
@@ -148,13 +148,13 @@ export async function POST(req: Request) {
           extractor = pdfResult.extractor;
         }
 
-        // 2. OCR fallback via Gemini for scanned PDFs (no/weak text layer) and
+        // 2. OCR fallback via Claude for scanned PDFs (no/weak text layer) and
         //    image uploads — recovers text that parsing cannot.
         if (!extractedText || extractedText.trim().length < 200) {
-          const ocrText = await transcribeDocumentWithGemini(buffer, inlineMime);
+          const ocrText = await transcribeDocumentWithAI(buffer, inlineMime);
           if (ocrText.trim().length > (extractedText?.trim().length ?? 0)) {
             extractedText = ocrText;
-            extractor = ext === '.pdf' ? 'gemini-ocr' : 'gemini-vision';
+            extractor = ext === '.pdf' ? 'claude-ocr' : 'claude-vision';
             if (!pageCount) pageCount = 1;
           }
         }
