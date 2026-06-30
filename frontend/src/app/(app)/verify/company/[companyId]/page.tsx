@@ -17,6 +17,7 @@ import {
     Flag,
     Mail,
     ShieldCheck,
+    XCircle,
 } from 'lucide-react';
 import type { VaultDocument } from '@/lib/api/types';
 
@@ -61,7 +62,7 @@ export default function VerifyCompanyReportPage({ params }: { params: Promise<{ 
     const { data: report, isLoading, isError, refetch } = useVerifyCompany(companyId);
     const verifyCompany = useVerifyCompanyStatus(companyId);
     const verifyDocument = useVerifyCompanyDocument(companyId);
-    const [actionPending, setActionPending] = useState<'request' | 'flag' | null>(null);
+    const [actionPending, setActionPending] = useState<'request' | 'flag' | `reject:${string}` | null>(null);
     const [actionMessage, setActionMessage] = useState<string | null>(null);
 
     async function downloadBundle() {
@@ -116,8 +117,23 @@ export default function VerifyCompanyReportPage({ params }: { params: Promise<{ 
         setActionMessage(null);
         try {
             await verifyDocument.mutateAsync(documentId);
+            setActionMessage('Document verified and the company score was updated.');
         } catch {
             setActionMessage('The document could not be verified. Please try again.');
+        }
+    }
+
+    async function handleRejectDocument(documentId: string) {
+        setActionPending(`reject:${documentId}`);
+        setActionMessage(null);
+        try {
+            await verify.rejectDocument(documentId);
+            setActionMessage('Document rejected and the company score was updated.');
+            await refetch();
+        } catch {
+            setActionMessage('The document could not be rejected. Please try again.');
+        } finally {
+            setActionPending(null);
         }
     }
 
@@ -190,7 +206,7 @@ export default function VerifyCompanyReportPage({ params }: { params: Promise<{ 
                                 <th className="px-5 py-3 font-semibold">Authority</th>
                                 <th className="px-5 py-3 font-semibold">Expiry</th>
                                 <th className="px-5 py-3 font-semibold">Status</th>
-                                <th className="px-5 py-3 font-semibold">Verified</th>
+                                <th className="px-5 py-3 font-semibold">Review</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-[--color-border]">
@@ -218,17 +234,29 @@ export default function VerifyCompanyReportPage({ params }: { params: Promise<{ 
                                                     <CheckCircle2 size={18} />
                                                 </span>
                                             ) : (
-                                                <Button
-                                                    size="sm"
-                                                    variant="outline"
-                                                    leftIcon={<ShieldCheck size={14} />}
-                                                    onClick={() => handleVerifyDocument(doc.id)}
-                                                    loading={verifyDocument.isPending && verifyDocument.variables === doc.id}
-                                                    disabled={verifyDocument.isPending}
-                                                    className="border-emerald-500/40 text-emerald-700 hover:bg-emerald-500/10"
-                                                >
-                                                    Verify
-                                                </Button>
+                                                <div className="flex flex-wrap items-center gap-2">
+                                                    <Button
+                                                        size="sm"
+                                                        variant="outline"
+                                                        leftIcon={<ShieldCheck size={14} />}
+                                                        onClick={() => handleVerifyDocument(doc.id)}
+                                                        loading={verifyDocument.isPending && verifyDocument.variables === doc.id}
+                                                        disabled={verifyDocument.isPending || actionPending !== null}
+                                                        className="border-emerald-500/40 text-emerald-700 hover:bg-emerald-500/10"
+                                                    >
+                                                        Verify
+                                                    </Button>
+                                                    <Button
+                                                        size="sm"
+                                                        variant="ghost"
+                                                        leftIcon={<XCircle size={14} />}
+                                                        onClick={() => handleRejectDocument(doc.id)}
+                                                        disabled={verifyDocument.isPending || actionPending !== null || doc.status === 'rejected'}
+                                                        className="border-red-500/60 text-red-600 hover:bg-red-500/10"
+                                                    >
+                                                        {actionPending === `reject:${doc.id}` ? 'Rejecting...' : 'Reject'}
+                                                    </Button>
+                                                </div>
                                             )}
                                         </td>
                                     </tr>

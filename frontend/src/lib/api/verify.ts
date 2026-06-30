@@ -75,6 +75,11 @@ export const verify = {
         return res.json();
     },
 
+    async rejectDocument(documentId: string): Promise<{ ok: true }> {
+        const res = await authFetch(`/verify/documents/${documentId}/reject`, { method: 'POST' });
+        return res.json();
+    },
+
     async getActivity(): Promise<EvaluatorActivity[]> {
         const res = await authFetch('/verify/activity');
         return res.json();
@@ -89,4 +94,3 @@ export interface EvaluatorActivity {
     timestamp: string;
     outcome: string;
 }
-

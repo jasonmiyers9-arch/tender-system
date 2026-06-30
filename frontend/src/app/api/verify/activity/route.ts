@@ -7,10 +7,18 @@ export async function GET(req: Request) {
   const { user, error } = await requireRole(req, ['evaluator']);
   if (error) return error;
 
-  const [events, companies] = await Promise.all([
-    queryAuditLogs({ userId: user!.id, limit: 100 }),
-    listAllCompanies(),
-  ]);
+  let events: Awaited<ReturnType<typeof queryAuditLogs>>;
+  let companies: Awaited<ReturnType<typeof listAllCompanies>>;
+  try {
+    [events, companies] = await Promise.all([
+      queryAuditLogs({ userId: user!.id, limit: 100 }),
+      listAllCompanies(),
+    ]);
+  } catch (activityError) {
+    console.error('[VerifyActivity] Failed to load evaluator activity', activityError);
+    return NextResponse.json([]);
+  }
+
   const companyNames = new Map(companies.map((company) => [company.id, company.name]));
 
   return NextResponse.json(events
