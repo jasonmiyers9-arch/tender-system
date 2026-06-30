@@ -16,7 +16,7 @@ import { fadeUp, T, stagger } from '@/lib/motion';
 import { formatDate } from '@/lib/utils/formatters';
 import type { TenderMatch } from '@/lib/api/types';
 
-type StatusKey = 'all' | 'published' | 'pending' | 'draft' | 'rejected' | 'expired';
+type StatusKey = 'all' | 'published' | 'pending' | 'draft' | 'rejected' | 'expired' | 'new24h';
 
 const STATUS_TONE: Record<string, { dot: string; chip: string; chipText: string; label: string }> = {
     published: { dot: 'bg-emerald-500', chip: 'bg-emerald-500/10 border-emerald-500/30', chipText: 'text-emerald-600', label: 'Published' },
@@ -140,11 +140,13 @@ function PendingRow({ tender, onPublish, onReject, busy }: {
 }
 
 // ─── Health pill ─────────────────────────────────────────────────────────────
-function HealthTile({ label, value, icon, tone }: {
+function HealthTile({ label, value, icon, tone, active = false, onClick }: {
     label: string;
     value: number;
     icon: React.ReactNode;
     tone: 'success' | 'indigo' | 'danger' | 'muted';
+    active?: boolean;
+    onClick?: () => void;
 }) {
     const cls = {
         success: 'ring-emerald-500/20 bg-emerald-500/5 text-emerald-600',
@@ -152,14 +154,25 @@ function HealthTile({ label, value, icon, tone }: {
         danger: value > 0 ? 'ring-red-500/30 bg-red-500/8 text-red-600' : 'ring-[--color-border] bg-[--color-bg] text-[--color-text-muted]',
         muted: 'ring-[--color-border] bg-[--color-bg] text-[--color-text-primary]',
     }[tone];
+    const activeRing = {
+        success: 'ring-2 ring-emerald-500/60',
+        indigo: 'ring-2 ring-indigo-500/60',
+        danger: 'ring-2 ring-red-500/60',
+        muted: 'ring-2 ring-[--color-border-strong]',
+    }[tone];
     return (
-        <div className={`flex-1 px-4 py-3.5 rounded-xl ring-1 ${cls}`}>
+        <button
+            type="button"
+            onClick={onClick}
+            aria-pressed={active}
+            className={`flex-1 text-left px-4 py-3.5 rounded-xl ring-1 ${cls} ${active ? activeRing : ''} cursor-pointer transition-all hover:-translate-y-0.5 hover:ring-2 focus:outline-none focus:ring-2`}
+        >
             <div className="flex items-center gap-2">
                 {icon}
                 <span className="text-[10px] uppercase tracking-wider font-semibold text-[--color-text-muted]">{label}</span>
             </div>
             <p className="text-2xl font-extrabold tabular-nums mt-1.5">{value}</p>
-        </div>
+        </button>
     );
 }
 
@@ -243,6 +256,7 @@ export default function AdminTenderFeedPage() {
         return list
             .filter((t) => {
                 if (filter === 'all') return true;
+                if (filter === 'new24h') return Boolean(t.createdAt) && new Date(t.createdAt!).getTime() >= oneDayAgo;
                 return effectiveStatus(t) === filter;
             })
             .filter((t) => {
@@ -258,7 +272,14 @@ export default function AdminTenderFeedPage() {
                 const bT = b.createdAt ? new Date(b.createdAt).getTime() : 0;
                 return bT - aT;
             });
-    }, [list, filter, search]);
+    }, [list, filter, search, oneDayAgo]);
+
+    const focusFeed = (next: StatusKey) => {
+        setFilter((curr) => (curr === next ? 'all' : next));
+        if (typeof document !== 'undefined') {
+            document.getElementById('all-tenders')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+    };
 
     const firstName =
         currentUser?.name?.split(' ')[0] ??
@@ -446,16 +467,17 @@ export default function AdminTenderFeedPage() {
                     <div className="flex items-center gap-3">
                         <div className="w-1 h-6 rounded-full bg-gradient-to-b from-indigo-400 to-indigo-600" />
                         <h2 className="text-sm font-bold text-[--color-text-primary] tracking-tight">Feed health</h2>
+                        <span className="text-[10px] text-[--color-text-muted] italic">tap a tile to filter</span>
                     </div>
                     <div className="flex flex-col sm:flex-row gap-3">
-                        <HealthTile label="Published this week" value={publishedThisWeek} icon={<CheckCircle2 size={14} />} tone="success" />
-                        <HealthTile label="New in last 24h" value={newToday} icon={<Sparkles size={14} />} tone="indigo" />
-                        <HealthTile label="Past deadline" value={pastDeadline} icon={<AlertCircle size={14} />} tone="danger" />
+                        <HealthTile label="Published this week" value={publishedThisWeek} icon={<CheckCircle2 size={14} />} tone="success" active={filter === 'published'} onClick={() => focusFeed('published')} />
+                        <HealthTile label="New in last 24h" value={newToday} icon={<Sparkles size={14} />} tone="indigo" active={filter === 'new24h'} onClick={() => focusFeed('new24h')} />
+                        <HealthTile label="Past deadline" value={pastDeadline} icon={<AlertCircle size={14} />} tone="danger" active={filter === 'expired'} onClick={() => focusFeed('expired')} />
                     </div>
                 </section>
 
                 {/* ── ALL TENDERS ──────────────────────────────────────────── */}
-                <section className="space-y-3">
+                <section id="all-tenders" className="space-y-3 scroll-mt-6">
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                         <div className="flex items-center gap-3">
                             <div className="w-1 h-6 rounded-full bg-gradient-to-b from-slate-400 to-slate-600" />
@@ -482,6 +504,7 @@ export default function AdminTenderFeedPage() {
                                 >
                                     <option value="all">All</option>
                                     <option value="published">Published</option>
+                                    <option value="new24h">New (24h)</option>
                                     <option value="pending">Pending</option>
                                     <option value="draft">Draft</option>
                                     <option value="expired">Expired</option>

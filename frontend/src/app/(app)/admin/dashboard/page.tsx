@@ -237,9 +237,10 @@ interface ForecastItemProps {
     value: number;
     icon: ReactNode;
     tone?: 'success' | 'warning' | 'danger';
+    href?: string;
 }
 
-function ForecastItem({ label, value, icon, tone }: ForecastItemProps) {
+function ForecastItem({ label, value, icon, tone, href }: ForecastItemProps) {
     const toneClass =
         tone === 'success' ? 'text-emerald-600' :
         tone === 'warning' ? 'text-amber-600' :
@@ -250,15 +251,27 @@ function ForecastItem({ label, value, icon, tone }: ForecastItemProps) {
         tone === 'warning' ? 'ring-amber-500/20 bg-amber-500/5' :
         tone === 'danger' ? 'ring-red-500/20 bg-red-500/5' :
         'ring-[--color-border] bg-[--color-bg]';
-    return (
-        <div className={`flex items-center gap-3 px-3.5 py-3 rounded-xl ring-1 ${ringClass}`}>
+    const inner = (
+        <>
             <span className="text-[--color-text-muted]">{icon}</span>
             <div className="min-w-0">
                 <p className={`text-lg font-extrabold leading-none tabular-nums ${toneClass}`}>{value}</p>
                 <p className="text-[10px] font-medium uppercase tracking-wider text-[--color-text-muted] mt-1">{label}</p>
             </div>
-        </div>
+        </>
     );
+    const base = `flex items-center gap-3 px-3.5 py-3 rounded-xl ring-1 ${ringClass}`;
+    if (href) {
+        return (
+            <Link
+                href={href}
+                className={`${base} group cursor-pointer transition-all hover:-translate-y-0.5 hover:ring-2 focus:outline-none focus:ring-2`}
+            >
+                {inner}
+            </Link>
+        );
+    }
+    return <div className={base}>{inner}</div>;
 }
 
 export default function AdminTodayPage() {
@@ -622,12 +635,12 @@ export default function AdminTodayPage() {
                                 </h3>
                             </div>
                             <div className="grid grid-cols-2 gap-2.5">
-                                <ForecastItem label="Clients" value={stats.totalCompanies} icon={<Building2 size={14} />} />
-                                <ForecastItem label="Tender ready" value={stats.tenderReady} icon={<ShieldCheck size={14} />} tone="success" />
-                                <ForecastItem label="Partially ready" value={stats.partiallyReady} icon={<AlertTriangle size={14} />} tone="warning" />
-                                <ForecastItem label="High risk" value={stats.highRisk} icon={<AlertTriangle size={14} />} tone="danger" />
-                                <ForecastItem label="Managed docs" value={stats.totalDocuments} icon={<FileCheck size={14} />} />
-                                <ForecastItem label="Due in 30d" value={dueIn30} icon={<Clock size={14} />} />
+                                <ForecastItem label="Clients" value={stats.totalCompanies} icon={<Building2 size={14} />} href="/admin/companies" />
+                                <ForecastItem label="Tender ready" value={stats.tenderReady} icon={<ShieldCheck size={14} />} tone="success" href="/admin/companies?band=tender-ready" />
+                                <ForecastItem label="Partially ready" value={stats.partiallyReady} icon={<AlertTriangle size={14} />} tone="warning" href="/admin/companies?band=partially-ready" />
+                                <ForecastItem label="High risk" value={stats.highRisk} icon={<AlertTriangle size={14} />} tone="danger" href="/admin/companies?band=high-risk" />
+                                <ForecastItem label="Managed docs" value={stats.totalDocuments} icon={<FileCheck size={14} />} href="/admin/documents" />
+                                <ForecastItem label="Due in 30d" value={dueIn30} icon={<Clock size={14} />} href="/admin/companies?sort=risk" />
                             </div>
                         </motion.div>
 
