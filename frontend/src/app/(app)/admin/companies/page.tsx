@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'motion/react';
 import {
     Search, Filter, ArrowRight, ArrowUpRight, Mail, Bell, Sparkles, Shield,
@@ -230,6 +230,23 @@ export default function AdminPortfolioPage() {
     const [search, setSearch] = useState('');
     const [statusFilter, setStatusFilter] = useState<StatusKey>('all');
     const [sortBy, setSortBy] = useState<SortKey>('name');
+
+    // Deep-link support: the admin dashboard Portfolio pulse tiles link here with
+    // a score band or sort hint. Map those onto the existing filters on mount.
+    useEffect(() => {
+        const sp = new URLSearchParams(window.location.search);
+        const band = sp.get('band');
+        const bandToStatus: Record<string, StatusKey> = {
+            'tender-ready': 'verified',
+            'partially-ready': 'pending',
+            'high-risk': 'rejected',
+        };
+        const sort = sp.get('sort');
+        // Sync filter state from the URL once on mount - intentional pattern.
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        if (band && bandToStatus[band]) setStatusFilter(bandToStatus[band]);
+        if (sort === 'name' || sort === 'recent' || sort === 'risk') setSortBy(sort);
+    }, []);
 
     const list = useMemo(() => (Array.isArray(companies) ? companies : []), [companies]);
 

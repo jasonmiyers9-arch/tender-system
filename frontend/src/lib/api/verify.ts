@@ -65,6 +65,16 @@ export const verify = {
         return res.json();
     },
 
+    async verifyCompany(companyId: string): Promise<{ ok: true; verifiedAt: string; status: string }> {
+        const res = await authFetch(`/verify/companies/${companyId}/verify`, { method: 'POST' });
+        return res.json();
+    },
+
+    async verifyDocument(documentId: string): Promise<{ ok: true; status: string; verifiedAt: string | null }> {
+        const res = await authFetch(`/verify/documents/${documentId}/verify`, { method: 'POST' });
+        return res.json();
+    },
+
     async getActivity(): Promise<EvaluatorActivity[]> {
         const res = await authFetch('/verify/activity');
         return res.json();

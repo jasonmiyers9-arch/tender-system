@@ -1,7 +1,7 @@
 'use client';
 
 import { use, useState } from 'react';
-import { useVerifyCompany } from '@/lib/hooks/useVerify';
+import { useVerifyCompany, useVerifyCompanyStatus, useVerifyCompanyDocument } from '@/lib/hooks/useVerify';
 import { verify } from '@/lib/api/verify';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
@@ -16,6 +16,7 @@ import {
     FileText,
     Flag,
     Mail,
+    ShieldCheck,
 } from 'lucide-react';
 import type { VaultDocument } from '@/lib/api/types';
 
@@ -58,6 +59,8 @@ function flattenDocuments(documentsByCategory: Record<string, VaultDocument[] | 
 export default function VerifyCompanyReportPage({ params }: { params: Promise<{ companyId: string }> }) {
     const { companyId } = use(params);
     const { data: report, isLoading, isError, refetch } = useVerifyCompany(companyId);
+    const verifyCompany = useVerifyCompanyStatus(companyId);
+    const verifyDocument = useVerifyCompanyDocument(companyId);
     const [actionPending, setActionPending] = useState<'request' | 'flag' | null>(null);
     const [actionMessage, setActionMessage] = useState<string | null>(null);
 
@@ -99,6 +102,25 @@ export default function VerifyCompanyReportPage({ params }: { params: Promise<{ 
         }
     }
 
+    async function handleVerifyCompany() {
+        setActionMessage(null);
+        try {
+            await verifyCompany.mutateAsync();
+            setActionMessage('Company verified and recorded in the audit log.');
+        } catch {
+            setActionMessage('The company could not be verified. Please try again.');
+        }
+    }
+
+    async function handleVerifyDocument(documentId: string) {
+        setActionMessage(null);
+        try {
+            await verifyDocument.mutateAsync(documentId);
+        } catch {
+            setActionMessage('The document could not be verified. Please try again.');
+        }
+    }
+
     if (isLoading) {
         return <div className="space-y-6 max-w-7xl mx-auto"><CardSkeleton /><CardSkeleton /><CardSkeleton /></div>;
     }
@@ -116,7 +138,19 @@ export default function VerifyCompanyReportPage({ params }: { params: Promise<{ 
                             <h1 className="text-3xl font-extrabold tracking-tight text-[--color-text-primary]">
                                 {company.name}
                             </h1>
-                            {report.verification.isVerified && <Badge variant="success" size="md" dot>Verified Entity</Badge>}
+                            {report.verification.isVerified ? (
+                                <Badge variant="success" size="md" dot>Verified Entity</Badge>
+                            ) : (
+                                <Button
+                                    size="sm"
+                                    leftIcon={<ShieldCheck size={15} />}
+                                    onClick={handleVerifyCompany}
+                                    loading={verifyCompany.isPending}
+                                    className="bg-emerald-600 hover:bg-emerald-700"
+                                >
+                                    Verify Company
+                                </Button>
+                            )}
                         </div>
 
                         <div className="mt-5 grid grid-cols-1 gap-3 text-sm sm:grid-cols-2 lg:grid-cols-3">
@@ -184,7 +218,17 @@ export default function VerifyCompanyReportPage({ params }: { params: Promise<{ 
                                                     <CheckCircle2 size={18} />
                                                 </span>
                                             ) : (
-                                                <span className="text-xl font-semibold text-[--color-text-subtle]">-</span>
+                                                <Button
+                                                    size="sm"
+                                                    variant="outline"
+                                                    leftIcon={<ShieldCheck size={14} />}
+                                                    onClick={() => handleVerifyDocument(doc.id)}
+                                                    loading={verifyDocument.isPending && verifyDocument.variables === doc.id}
+                                                    disabled={verifyDocument.isPending}
+                                                    className="border-emerald-500/40 text-emerald-700 hover:bg-emerald-500/10"
+                                                >
+                                                    Verify
+                                                </Button>
                                             )}
                                         </td>
                                     </tr>
