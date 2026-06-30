@@ -19,6 +19,12 @@ import { getScrapedTenders, type ScrapedTender } from '@/lib/server/tenderScrape
 import type { TenderDetail } from '@/lib/api/types';
 import type { TenderRequirements } from '@/lib/server/complianceScoring';
 
+// The advisor fetches a tender's official PDFs and sends them to Claude for
+// multimodal reading, which can exceed the default serverless timeout. Allow the
+// full Netlify Pro execution budget so the request finishes instead of the
+// function being killed mid-request (which the browser sees as a bare 500).
+export const maxDuration = 26;
+
 type ChatMessage = {
   role: 'user' | 'assistant';
   content: string;

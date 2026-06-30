@@ -13,6 +13,12 @@ import { logFileUpload, logSuspiciousActivity } from '../../../../lib/server/sec
 import { calculateSha256 } from '../../../../lib/server/documentIntegrity';
 import { DOCUMENT_UPLOAD_CATEGORIES, type DocumentUploadCategory } from '../../../../lib/api/types';
 
+// Document upload runs AI extraction, expiry detection and summarisation against
+// Claude, which can exceed the default serverless timeout. Allow the full Netlify
+// Pro execution budget so the upload completes instead of the function being
+// killed mid-request (a bare 500).
+export const maxDuration = 26;
+
 const ALLOWED_EXTENSIONS = new Set([
   '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.png', '.jpg', '.jpeg', '.txt', '.csv', '.zip',
 ]);

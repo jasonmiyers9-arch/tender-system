@@ -11,6 +11,12 @@ import { validateFileType, sanitizeFilename } from '../../../../lib/server/mimeV
 import { logFileUpload, logSuspiciousActivity } from '../../../../lib/server/securityAudit';
 import { calculateSha256 } from '../../../../lib/server/documentIntegrity';
 
+// The bundle splitter sends the uploaded file to Claude for multimodal reading,
+// which can take far longer than the default serverless timeout. Allow the full
+// Netlify Pro execution budget so the analysis completes instead of the function
+// being killed mid-request (which surfaces in the browser as a bare 500).
+export const maxDuration = 26;
+
 // The bundle splitter relies on multimodal vision, so only formats the model can
 // read are accepted here (PDF + common image types). Other office formats should
 // use the standard single-document upload route.

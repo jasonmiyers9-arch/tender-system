@@ -2,6 +2,11 @@ import { NextResponse } from 'next/server';
 import { getUserByToken, listCompaniesForUser, getDocumentById, ensureUserCompanyContext } from '@/lib/server/firestoreService';
 import { chatWithOpenRouter } from '@/lib/server/openRouterClient';
 
+// The knowledge Q&A sends document context to Claude, which can run longer than
+// the default serverless timeout. Allow the full Netlify Pro execution budget so
+// the answer returns instead of the function being killed (a bare 500).
+export const maxDuration = 26;
+
 function parseToken(req: Request): string | null {
   const header = req.headers.get('authorization');
   if (!header) return null;

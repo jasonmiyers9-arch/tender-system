@@ -20,7 +20,18 @@ type AiChatOptions = {
   temperature?: number;
   maxTokens?: number;
   attachments?: AiAttachment[];
+  // Hard ceiling for the underlying Anthropic request, in milliseconds. Must stay
+  // comfortably below the hosting function's execution limit so a slow model
+  // response surfaces as a catchable timeout (graceful fallback) instead of the
+  // serverless function being killed and returning a bare 500.
+  timeoutMs?: number;
 };
+
+// Default per-request timeout. Netlify functions on the Pro plan allow up to 26s
+// (set via `export const maxDuration = 26` on each AI route); keeping the model
+// request under that lets the SDK abort and fall back cleanly. Override with
+// AI_REQUEST_TIMEOUT_MS when running where a longer budget is available.
+const DEFAULT_AI_TIMEOUT_MS = Number(process.env.AI_REQUEST_TIMEOUT_MS) || 20_000;
 
 export type AiChatResult =
   | {
@@ -57,6 +68,9 @@ function errorStatus(error: unknown): number | undefined {
 export function describeAiFailure(result: Extract<AiChatResult, { ok: false }>): string {
   if (result.reason === 'no_api_key') return 'The Claude (Anthropic) API key is not configured.';
   if (result.reason === 'empty_response') return 'Claude returned an empty response.';
+  if (/timed?\s*out|timeout|aborted/i.test(result.error ?? '')) {
+    return 'Claude took too long to respond and the request timed out. Try again, or use a smaller document.';
+  }
   if (result.status === 401 || result.status === 403) {
     return 'Claude rejected the API key. Check that the Anthropic API key (or Netlify AI Gateway) is valid for this project.';
   }
@@ -167,17 +181,24 @@ export async function chatWithOpenRouter(options: AiChatOptions): Promise<AiChat
   try {
     const client = new Anthropic({
       apiKey: resolvedKey,
+      // Don't let the SDK silently retry a slow/failed call — on a time-boxed
+      // serverless function the retries would blow past the execution limit and
+      // the function would be killed (a bare 500) before any retry could help.
+      maxRetries: 0,
       ...(baseURL ? { baseURL } : {}),
     });
 
     const { systemInstruction, conversationMessages } = splitMessages(options.messages);
-    const message = await client.messages.create({
-      model,
-      max_tokens: options.maxTokens ?? 1024,
-      temperature: options.temperature ?? 0.2,
-      ...(systemInstruction ? { system: systemInstruction } : {}),
-      messages: toAnthropicMessages(conversationMessages, options.attachments),
-    });
+    const message = await client.messages.create(
+      {
+        model,
+        max_tokens: options.maxTokens ?? 1024,
+        temperature: options.temperature ?? 0.2,
+        ...(systemInstruction ? { system: systemInstruction } : {}),
+        messages: toAnthropicMessages(conversationMessages, options.attachments),
+      },
+      { timeout: options.timeoutMs ?? DEFAULT_AI_TIMEOUT_MS },
+    );
 
     const content = message.content
       .filter((block): block is Anthropic.TextBlock => block.type === 'text')

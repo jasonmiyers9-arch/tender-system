@@ -38,7 +38,7 @@ interface OcdsRelease {
 async function fetchOcdsSourceDocuments(sourceUrl: string): Promise<SourceDocument[]> {
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 12000);
+    const timeout = setTimeout(() => controller.abort(), 6000);
     const res = await fetch(sourceUrl, {
       signal: controller.signal,
       redirect: 'follow',
@@ -95,10 +95,17 @@ export interface TenderDocumentAttachment {
   data: string;
 }
 
-// Caps that keep the AI request within Claude's limits and the function fast.
-const MAX_AI_TENDER_DOCS = 3;
+// Caps that keep the AI request within Claude's limits and, crucially, keep the
+// whole document-fetch phase short enough that the serverless function still has
+// time to make the Claude call within its execution budget. The downloads run
+// sequentially, so per-fetch timeouts plus the overall budget bound total time.
+const MAX_AI_TENDER_DOCS = 2;
 const MAX_AI_DOC_BYTES = 4.5 * 1024 * 1024;
 const MAX_AI_TOTAL_BYTES = 9 * 1024 * 1024;
+// Overall wall-clock budget for fetching tender PDFs. Once exceeded, stop fetching
+// and let the advisor answer with whatever documents were retrieved (or none) so
+// the request always leaves enough of the function's budget for the Claude call.
+const MAX_AI_FETCH_BUDGET_MS = 9000;
 
 function looksLikePdf(doc: SourceDocument): boolean {
   return /\.pdf($|\?)/i.test(doc.url) || /\.pdf$/i.test(doc.filename);
@@ -107,7 +114,7 @@ function looksLikePdf(doc: SourceDocument): boolean {
 async function fetchPdfBytes(url: string): Promise<ArrayBuffer | null> {
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 15000);
+    const timeout = setTimeout(() => controller.abort(), 6000);
     const res = await fetch(url, {
       signal: controller.signal,
       redirect: 'follow',
@@ -137,7 +144,11 @@ export async function fetchTenderDocumentsForAi(
 
   const attachments: TenderDocumentAttachment[] = [];
   let totalBytes = 0;
+  const deadline = Date.now() + MAX_AI_FETCH_BUDGET_MS;
   for (const doc of pdfs) {
+    // Stop fetching once the budget is spent so the caller keeps enough of the
+    // function's execution time to actually call the model.
+    if (Date.now() >= deadline) break;
     const bytes = await fetchPdfBytes(doc.url);
     if (!bytes) continue;
     if (totalBytes + bytes.byteLength > MAX_AI_TOTAL_BYTES) break;
