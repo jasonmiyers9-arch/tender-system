@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { AnimatePresence, motion } from 'motion/react';
 import { Breadcrumbs } from './Breadcrumbs';
+import { EntitySwitcher } from './EntitySwitcher';
 import { ThemeToggle } from '@/components/ui/ThemeToggle';
 import { Badge } from '@/components/ui/Badge';
 import { useAppStore } from '@/store/useAppStore';
@@ -14,10 +15,10 @@ import { signOutFirebase } from '@/lib/firebaseClient';
 import { dropdown, T } from '@/lib/motion';
 
 const roleLabels: Record<string, string> = {
-    admin: 'Administrator',
+    admin: 'Admin / Compliance Manager',
     super_admin: 'Super Admin',
-    evaluator: 'Evaluator',
-    user: 'Company User',
+    evaluator: 'Evaluator / Procurement Officer',
+    user: 'Contractor / Bidder',
 };
 
 function isAdminRole(role: string | null | undefined): boolean {
@@ -58,8 +59,12 @@ export function Topbar({ onOpenMobileNav }: TopbarProps) {
                 </div>
             </div>
 
-            {/* Right: notifications + user (entity switcher hidden for admin — operator persona, not tenant) */}
             <div className="flex items-center gap-1.5 sm:gap-3 flex-shrink-0">
+                {(currentUser?.role === 'admin' || currentUser?.role === 'super_admin' || currentUser?.role === 'user') && (
+                    <div className="hidden sm:block">
+                        <EntitySwitcher />
+                    </div>
+                )}
                 <ThemeToggle />
 
                 {/* Notification bell */}

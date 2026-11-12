@@ -31,11 +31,13 @@ export async function GET(req: Request) {
   if (!user) {
     return NextResponse.json({ detail: 'Unauthorized' }, { status: 401 });
   }
-  if (!isAdminRole(user.role)) {
-    return NextResponse.json({ detail: 'Admin only' }, { status: 403 });
+  if (!isAdminRole(user.role) && user.role !== 'evaluator') {
+    return NextResponse.json({ detail: 'Evaluator or admin only' }, { status: 403 });
   }
 
-  const providerTenders = await listTenders({ createdBy: user.id });
+  const providerTenders = await listTenders(
+    isAdminRole(user.role) ? undefined : { createdBy: user.id, includeSystem: false },
+  );
   const tenderById = new Map(providerTenders.map((t) => [t.id, t]));
   const applications = await listApplicationsForTenders(providerTenders.map((t) => t.id));
 

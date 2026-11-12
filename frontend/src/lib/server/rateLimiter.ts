@@ -54,11 +54,15 @@ function startCleanupTimer() {
  * Extract client IP from request headers
  */
 function getClientIP(req: Request): string {
-  // Check various headers that might contain the real IP
+  // Netlify sets this from the connecting client and does not trust a spoofed value.
+  const netlifyIp = req.headers.get('x-nf-client-connection-ip');
+  if (netlifyIp) return netlifyIp.trim();
+
+  // A trusted proxy appends the client address, so the last hop is the one it added.
   const forwarded = req.headers.get('x-forwarded-for');
   if (forwarded) {
-    // x-forwarded-for can be comma-separated list; take the first IP
-    return forwarded.split(',')[0].trim();
+    const parts = forwarded.split(',').map((part) => part.trim()).filter(Boolean);
+    if (parts.length > 0) return parts[parts.length - 1];
   }
   
   const realIP = req.headers.get('x-real-ip');
@@ -80,9 +84,9 @@ export const RateLimits = {
     maxRequests: 100,
     windowMs: 60 * 1000,
   },
-  /** Authentication endpoints: 10 attempts per minute */
+  /** Authentication endpoints: 5 attempts per minute per client (spec section 8) */
   auth: {
-    maxRequests: 10,
+    maxRequests: 5,
     windowMs: 60 * 1000,
   },
   /** File upload endpoints: 20 uploads per minute */

@@ -8,7 +8,7 @@ import { summarizeDocumentForKnowledgeBase } from '../../../../lib/server/docume
 import { publishRescoreEvent } from '../../../../lib/server/analystEngine';
 import { requireAuth } from '../../../../lib/server/apiAuth';
 import { rateLimit, RateLimits } from '../../../../lib/server/rateLimiter';
-import { validateFileType, sanitizeFilename } from '../../../../lib/server/mimeValidation';
+import { validateFileType, sanitizeFilename, getMimeTypeForExtension } from '../../../../lib/server/mimeValidation';
 import { logFileUpload, logSuspiciousActivity } from '../../../../lib/server/securityAudit';
 import { calculateSha256 } from '../../../../lib/server/documentIntegrity';
 import { DOCUMENT_UPLOAD_CATEGORIES, type DocumentUploadCategory } from '../../../../lib/api/types';
@@ -96,7 +96,7 @@ export async function POST(req: Request) {
     }
 
     // Validate file type using magic bytes (not just extension)
-    const mimeType = uploadedFile.type || 'application/octet-stream';
+    const mimeType = getMimeTypeForExtension(ext) || 'application/octet-stream';
     const mimeValidation = validateFileType(buffer, ext, mimeType);
     
     if (!mimeValidation.valid) {

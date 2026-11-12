@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { usePathname, useRouter } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { ChevronDown, Check, Building2 } from 'lucide-react';
 import { classNames } from '@/lib/utils/formatters';
 import { useAppStore } from '@/store/useAppStore';
@@ -13,7 +13,6 @@ export function EntitySwitcher() {
     const { data: companies = [] } = useCompanies();
     const { mutateAsync: switchCompany, isPending } = useSwitchCompany();
     const router = useRouter();
-    const pathname = usePathname();
 
     const active = companies.find((c) => c.id === activeCompanyId) ?? companies[0];
 
@@ -48,9 +47,6 @@ export function EntitySwitcher() {
                                         await switchCompany(company.id);
                                         setOpen(false);
                                         router.refresh();
-                                        if (pathname?.startsWith('/admin')) {
-                                            router.push('/company');
-                                        }
                                     } catch (e) {
                                         alert(e instanceof Error ? e.message : 'Failed to switch company');
                                     }

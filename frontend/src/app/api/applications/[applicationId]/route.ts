@@ -28,10 +28,19 @@ export async function POST(
   req: Request,
   { params }: { params: Promise<{ applicationId: string }> }
 ) {
-  const { error } = await requireAuth(req);
+  const { user, error } = await requireAuth(req);
   if (error) return error;
 
   const { applicationId } = await params;
+  const application = await getApplicationById(applicationId);
+  if (!application) {
+    return NextResponse.json({ detail: 'Application not found' }, { status: 404 });
+  }
+  const companyId = await resolveCompanyContext(user!.id, user!.activeCompanyId);
+  if (application.companyId && application.companyId !== companyId && !isAdminRole(user!.role)) {
+    return NextResponse.json({ detail: 'Application not found' }, { status: 404 });
+  }
+
   const body = await req.json();
   const action = String(body.action ?? '').trim();
 

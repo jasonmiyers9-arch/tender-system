@@ -68,6 +68,15 @@ function tenderMatchText(tender: TenderMatch): string {
   ].join(' ');
 }
 
+/**
+ * Category bonus applies only when the company has chosen categories and one matches.
+ * An empty category list still shows every tender, but it does not add points.
+ */
+export function categoryBonusApplies(tenderCategory: string, companyCategories: string[], tenderText = ''): boolean {
+  if (companyCategories.length === 0) return false;
+  return categoryMatches(tenderCategory, companyCategories, tenderText);
+}
+
 /** Apply the company-fit bonus and clamp; a tender with gaps can never read 100. */
 export function applyReadinessBonus(matchScore: number, hasGaps: boolean, categoryHit: boolean): number {
   const bonus = categoryHit ? CATEGORY_BONUS : 0;
@@ -95,14 +104,14 @@ export async function enrichTenderWithCompanyScore<T extends TenderMatch>(
       options?.profile ?? generateComplianceProfile(companyId, await listDocumentsForCompany(companyId));
     const requirements = buildTenderRequirementsFromTender(tender);
     const score = calculateTenderMatchScore(companyId, tender.id, tender.title, profile, requirements);
-    const categoryHit = categoryMatches(tender.category, companyCategories, tenderMatchText(tender));
+    const categoryHit = categoryBonusApplies(tender.category, companyCategories, tenderMatchText(tender));
     const hasGaps = score.missingDocuments.length > 0;
     const readinessScore = applyReadinessBonus(score.matchScore, hasGaps, categoryHit);
     const scoreBreakdown: TenderReadinessScoreBreakdown = {
-      documentCompleteness: Math.round(score.breakdown.documentCompleteness * 0.3),
-      verificationCoverage: Math.round(score.breakdown.verificationStatus * 0.25),
-      csdProfileCompleteness: Math.round(score.breakdown.requirementMatch * 0.2),
-      complianceConsistency: Math.round(score.breakdown.documentValidity * 0.15),
+      documentCompleteness: Math.round(score.breakdown.documentCompleteness * 0.25),
+      verificationCoverage: Math.round(score.breakdown.verificationStatus * 0.20),
+      csdProfileCompleteness: Math.round(score.breakdown.requirementMatch * 0.30),
+      complianceConsistency: Math.round(score.breakdown.documentValidity * 0.25),
       tenderFitBonus: categoryHit ? CATEGORY_BONUS : Math.round(score.breakdown.bonusPoints),
     };
 
@@ -111,7 +120,7 @@ export async function enrichTenderWithCompanyScore<T extends TenderMatch>(
       matchScore: readinessScore,
       readinessScore,
       scoreBreakdown,
-      isBidReady: !hasGaps && readinessScore >= 100,
+      isBidReady: !hasGaps,
       gaps: score.gaps.map((gap) => gap.recommendation),
       recommendationReason: categoryHit
         ? `${score.recommendation} Category match: ${tender.category}.`
@@ -145,6 +154,6 @@ export function tenderFitScore(input: {
   companyCategories: string[];
   tenderText?: string;
 }): number {
-  const categoryHit = categoryMatches(input.tenderCategory, input.companyCategories, input.tenderText ?? '');
+  const categoryHit = categoryBonusApplies(input.tenderCategory, input.companyCategories, input.tenderText ?? '');
   return applyReadinessBonus(input.matchScore, input.hasGaps, categoryHit);
 }

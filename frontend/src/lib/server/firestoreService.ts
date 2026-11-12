@@ -1,6 +1,6 @@
 import { DOCUMENT_CATEGORY_GROUPS } from '@/lib/api/types';
 import type { AuthUser, Company, DocumentCategory, TenderDetail, TenderMatch, TenderReadiness, TenderReadinessScoreBreakdown } from '@/lib/api/types';
-import { deleteAuthUser, getFirestore, isFirestoreAvailable, verifyIdToken } from './firebaseAdmin';
+import { deleteAuthUser, getFirestore, isFirebaseAdminConfigured, isFirestoreAvailable, setUserRoleClaim, verifyIdToken } from './firebaseAdmin';
 import { existsSync } from 'node:fs';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
@@ -8,6 +8,7 @@ import { DEFAULT_COMPANIES, DEFAULT_TENDERS, DEFAULT_USERS, DEFAULT_APPLICATIONS
 import { calculateTenderReadinessScore, type CompanyProfileFields, type DocumentWithAnalysis } from './complianceScoring';
 import { getExpiredInPast12Months, isNewAccount } from './expiryCheckService';
 import { sendNotificationDeliveries } from './notificationDelivery';
+import { hashPassword, initialVerificationStatus, readLocalDevSession, resolveRegistrationRole, verifyStoredPassword } from './accountPolicy';
 
 // Re-export internal types for use by other services
 export type { InternalDocument, InternalCompany, InternalTender, InternalUser, InternalApplication };
@@ -24,7 +25,8 @@ const TENDER_MATCHES_COLLECTION = 'tender_matches';
 const SCORE_HISTORY_COLLECTION = 'score_history';
 const SAVED_SEARCHES_COLLECTION = 'saved_searches';
 const SCHEDULED_JOB_RUNS_COLLECTION = 'scheduled_job_runs';
-const SHOULD_SEED_FIRESTORE_DEMO_DATA = process.env.ENABLE_FIRESTORE_DEMO_SEED === 'true';
+const SHOULD_SEED_FIRESTORE_DEMO_DATA = process.env.NODE_ENV !== 'production'
+  && process.env.ENABLE_FIRESTORE_DEMO_SEED === 'true';
 
 function createId() {
   return `${Math.random().toString(36).slice(2)}${Date.now().toString(36)}`;
@@ -370,10 +372,10 @@ async function buildReadinessWithCompany(
   
   return {
     tenderId: tender.id,
-    readyToSubmit: readinessScore.missingForBidReady.length === 0 && readinessScore.totalScore >= 100,
+    readyToSubmit: readinessScore.isBidReady,
     readinessScore: readinessScore.totalScore,
     scoreBreakdown,
-    isBidReady: readinessScore.missingForBidReady.length === 0 && readinessScore.totalScore >= 100,
+    isBidReady: readinessScore.isBidReady,
     blockers: readinessScore.missingForBidReady,
     missingCategories,
     gaps: readinessScore.missingForBidReady,
@@ -526,7 +528,7 @@ async function ensureFirestoreSeed() {
   if (!userSnapshot.empty) return;
 
   for (const user of DEFAULT_USERS) {
-    await db.collection(USERS_COLLECTION).doc(user.id).set(user);
+    await db.collection(USERS_COLLECTION).doc(user.id).set(userForFirestore(user));
   }
   for (const company of DEFAULT_COMPANIES) {
     const { memberIds, ...publicCompany } = company;
@@ -550,13 +552,34 @@ async function getUserDocumentById(userId: string): Promise<InternalUser | null>
   return user ?? null;
 }
 
+const CLAIM_ROLES = new Set(['user', 'evaluator', 'admin', 'super_admin']);
+const syncedRoleClaims = new Set<string>();
+
 export async function getUserByToken(token: string): Promise<InternalUser | null> {
   if (!token) return null;
+  if (!isFirebaseAdminConfigured()) {
+    if (process.env.NODE_ENV === 'production') return null;
+    const userId = readLocalDevSession(token);
+    if (!userId) return null;
+    return getUserDocumentById(userId);
+  }
+
   try {
     const decoded = await verifyIdToken(token);
-    return getUserDocumentById(decoded.uid);
+    const user = await getUserDocumentById(decoded.uid);
+    if (!user) return null;
+    const claimValue = (decoded as unknown as { role?: unknown }).role;
+    const claim = typeof claimValue === 'string' ? claimValue : null;
+    const syncKey = `${decoded.uid}:${user.role}`;
+    if (claim !== user.role && !syncedRoleClaims.has(syncKey)) {
+      await setUserRoleClaim(decoded.uid, user.role);
+      syncedRoleClaims.add(syncKey);
+    } else if (claim && CLAIM_ROLES.has(claim) && claim === user.role) {
+      user.role = claim as InternalUser['role'];
+    }
+    return user;
   } catch {
-    return getUserDocumentById(token);
+    return null;
   }
 }
 
@@ -572,12 +595,19 @@ export async function getUserByEmail(email: string): Promise<InternalUser | null
   return MEMORY_DB.users.find((item) => item.email.toLowerCase() === email.toLowerCase()) ?? null;
 }
 
+function userForFirestore(user: InternalUser): Omit<InternalUser, 'password'> {
+  const stored: Omit<InternalUser, 'password'> & { password?: string } = { ...user };
+  delete stored.password;
+  return stored;
+}
+
 async function createUser(payload: {
   uid?: string;
   name: string;
   email: string;
   password?: string;
   role: string;
+  privileged?: boolean;
   companyName?: string;
   registrationNumber?: string;
   phone?: string;
@@ -587,22 +617,24 @@ async function createUser(payload: {
   const existing = await getUserByEmail(payload.email);
   if (existing) {
     if (payload.uid && existing.id === payload.uid) {
+      await setUserRoleClaim(payload.uid, existing.role);
       return mapUserToAuthUser(existing);
     }
     throw new Error('Email already registered');
   }
 
   const userId = payload.uid ?? createId();
-  const userRole = payload.role === 'super_admin' ? 'super_admin' : payload.role === 'admin' ? 'admin' : payload.role === 'tender_provider' ? 'evaluator' : 'user';
+  const userRole = resolveRegistrationRole(payload.role, payload.privileged === true);
   const companyId = payload.companyName ? createId() : null;
+  const passwordHash = payload.password ? hashPassword(payload.password) : '';
 
   const userRecord: InternalUser = {
     id: userId,
     email: payload.email,
-    password: payload.password ?? '',
+    password: passwordHash,
     fullName: payload.name,
     role: userRole,
-    verificationStatus: 'approved',
+    verificationStatus: initialVerificationStatus(payload.privileged === true),
     activeCompanyId: companyId,
     companyId,
     companyName: payload.companyName?.trim() || undefined,
@@ -615,14 +647,14 @@ async function createUser(payload: {
 
   if (isFirestoreAvailable()) {
     const db = getFirestore()!;
-    await db.collection(USERS_COLLECTION).doc(userId).set(userRecord);
+    await db.collection(USERS_COLLECTION).doc(userId).set(userForFirestore(userRecord));
     if (companyId) {
       await db.collection(COMPANIES_COLLECTION).doc(companyId).set({
         id: companyId,
         name: payload.companyName ?? 'Untitled Company',
         registrationNumber: payload.registrationNumber ?? '',
         vatNumber: '',
-        status: 'verified',
+        status: 'pending',
         address: '',
         phone: payload.phone ?? '',
         email: payload.email,
@@ -633,6 +665,7 @@ async function createUser(payload: {
         tenderCategories: payload.tenderCategories ?? [],
       });
     }
+    if (payload.uid) await setUserRoleClaim(payload.uid, userRole);
   } else {
     MEMORY_DB.users.push(userRecord);
     if (companyId) {
@@ -641,7 +674,7 @@ async function createUser(payload: {
         name: payload.companyName ?? 'Untitled Company',
         registrationNumber: payload.registrationNumber ?? '',
         vatNumber: '',
-        status: 'verified',
+        status: 'pending',
         address: '',
         phone: payload.phone ?? '',
         email: payload.email,
@@ -654,6 +687,7 @@ async function createUser(payload: {
       MEMORY_DB.companies.push(companyRecord);
     }
     await persistLocalAuthUsers();
+    if (payload.uid) await setUserRoleClaim(payload.uid, userRole);
   }
 
   return mapUserToAuthUser(userRecord);
@@ -666,6 +700,7 @@ async function getOrCreateGoogleUser(payload: {
 }): Promise<InternalUser> {
   const existing = await getUserByEmail(payload.email);
   if (existing) {
+    await setUserRoleClaim(payload.uid, existing.role);
     return existing;
   }
 
@@ -675,7 +710,7 @@ async function getOrCreateGoogleUser(payload: {
     password: '',
     fullName: payload.fullName || payload.email.split('@')[0],
     role: 'user',
-    verificationStatus: 'approved',
+    verificationStatus: initialVerificationStatus(false),
     activeCompanyId: null,
     companyId: null,
     createdAt: new Date().toISOString(),
@@ -683,19 +718,20 @@ async function getOrCreateGoogleUser(payload: {
 
   if (isFirestoreAvailable()) {
     const db = getFirestore()!;
-    await db.collection(USERS_COLLECTION).doc(userRecord.id).set(userRecord);
+    await db.collection(USERS_COLLECTION).doc(userRecord.id).set(userForFirestore(userRecord));
   } else {
     MEMORY_DB.users.push(userRecord);
     await persistLocalAuthUsers();
   }
 
+  await setUserRoleClaim(payload.uid, userRecord.role);
   return userRecord;
 }
 
 async function authenticateUser(email: string, password: string): Promise<InternalUser | null> {
   const user = await getUserByEmail(email);
   if (!user) return null;
-  if (user.password !== password) return null;
+  if (!verifyStoredPassword(password, user.password)) return null;
   return user;
 }
 
@@ -942,7 +978,11 @@ async function ensureUserCompanyContext(userId: string): Promise<Company | null>
   return mapCompanyToPublic(newCompany);
 }
 
-async function updateCompanyProfile(companyId: string, payload: Partial<Company>): Promise<Company> {
+async function updateCompanyProfile(
+  companyId: string,
+  payload: Partial<Company>,
+  options?: { allowStatus?: boolean },
+): Promise<Company> {
   const updatedFields: Partial<InternalCompany> = {};
   if (payload.name !== undefined) updatedFields.name = payload.name;
   if (payload.registrationNumber !== undefined) updatedFields.registrationNumber = payload.registrationNumber;
@@ -952,7 +992,7 @@ async function updateCompanyProfile(companyId: string, payload: Partial<Company>
   if (payload.email !== undefined) updatedFields.email = payload.email;
   if (payload.website !== undefined) updatedFields.website = payload.website;
   if (payload.industry !== undefined) updatedFields.industry = payload.industry;
-  if (payload.status !== undefined) updatedFields.status = payload.status;
+  if (payload.status !== undefined && options?.allowStatus) updatedFields.status = payload.status;
   if (payload.province !== undefined) updatedFields.province = payload.province;
   if (payload.bbbeeLevel !== undefined) updatedFields.bbbeeLevel = payload.bbbeeLevel;
   if (payload.cidbGrade !== undefined) updatedFields.cidbGrade = payload.cidbGrade;
@@ -1114,11 +1154,11 @@ async function getTenderReadiness(tenderId: string, companyId?: string): Promise
   const tender = await getInternalTenderById(tenderId);
   if (!tender) return null;
   
-  // If company context available, use full scoring
+  // Company profile comes from Firestore in production. The in-memory list
+  // only contains demo companies and would drop a real company's CSD fields.
   if (companyId) {
-    const companies = MEMORY_DB.companies;
-    const company = companies.find(c => c.id === companyId);
-    return buildReadinessWithCompany(tender, companyId, company ? mapCompanyToPublic(company) : undefined);
+    const company = await getCompanyById(companyId);
+    return buildReadinessWithCompany(tender, companyId, company ?? undefined);
   }
   
   // Fallback to simple readiness without company context

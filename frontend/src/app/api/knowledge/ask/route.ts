@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getUserByToken, listCompaniesForUser, getDocumentById, ensureUserCompanyContext } from '@/lib/server/firestoreService';
 import { chatWithOpenRouter } from '@/lib/server/openRouterClient';
+import { rateLimit, RateLimits } from '@/lib/server/rateLimiter';
 
 // The knowledge Q&A sends document context to Claude, which can run longer than
 // the default serverless timeout. Allow the full Netlify Pro execution budget so
@@ -39,6 +40,9 @@ function localAnswer(question: string, extractedText: string | null | undefined)
 }
 
 export async function POST(req: Request) {
+  const rateLimitError = await rateLimit(req, RateLimits.ai);
+  if (rateLimitError) return rateLimitError;
+
   const token = parseToken(req);
   if (!token) {
     return NextResponse.json({ detail: 'Unauthorized' }, { status: 401 });

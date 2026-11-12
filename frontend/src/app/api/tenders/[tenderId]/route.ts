@@ -4,6 +4,7 @@ import { publishRescoreEvent } from '@/lib/server/analystEngine';
 import { getScrapedTenders, type ScrapedTender } from '@/lib/server/tenderScraper';
 import type { TenderDetail } from '@/lib/api/types';
 import { isAdminRole } from '@/lib/server/apiAuth';
+import { isPublishedTender, redactTender, viewerCanSeeUnpublished } from '@/lib/server/tenderAccess';
 import { type TenderRequirements } from '@/lib/server/complianceScoring';
 import { enrichTenderWithCompanyScore, scrapedTenderId } from '@/lib/server/tenderScoring';
 import { toTenderAttachments } from '@/lib/server/tenderResolver';
@@ -102,6 +103,9 @@ export async function GET(
 
   const tender = await getTenderById(tenderId);
   if (tender) {
+    if (!isPublishedTender(tender.status) && !viewerCanSeeUnpublished(user?.role, tender.createdBy, user?.id)) {
+      return NextResponse.json({ detail: 'Tender not found' }, { status: 404 });
+    }
     const scored = companyId
       ? await enrichTenderWithCompanyScore(tender, companyId, company?.tenderCategories ?? [])
       : tender;
@@ -112,7 +116,7 @@ export async function GET(
       const sourceDocs = await resolveStoredTenderDocuments(scored);
       if (sourceDocs.length) scored.attachments = sourceDocumentsToAttachments(sourceDocs);
     }
-    return NextResponse.json(scored, {
+    return NextResponse.json(redactTender(scored, Boolean(user)), {
       status: 200,
       headers: {
         'Cache-Control': companyId
@@ -127,7 +131,8 @@ export async function GET(
     return NextResponse.json({ detail: 'Tender not found' }, { status: 404 });
   }
 
-  return NextResponse.json(await mapScrapedTenderToDetail(scraped, companyId, company?.tenderCategories ?? []), {
+  const detail = await mapScrapedTenderToDetail(scraped, companyId, company?.tenderCategories ?? []);
+  return NextResponse.json(redactTender(detail, Boolean(user)), {
     status: 200,
     headers: {
       'Cache-Control': companyId
@@ -150,12 +155,19 @@ export async function PATCH(
   if (!user) {
     return NextResponse.json({ detail: 'Unauthorized' }, { status: 401 });
   }
-  if (!isAdminRole(user.role)) {
+  if (!isAdminRole(user.role) && user.role !== 'evaluator') {
     return NextResponse.json({ detail: 'Forbidden' }, { status: 403 });
   }
 
   try {
     const { tenderId } = await params;
+    const existing = await getTenderById(tenderId);
+    if (!existing) {
+      return NextResponse.json({ detail: 'Tender not found' }, { status: 404 });
+    }
+    if (!isAdminRole(user.role) && existing.createdBy !== user.id) {
+      return NextResponse.json({ detail: 'Forbidden' }, { status: 403 });
+    }
     const body = await req.json();
     const updated = await updateTender(tenderId, {
       title: body?.title,
@@ -201,12 +213,19 @@ export async function DELETE(
   if (!user) {
     return NextResponse.json({ detail: 'Unauthorized' }, { status: 401 });
   }
-  if (!isAdminRole(user.role)) {
+  if (!isAdminRole(user.role) && user.role !== 'evaluator') {
     return NextResponse.json({ detail: 'Forbidden' }, { status: 403 });
   }
 
   try {
     const { tenderId } = await params;
+    const existing = await getTenderById(tenderId);
+    if (!existing) {
+      return NextResponse.json({ detail: 'Tender not found' }, { status: 404 });
+    }
+    if (!isAdminRole(user.role) && existing.createdBy !== user.id) {
+      return NextResponse.json({ detail: 'Forbidden' }, { status: 403 });
+    }
     await deleteTender(tenderId);
     return NextResponse.json({ ok: true });
   } catch (error) {

@@ -229,26 +229,6 @@ function isValidTextContent(buffer: Buffer, maxBytesToCheck = 8192): boolean {
 }
 
 /**
- * Special validation for OOXML files (docx, xlsx) - verify they're truly Office documents
- */
-async function validateOOXML(buffer: Buffer, expectedType: '.docx' | '.xlsx'): Promise<boolean> {
-  // OOXML files are ZIP archives containing specific XML files
-  // For a basic check, we verify the ZIP signature and could parse further if needed
-  
-  // Check ZIP header
-  if (buffer.length < 4) return false;
-  if (buffer[0] !== 0x50 || buffer[1] !== 0x4B) return false;
-  
-  // For deeper validation, we could use a ZIP library to check for:
-  // - [Content_Types].xml
-  // - word/document.xml (for docx)
-  // - xl/workbook.xml (for xlsx)
-  // This is a reasonable trade-off between security and performance
-  
-  return true;
-}
-
-/**
  * Validate file type by checking magic bytes against declared extension/MIME type
  * 
  * @param buffer - File content buffer
@@ -315,10 +295,25 @@ export function validateFileType(
     }
   }
   
-  // Handle ZIP-based formats (docx, xlsx, zip)
+  // Handle ZIP-based formats (docx, xlsx, zip). Office files must contain their
+  // document part; a renamed zip archive is not accepted as docx or xlsx.
   const zipBasedExtensions = ['.docx', '.xlsx', '.zip'];
   if (detectedType.extension === '.zip' || zipBasedExtensions.includes(detectedType.extension)) {
     if (zipBasedExtensions.includes(ext)) {
+      const officePart = ext === '.docx'
+        ? 'word/document.xml'
+        : ext === '.xlsx'
+          ? 'xl/workbook.xml'
+          : null;
+      if (officePart && !buffer.includes(Buffer.from(officePart))) {
+        return {
+          valid: false,
+          detectedType: detectedType.extension,
+          declaredExtension: ext,
+          declaredMimeType: mime,
+          reason: `File does not contain ${officePart}`,
+        };
+      }
       return {
         valid: true,
         detectedType: detectedType.extension,

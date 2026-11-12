@@ -1,7 +1,10 @@
 import { NextResponse } from 'next/server';
+import { requireAuth } from '@/lib/server/apiAuth';
 import { recordHeartbeat } from '../monitorStore';
 
 export async function POST(req: Request) {
+  const { error } = await requireAuth(req);
+  if (error) return error;
   try {
     const body = await req.json();
     const route = typeof body.route === 'string' ? body.route : null;

@@ -17,6 +17,7 @@ import type { ScrapeOptions } from '@/lib/server/tenderScraper';
 import { TENDER_CATEGORIES } from '@/lib/server/tenderCategories';
 import { importAndMatchScrapedTenders, importScrapedTenders } from '@/lib/server/scheduledJobs';
 import { listScheduledJobRuns } from '@/lib/server/firestoreService';
+import { assertPublicHttpUrl, UnsafeUrlError } from '@/lib/server/safeUrl';
 
 function getManualScrapeOptions(body: Record<string, unknown>): ScrapeOptions {
   const deep = body.deep === true;
@@ -141,9 +142,11 @@ export async function POST(req: Request) {
         }
         // Validate URL format
         try {
-          new URL(url);
-        } catch {
-          return NextResponse.json({ detail: 'Invalid URL format' }, { status: 400 });
+          await assertPublicHttpUrl(url);
+        } catch (error) {
+          return NextResponse.json({
+            detail: error instanceof UnsafeUrlError ? error.message : 'Invalid URL format',
+          }, { status: 400 });
         }
         const tenders = await scrapeGenericUrl(url);
         const recommendationResult = await importScrapedTenders();
@@ -163,7 +166,7 @@ export async function POST(req: Request) {
         if (!sourceUrl || !name) {
           return NextResponse.json({ detail: 'url and name are required' }, { status: 400 });
         }
-        addCustomSource(sourceUrl, name);
+        await addCustomSource(sourceUrl, name);
         return NextResponse.json({
           message: `Added source: ${name}`,
           customSources: getCustomSources(),

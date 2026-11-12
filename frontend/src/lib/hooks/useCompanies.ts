@@ -27,8 +27,7 @@ export function useSwitchCompany() {
         mutationFn: (id: string) => companies.switchActive(id),
         onSuccess: (result) => {
             setActiveCompany(result.activeCompanyId);
-            queryClient.invalidateQueries({ queryKey: ['companies'] });
-            queryClient.invalidateQueries({ queryKey: ['company'] });
+            queryClient.invalidateQueries();
         },
     });
 }

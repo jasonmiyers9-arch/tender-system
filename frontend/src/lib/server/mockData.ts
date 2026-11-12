@@ -94,7 +94,7 @@ export const DEFAULT_USERS: InternalUser[] = [
   {
     id: 'demo-user',
     email: 'demo@tenderguard.local',
-    password: 'password',
+    password: '',
     fullName: 'Tender Demo User',
     role: 'user',
     verificationStatus: 'approved',
@@ -108,7 +108,7 @@ export const DEFAULT_USERS: InternalUser[] = [
   {
     id: 'demo-admin',
     email: 'mouse@tenderguard.dev',
-    password: 'Demo@1234',
+    password: '',
     fullName: 'Mouse',
     role: 'admin',
     verificationStatus: 'approved',
@@ -119,7 +119,7 @@ export const DEFAULT_USERS: InternalUser[] = [
   {
     id: 'demo-evaluator',
     email: 'vusu@tenderguard.dev',
-    password: 'Demo@1234',
+    password: '',
     fullName: 'Vusu',
     role: 'evaluator',
     verificationStatus: 'approved',

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { listTenders, getUserByToken, getCompanyById } from '@/lib/server/firestoreService';
 import { enrichTenderWithCompanyScore } from '@/lib/server/tenderScoring';
+import { isPublishedTender, viewerCanSeeUnpublished } from '@/lib/server/tenderAccess';
 
 function parseToken(req: Request): string | null {
   const header = req.headers.get('authorization');
@@ -10,11 +11,11 @@ function parseToken(req: Request): string | null {
 }
 
 export async function GET(req: Request) {
-  const tenders = await listTenders();
-
   // Use the company-aware match score so the exported calendar agrees with the app.
   const token = parseToken(req);
   const user = token ? await getUserByToken(token) : null;
+  const tenders = (await listTenders()).filter((tender) =>
+    isPublishedTender(tender.status) || viewerCanSeeUnpublished(user?.role, tender.createdBy, user?.id));
   const companyId = user?.activeCompanyId ?? undefined;
   const companyCategories = companyId ? (await getCompanyById(companyId))?.tenderCategories ?? [] : [];
   const scored = companyId

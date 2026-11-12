@@ -130,11 +130,25 @@ export async function getDownloadUrl(storagePath: string): Promise<string> {
   return url;
 }
 
+const ROLE_CLAIMS = new Set(['user', 'evaluator', 'admin', 'super_admin']);
+
 export async function verifyIdToken(idToken: string) {
   if (!isFirebaseAdminConfigured()) {
     throw new Error('Firebase Admin is not configured for token verification.');
   }
   return getAuth().verifyIdToken(idToken);
+}
+
+/**
+ * Role claims are written only by the Admin SDK. Clients cannot set them.
+ * Signup calls this with the server-resolved role, which can never be admin.
+ */
+export async function setUserRoleClaim(uid: string, role: string): Promise<void> {
+  if (!isFirebaseAdminConfigured()) return;
+  if (!ROLE_CLAIMS.has(role)) {
+    throw new Error('Refusing to set an unknown role claim');
+  }
+  await getAuth().setCustomUserClaims(uid, { role });
 }
 
 export async function createEmailPasswordUser(payload: {

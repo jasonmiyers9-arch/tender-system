@@ -108,16 +108,11 @@ npm run dev
 
 Open **http://localhost:3000**
 
-### 4. Demo accounts
+### 4. Sign in
 
-The login page has one-click demo login buttons:
+There is no demo login. Register a contractor (`user`) or evaluator. Local development approves the account immediately. Production keeps it pending until an admin approves it. Admin and super-admin accounts are provisioned from the admin portal.
 
-| Name | Email | Password | Role |
-|------|-------|----------|------|
-| Mouse | mouse@tenderguard.co.za | Mouse@123 | Admin |
-| Vusu | vusu@tenderguard.co.za | Vusu@123 | Evaluator |
-
-Or register a new company account via the sign-up page.
+An admin can switch the active company from the top bar. That is the multi-entity path: one admin login, many company profiles.
 
 ---
 
@@ -181,12 +176,14 @@ Run from the `frontend/` directory:
 
 The root `netlify.toml` is pre-configured:
 
-- **Base**: `frontend/`
-- **Build**: `npm install && npm run build`
+- **Base**: `frontend`
+- **Build**: `npm ci && npm run build` (`next build --webpack`)
+- **Publish**: `.next` (relative to `frontend`)
+- **Functions**: `netlify/functions` (relative to `frontend`)
 - **Plugin**: `@netlify/plugin-nextjs`
 - **Security headers**: CSP, HSTS, X-Frame-Options, X-Content-Type-Options, Referrer-Policy
 
-Set the same environment variables from `.env.local` in the Netlify dashboard.
+Deploy from the repo root with `netlify deploy --build --prod`. The environment checklist is in the root README. Do not commit `.env` files or anything under `frontend/storage/` or `backend/storage/`.
 
 ---
 
