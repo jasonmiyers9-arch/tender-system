@@ -195,7 +195,9 @@ function EventRow({ event }: { event: EventItem }) {
 // ─── Page ────────────────────────────────────────────────────────────────────
 export default function AdminMonitorPage() {
     const role = useAppStore((s) => s.currentUser?.role);
+    const token = useAppStore((s) => s.token);
     const currentUser = useAppStore((s) => s.currentUser);
+    const isOperator = role === 'admin' || role === 'super_admin';
     const [status, setStatus] = useState<StatusResponse | null>(null);
     const [events, setEvents] = useState<EventItem[]>([]);
     const [error, setError] = useState<string | null>(null);
@@ -214,12 +216,13 @@ export default function AdminMonitorPage() {
     const [aiMessageError, setAiMessageError] = useState(false);
 
     useEffect(() => {
-        if (role !== 'admin') return;
+        if (!isOperator || !token) return;
         const load = async () => {
             try {
+                const headers = { Authorization: `Bearer ${token}` };
                 const [sRes, eRes] = await Promise.all([
-                    fetch(`/api/ops/frontend/status`, { cache: 'no-store' }),
-                    fetch(`/api/ops/frontend/events?limit=50`, { cache: 'no-store' }),
+                    fetch(`/api/ops/frontend/status`, { cache: 'no-store', headers }),
+                    fetch(`/api/ops/frontend/events?limit=50`, { cache: 'no-store', headers }),
                 ]);
                 if (!sRes.ok) throw new Error(`Status failed (${sRes.status})`);
                 if (!eRes.ok) throw new Error(`Events failed (${eRes.status})`);
@@ -240,7 +243,7 @@ export default function AdminMonitorPage() {
         load();
         const timer = setInterval(load, 10000);
         return () => clearInterval(timer);
-    }, [role]);
+    }, [isOperator, token]);
 
     // Re-render every second so "Updated Xs ago" stays current.
     useEffect(() => {
@@ -271,7 +274,7 @@ export default function AdminMonitorPage() {
         );
     }
 
-    if (role !== 'admin') {
+    if (!isOperator) {
         return <ErrorState title="Access denied" message="Admin role required for the health board." />;
     }
 

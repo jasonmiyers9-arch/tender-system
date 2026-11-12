@@ -128,6 +128,11 @@ export default function RegisterPage() {
 
             window.setTimeout(() => {
                 setProgress(100);
+                if (res.status === 'pending' || !res.token) {
+                    setFlowMessage('Account created. An administrator must approve it before you can sign in.');
+                    router.push('/login');
+                    return;
+                }
                 if (res.token && res.user.role === 'user') {
                     settoken(res.token);
                     setCurrentUser(res.user);

@@ -48,6 +48,8 @@ const providerNavGroups: NavGroup[] = [
         items: [
             { label: 'Overview', href: '/evaluator/dashboard', icon: <LayoutDashboard size={18} /> },
             { label: 'Company Search', href: '/verify', icon: <ShieldCheck size={18} /> },
+            { label: 'My Tenders', href: '/provider/tenders', icon: <FileSearch size={18} /> },
+            { label: 'Applications', href: '/provider/applications', icon: <ClipboardList size={18} /> },
             { label: 'Verification Activity', href: '/evaluator/activity', icon: <History size={18} /> },
             { label: 'Notifications', href: '/notifications', icon: <Bell size={18} /> },
         ],

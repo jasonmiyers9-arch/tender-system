@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getUserByToken, listCompaniesForUser, ensureUserCompanyContext } from './firestoreService';
 import { logAccessDenied } from './securityAudit';
 import { isFirestoreAvailable } from './firebaseAdmin';
+import { accountAccessDetail } from './accountPolicy';
 
 export function parseBearerToken(req: Request): string | null {
   const header = req.headers.get('authorization');
@@ -29,9 +30,10 @@ export async function requireAuth(req: Request) {
     return { user: null, error: NextResponse.json({ detail: 'Unauthorized' }, { status: 401 }) };
   }
 
-  if (user.isActive === false || user.deletionRequestedAt) {
-    await logAccessDenied(req, user.id, 'Account is inactive or pending deletion');
-    return { user: null, error: NextResponse.json({ detail: 'Account inactive' }, { status: 403 }) };
+  const accessDetail = accountAccessDetail(user);
+  if (accessDetail) {
+    await logAccessDenied(req, user.id, accessDetail);
+    return { user: null, error: NextResponse.json({ detail: accessDetail }, { status: 403 }) };
   }
 
   return { user, error: null };

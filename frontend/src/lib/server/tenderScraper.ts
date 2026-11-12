@@ -7,6 +7,7 @@ import * as cheerio from 'cheerio';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { normalizeTenderCategory } from './tenderCategories';
+import { assertPublicHttpUrl, safeFetch, UnsafeUrlError } from './safeUrl';
 import { extractPDFContent } from './pdfExtractor';
 import { enrichScrapedTender } from './tenderEnrichment';
 import {
@@ -325,20 +326,14 @@ export function resolveScraperUrl(href: string | null | undefined, baseUrl: stri
 async function fetchPage(url: string, retries = 2): Promise<string> {
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 30000);
-
-      const res = await fetch(url, {
-        signal: controller.signal,
+      const res = await safeFetch(url, {
         headers: {
-          'User-Agent': 'TenderGuard-Bot/1.0 (+https://tenderguard.co.za)',
           'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
           'Accept-Language': 'en-ZA,en;q=0.9',
           'Cache-Control': 'no-cache',
         },
-      });
+      }, 30000);
 
-      clearTimeout(timeout);
       if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
       return await res.text();
     } catch (err) {
@@ -353,18 +348,12 @@ async function fetchPage(url: string, retries = 2): Promise<string> {
 
 async function fetchPdfBuffer(url: string): Promise<Buffer | null> {
   try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 60000);
-
-    const res = await fetch(url, {
-      signal: controller.signal,
+    const res = await safeFetch(url, {
       headers: {
-        'User-Agent': 'TenderGuard-Bot/1.0 (+https://tenderguard.co.za)',
         'Accept': 'application/pdf,*/*',
       },
-    });
+    }, 60000);
 
-    clearTimeout(timeout);
     if (!res.ok) return null;
 
     const contentType = res.headers.get('content-type') || '';
@@ -502,21 +491,13 @@ interface OcdsRelease {
 }
 
 async function fetchJson<T>(url: string): Promise<T> {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 45_000);
-  try {
-    const response = await fetch(url, {
-      signal: controller.signal,
-      headers: {
-        'User-Agent': 'TenderGuard-Pro/1.0 (+https://tenderguard.co.za)',
-        Accept: 'application/json',
-      },
-    });
-    if (!response.ok) throw new Error(`HTTP ${response.status}: ${await response.text()}`);
-    return await response.json() as T;
-  } finally {
-    clearTimeout(timeout);
-  }
+  const response = await safeFetch(url, {
+    headers: {
+      Accept: 'application/json',
+    },
+  }, 45_000);
+  if (!response.ok) throw new Error(`HTTP ${response.status}: ${await response.text()}`);
+  return await response.json() as T;
 }
 
 function safeOcdsDate(value?: string): string {
@@ -1078,8 +1059,12 @@ export function getCustomSources() {
   return [...customSources];
 }
 
-export function addCustomSource(url: string, name: string) {
-  try { new URL(url); } catch { throw new Error('Invalid URL format'); }
+export async function addCustomSource(url: string, name: string) {
+  try {
+    await assertPublicHttpUrl(url);
+  } catch (error) {
+    throw new Error(error instanceof UnsafeUrlError ? error.message : 'Invalid URL format');
+  }
   if (customSources.find(s => s.url === url)) throw new Error('Source already exists');
   customSources.push({ url, name, enabled: true });
 }

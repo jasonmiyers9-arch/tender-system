@@ -2,8 +2,12 @@ import { NextResponse } from 'next/server';
 import { getUserByEmail } from '@/lib/server/firestoreService';
 import { generatePasswordResetLink } from '@/lib/server/firebaseAdmin';
 import { passwordResetEmailBody, sendAuthEmail } from '@/lib/server/authEmail';
+import { rateLimit, RateLimits } from '@/lib/server/rateLimiter';
 
 export async function POST(req: Request) {
+  const rateLimitError = await rateLimit(req, RateLimits.strict);
+  if (rateLimitError) return rateLimitError;
+
   const body = await req.json();
   const email = String(body.email ?? '').trim().toLowerCase();
   if (!email) {
@@ -25,7 +29,6 @@ export async function POST(req: Request) {
     return NextResponse.json({
       success: true,
       message: 'If that email exists, we sent password reset instructions.',
-      sent: delivery.sent,
       ...(process.env.NODE_ENV !== 'production' ? { resetLink, deliveryReason: delivery.reason ?? null } : {}),
     });
   } catch (error) {

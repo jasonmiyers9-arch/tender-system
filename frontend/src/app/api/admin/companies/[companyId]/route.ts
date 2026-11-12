@@ -76,7 +76,7 @@ export async function PATCH(
   }
 
   try {
-    const company = await updateCompanyProfile(companyId, payload);
+    const company = await updateCompanyProfile(companyId, payload, { allowStatus: true });
     return NextResponse.json(company);
   } catch (err) {
     return NextResponse.json(

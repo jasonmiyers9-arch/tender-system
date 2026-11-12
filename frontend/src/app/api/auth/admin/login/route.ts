@@ -4,6 +4,7 @@ import { isFirebaseAdminConfigured, verifyIdToken } from '@/lib/server/firebaseA
 import { rateLimit, RateLimits } from '@/lib/server/rateLimiter';
 import { logAuthFailure, logAuthSuccess } from '@/lib/server/securityAudit';
 import { isAdminRole } from '@/lib/server/apiAuth';
+import { accountAccessDetail, signLocalDevSession, verifyStoredPassword } from '@/lib/server/accountPolicy';
 
 export async function POST(req: Request) {
   const rateLimitError = await rateLimit(req, RateLimits.auth);
@@ -21,8 +22,11 @@ export async function POST(req: Request) {
 
   try {
     if (!isFirebaseAdminConfigured()) {
+      if (process.env.NODE_ENV === 'production') {
+        return NextResponse.json({ detail: 'Firebase authentication is required' }, { status: 503 });
+      }
       const user = await getUserByEmail(email);
-      if (!user || user.password !== password) {
+      if (!user || !verifyStoredPassword(password, user.password)) {
         await logAuthFailure(req, email || null, 'Invalid local admin credentials');
         return NextResponse.json({ detail: 'Invalid credentials' }, { status: 401 });
       }
@@ -31,11 +35,12 @@ export async function POST(req: Request) {
         return NextResponse.json({ detail: 'admin_access_required' }, { status: 403 });
       }
 
-      if (user.isActive === false || user.deletionRequestedAt) {
-        return NextResponse.json({ detail: 'account_inactive' }, { status: 403 });
+      const accessDetail = accountAccessDetail(user);
+      if (accessDetail) {
+        return NextResponse.json({ detail: accessDetail }, { status: 403 });
       }
       await logAuthSuccess(req, user.id, user.email, 'password');
-      return NextResponse.json({ token: user.id, user: mapUserToAuthUser(user) });
+      return NextResponse.json({ token: signLocalDevSession(user.id), user: mapUserToAuthUser(user) });
     }
 
     const decoded = await verifyIdToken(idToken);
@@ -50,8 +55,9 @@ export async function POST(req: Request) {
       return NextResponse.json({ detail: 'admin_access_required' }, { status: 403 });
     }
 
-    if (user.isActive === false || user.deletionRequestedAt) {
-      return NextResponse.json({ detail: 'account_inactive' }, { status: 403 });
+    const accessDetail = accountAccessDetail(user);
+    if (accessDetail) {
+      return NextResponse.json({ detail: accessDetail }, { status: 403 });
     }
     await logAuthSuccess(req, user.id, user.email, 'password');
     return NextResponse.json({ token: idToken, user: mapUserToAuthUser(user) });

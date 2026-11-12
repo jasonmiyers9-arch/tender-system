@@ -3,7 +3,7 @@ import { getTenderReadiness, getUserByToken, listDocumentsForCompany, getCompany
 import { requireAuth, parseBearerToken } from '@/lib/server/apiAuth';
 import { getScrapedTenders, type ScrapedTender } from '@/lib/server/tenderScraper';
 import { calculateTenderMatchScore, generateComplianceProfile, type TenderRequirements } from '@/lib/server/complianceScoring';
-import { categoryMatches, scrapedTenderId, applyReadinessBonus } from '@/lib/server/tenderScoring';
+import { categoryBonusApplies, scrapedTenderId, applyReadinessBonus } from '@/lib/server/tenderScoring';
 
 function inferRequiredCategoriesFromScrapedTender(tender: ScrapedTender): TenderRequirements {
   const text = [
@@ -66,13 +66,13 @@ export async function GET(
         inferRequiredCategoriesFromScrapedTender(scraped),
       );
       const company = await getCompanyById(companyId);
-      const categoryHit = categoryMatches(scraped.category, company?.tenderCategories ?? [], scraped.fullText || scraped.description || scraped.title);
+      const categoryHit = categoryBonusApplies(scraped.category, company?.tenderCategories ?? [], scraped.fullText || scraped.description || scraped.title);
       const readinessScore = applyReadinessBonus(score.matchScore, score.missingDocuments.length > 0, categoryHit);
       return NextResponse.json({
         tenderId,
-        readyToSubmit: score.missingDocuments.length === 0 && readinessScore >= 100,
+        readyToSubmit: score.missingDocuments.length === 0,
         readinessScore,
-        isBidReady: score.missingDocuments.length === 0 && readinessScore >= 100,
+        isBidReady: score.missingDocuments.length === 0,
         blockers: score.gaps.map((gap) => gap.recommendation),
         missingCategories: score.missingDocuments,
         gaps: score.gaps.map((gap) => gap.recommendation),
@@ -83,7 +83,7 @@ export async function GET(
       }, {
         status: 200,
         headers: {
-          'Cache-Control': 'private, max-age=30, stale-while-revalidate=60',
+          'Cache-Control': 'private, no-store',
         },
       });
     }
@@ -92,7 +92,7 @@ export async function GET(
   return NextResponse.json(readiness, {
     status: 200,
     headers: {
-      'Cache-Control': 'public, max-age=30, stale-while-revalidate=60',
+        'Cache-Control': 'private, no-store',
     },
   });
 }

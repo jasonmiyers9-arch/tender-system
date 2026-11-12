@@ -3,6 +3,7 @@ import { requireAuth } from '@/lib/server/apiAuth';
 import { resolveTender } from '@/lib/server/tenderResolver';
 import { generateTenderDocumentPdf, tenderDocumentFilename } from '@/lib/server/tenderDocumentPdf';
 import { resolveStoredTenderDocuments, type SourceDocument } from '@/lib/server/tenderSourceDocuments';
+import { safeFetch } from '@/lib/server/safeUrl';
 
 // Picks the best original PDF from a tender's official documents, if any.
 function pickSourcePdf(documents: SourceDocument[]): SourceDocument | null {
@@ -15,14 +16,9 @@ function pickSourcePdf(documents: SourceDocument[]): SourceDocument | null {
 // Tries to stream the real source PDF so the company gets the official document.
 async function fetchSourcePdf(url: string): Promise<{ body: ArrayBuffer; contentType: string } | null> {
   try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 12000);
-    const res = await fetch(url, {
-      signal: controller.signal,
-      redirect: 'follow',
-      headers: { 'User-Agent': 'TenderGuardPro/1.0 (+https://tender-gaurd-pro.netlify.app)' },
-    });
-    clearTimeout(timeout);
+    const res = await safeFetch(url, {
+      headers: { Accept: 'application/pdf,*/*' },
+    }, 12000);
     if (!res.ok) return null;
     const contentType = res.headers.get('content-type') ?? '';
     const isPdf = contentType.includes('pdf') || contentType.includes('octet-stream') || /\.pdf($|\?)/i.test(url);
@@ -39,14 +35,7 @@ async function fetchSourcePdf(url: string): Promise<{ body: ArrayBuffer; content
 // when the company downloads a specific document from a tender's attachment list.
 async function fetchSourceFile(url: string): Promise<{ body: ArrayBuffer; contentType: string } | null> {
   try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 15000);
-    const res = await fetch(url, {
-      signal: controller.signal,
-      redirect: 'follow',
-      headers: { 'User-Agent': 'TenderGuardPro/1.0 (+https://tender-gaurd-pro.netlify.app)' },
-    });
-    clearTimeout(timeout);
+    const res = await safeFetch(url, {}, 15000);
     if (!res.ok) return null;
     const body = await res.arrayBuffer();
     if (body.byteLength === 0) return null;

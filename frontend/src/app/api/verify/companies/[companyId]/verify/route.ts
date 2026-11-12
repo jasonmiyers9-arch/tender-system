@@ -18,7 +18,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ company
   if (!company) return NextResponse.json({ detail: 'Company not found' }, { status: 404 });
 
   const verifiedAt = new Date().toISOString();
-  const updated = await updateCompanyProfile(companyId, { status: 'verified' });
+  const updated = await updateCompanyProfile(companyId, { status: 'verified' }, { allowStatus: true });
 
   // Notify the company's own members that their entity has been verified.
   const members = await listCompanyMembers(companyId);

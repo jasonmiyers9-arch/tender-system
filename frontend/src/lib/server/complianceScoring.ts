@@ -156,10 +156,10 @@ const TENDER_READINESS_WEIGHTS = {
 
 // Legacy weights kept for backward compatibility during transition
 const TENDER_SCORE_WEIGHTS = {
-  documentCompleteness: 0.30,
+  documentCompleteness: 0.25,
   documentValidity: 0.25,
   requirementMatch: 0.30,
-  verificationStatus: 0.15,
+  verificationStatus: 0.20,
 };
 
 const EXPIRY_WARNING_DAYS = 30;
@@ -696,13 +696,14 @@ export function calculateTenderMatchScore(
   }
 
   const denominator = Math.max(evidence.length, 1);
+  const presentCount = evidence.filter((item) => item.documentId).length;
   const matchedCount = evidence.filter((item) => item.documentId && item.matched).length;
-  const validCount = evidence.filter((item) => item.documentId && item.matched && item.valid).length;
+  const validCount = evidence.filter((item) => item.documentId && item.valid).length;
   const verifiedCount = evidence.filter((item) => item.documentId && item.matched && item.valid && item.verified).length;
 
-  const completenessScore = Math.round((matchedCount / denominator) * 100);
+  const completenessScore = Math.round((presentCount / denominator) * 100);
   const validityScore = Math.round((validCount / denominator) * 100);
-  const requirementScore = Math.round((validCount / denominator) * 100);
+  const requirementScore = Math.round((matchedCount / denominator) * 100);
   const verificationScore = Math.round((verifiedCount / denominator) * 100);
 
   let bonusPoints = 0;
@@ -952,8 +953,8 @@ export function calculateTenderReadinessScore(
   // 4. Compliance Consistency (15pts)
   const complianceConsistencyScore = calculateComplianceConsistency(expiredInPast12Months, isNewAccount);
   
-  // 5. Tender Fit Bonus (10pts) - optional, based on tender requirements match
-  let tenderFitBonusScore = TENDER_READINESS_WEIGHTS.tenderFitBonus;
+  // Tender fit is awarded only when this tender has requirements to match.
+  let tenderFitBonusScore = 0;
   if (tenderRequirements) {
     const requiredCategories = tenderRequirements.requiredCategories.map(complianceGroup);
     if (requiredCategories.length > 0) {

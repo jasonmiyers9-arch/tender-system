@@ -121,17 +121,18 @@ npm run dev
 
 Open **http://localhost:3000**
 
-### 4. Demo accounts
+### 4. Sign in
 
-The login page has one-click demo login buttons:
+There are no demo passwords and no one-click demo login. Register a contractor or evaluator account. In local development the account is approved immediately. In production an admin must approve it before sign-in works. Admin and super-admin accounts are created from the admin portal, not from the public sign-up form.
 
-| Name | Email | Password | Role |
-|------|-------|----------|------|
-| Tender Demo User | demo@tenderguard.local | password | Company |
-| Vusu | vusu@tenderguard.dev | Demo@1234 | Evaluator |
-| Mouse | mouse@tenderguard.dev | Demo@1234 | Admin |
+Roles:
 
-Or register a new company account via the sign-up page.
+| Spec role | App role | Access |
+|-----------|----------|--------|
+| Contractor / Bidder | `user` | Own company documents, score, tenders, applications |
+| Evaluator / Procurement Officer | `evaluator` | Verify companies, own tenders, review applications on those tenders |
+| Admin / Compliance Manager | `admin` | All companies, account approval, can switch the active company |
+| Super Admin | `super_admin` | Same platform access as admin, including internal user provisioning |
 
 ---
 
@@ -193,22 +194,66 @@ Run from the `frontend/` directory:
 
 ## Deployment (Netlify)
 
-The root `netlify.toml` is pre-configured:
+The live site is Netlify. Deploy with one command from the repo root so the Next.js plugin can publish CSS and functions together:
 
-- **Base**: `frontend/`
-- **Build**: `npm install && npm run build`
+```bash
+rm -rf frontend/.netlify frontend/.next
+netlify deploy --build --prod
+```
+
+`netlify.toml` is the source of truth:
+
+- **Base**: `frontend`
+- **Build**: `npm ci && npm run build` (`next build --webpack`)
+- **Publish**: `.next` (relative to the base directory)
+- **Functions**: `frontend/netlify/functions` (relative to the base directory)
 - **Plugin**: `@netlify/plugin-nextjs`
-- **Security headers**: CSP, HSTS, X-Frame-Options, X-Content-Type-Options, Referrer-Policy
-- **Scheduled functions** (all times UTC):
-  - Tender ingestion: `03:00` daily (`05:00` SAST)
-  - Tender matching: `03:30` daily (`05:30` SAST)
-  - Document expiry checks: `04:00` daily (`06:00` SAST)
-  - Tender alerts and digests: `05:00` daily (`07:00` SAST)
-  - Compliance score snapshots: `21:59` daily (`23:59` SAST)
+- **Node**: 20
+- **Headers**: CSP, HSTS, `X-Frame-Options`, `X-Content-Type-Options`, Referrer-Policy
 
-Set the same environment variables from `.env.local` in the Netlify dashboard. Production automation requires `CRON_SECRET` and Firebase Admin credentials; without Firestore, separate serverless invocations cannot share tender or job-run state. Scheduled functions run only on published deploys and can be tested with **Run now** from Netlify's Functions page.
+Scheduled functions (UTC):
 
-AI configuration is handled the same way: set `GEMINI_API_KEY` in Netlify, optionally set `GEMINI_MODEL`, and use the Admin portal’s AI settings to override either value without redeploying.
+| Function | Schedule | Calls |
+|----------|----------|--------|
+| Tender ingestion | `03:00` daily | `POST /api/cron/scrape` |
+| Tender matching | `03:30` daily | `POST /api/cron/match-tenders` |
+| Document expiry | `04:00` daily | `POST /api/cron/expiry` |
+| Email digests | `05:00` daily | `POST /api/cron/email-digests` |
+| Score snapshots | `21:59` daily | `POST /api/cron/score-snapshot` |
+| Session cleanup | hourly | `POST /api/cron/cleanup-sessions` |
+
+Set these in the Netlify UI (Site configuration → Environment variables). Do not commit them.
+
+Required before go-live:
+
+- `FIREBASE_PROJECT_ID`
+- `FIREBASE_CLIENT_EMAIL`
+- `FIREBASE_PRIVATE_KEY` (keep the `\n` escapes)
+- `FIREBASE_STORAGE_BUCKET`
+- `NEXT_PUBLIC_FIREBASE_API_KEY`
+- `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN`
+- `NEXT_PUBLIC_FIREBASE_PROJECT_ID`
+- `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET`
+- `CRON_SECRET` (long random string; scheduled jobs send it as `x-cron-secret`)
+- `NEXT_PUBLIC_APP_URL` (the live Netlify origin)
+
+Needed for alerts and AI:
+
+- `SENDGRID_API_KEY`, `SENDGRID_FROM_EMAIL`, `SENDGRID_FROM_NAME`
+- `ANTHROPIC_API_KEY` or the admin AI settings key (Claude reads documents)
+- `GEMINI_API_KEY` and `GEMINI_MODEL` only if a remaining Gemini path is still enabled
+
+Do not set `ENABLE_FIRESTORE_DEMO_SEED` in production. Do not put uploaded files under `backend/storage/` or `frontend/storage/` in git.
+
+Deploy Firestore and Storage rules from `frontend/` (`firebase deploy --only firestore:rules,storage`) so browsers cannot read the database directly. Production API calls fail closed when Firebase Admin is missing.
+
+The first admin cannot be created from the website. Create the person in Firebase Authentication, then from `frontend/` with the service-account env vars set:
+
+```bash
+BOOTSTRAP_ADMIN_EMAIL=owner@example.com BOOTSTRAP_ADMIN_ROLE=super_admin node scripts/bootstrap-admin.mjs
+```
+
+They must sign out and sign in again so the role claim is on the ID token. After that, the admin portal can approve contractors and evaluators and provision more admins.
 
 ---
 

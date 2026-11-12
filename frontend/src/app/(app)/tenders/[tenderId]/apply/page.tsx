@@ -12,6 +12,7 @@ import { CardSkeleton } from '@/components/ui/Skeleton';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { useTender, useTenderReadiness } from '@/lib/hooks/useTenders';
 import { tenders } from '@/lib/api/tenders';
+import { applicationsApi } from '@/lib/api/applications';
 import { formatDate } from '@/lib/utils/formatters';
 
 // Score dimension configuration with max points and icons
@@ -102,9 +103,11 @@ export default function TenderApplyWorkflowPage({ params }: { params: Promise<{ 
 
         try {
             setSubmitting(true);
-            await new Promise((resolve) => setTimeout(resolve, 600));
-            window.alert('Application workflow completed. Next step: final submission pack review.');
-            router.push(`/tenders/${tenderId}`);
+            await applicationsApi.apply(tenderId);
+            window.alert('Application submitted. You can track it under My Applications.');
+            router.push('/applications');
+        } catch (error) {
+            window.alert(error instanceof Error ? error.message : 'Failed to submit application');
         } finally {
             setSubmitting(false);
         }

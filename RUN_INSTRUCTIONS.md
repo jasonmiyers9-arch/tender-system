@@ -175,15 +175,9 @@ npm run dev
 
 App runs at: **http://localhost:3000**
 
-## 5) Demo Accounts
+## 5) Sign in
 
-One-click login buttons are available on the login page:
-
-| Name | Email | Password | Role |
-|------|-------|----------|------|
-| Tender Demo User | demo@tenderguard.local | password | Company |
-| Vusu | vusu@tenderguard.dev | Demo@1234 | Evaluator |
-| Mouse | mouse@tenderguard.dev | Demo@1234 | Admin |
+There are no demo passwords and no one-click login buttons. Register from the sign-up page. In local development the new account can sign in immediately. In production an administrator must approve it first. Create admin accounts from the internal admin portal, not from public registration.
 
 ---
 
@@ -206,7 +200,7 @@ One-click login buttons are available on the login page:
 
 The root `netlify.toml` configures:
 - Build base: `frontend/`
-- Build command: `npm install && npm run build`
+- Build command: `npm ci && npm run build`
 - Plugin: `@netlify/plugin-nextjs`
 - Security headers: CSP, HSTS, X-Frame-Options, X-Content-Type-Options
 

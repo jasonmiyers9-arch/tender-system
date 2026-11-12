@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { verifyIdToken } from '@/lib/server/firebaseAdmin';
 import { getOrCreateGoogleUser, getUserByEmail, mapUserToAuthUser } from '@/lib/server/firestoreService';
 import { isAdminRole } from '@/lib/server/apiAuth';
+import { accountAccessDetail } from '@/lib/server/accountPolicy';
 
 export async function POST(req: Request) {
   const body = await req.json();
@@ -27,6 +28,11 @@ export async function POST(req: Request) {
       email: decoded.email,
       fullName: decoded.name ?? decoded.email.split('@')[0],
     });
+
+    const accessDetail = accountAccessDetail(user);
+    if (accessDetail) {
+      return NextResponse.json({ detail: accessDetail }, { status: 403 });
+    }
 
     return NextResponse.json({ token: idToken, user: mapUserToAuthUser(user) });
   } catch (error) {

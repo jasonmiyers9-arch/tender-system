@@ -94,6 +94,7 @@ export async function PATCH(req: Request) {
     if (payload.cidb_grade !== undefined && payload.cidbGrade === undefined) {
       payload.cidbGrade = payload.cidb_grade;
     }
+    delete payload.status;
 
     const company = await updateCompanyProfile(companyId, payload);
     await publishRescoreEvent({

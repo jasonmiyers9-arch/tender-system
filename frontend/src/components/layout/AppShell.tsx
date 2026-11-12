@@ -124,12 +124,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             router.push(currentUser.role === 'evaluator' ? '/verify' : '/dashboard');
             return;
         }
-        if (pathname.startsWith('/provider')) {
-            router.push(isAdminRole(currentUser.role) ? '/admin/dashboard' : currentUser.role === 'evaluator' ? '/evaluator/dashboard' : '/dashboard');
-            return;
-        }
         if (currentUser.role === 'user') {
-            if (pathname.startsWith('/admin') || pathname.startsWith('/provider')) {
+            if (
+                pathname.startsWith('/admin')
+                || pathname.startsWith('/provider')
+                || pathname.startsWith('/evaluator')
+                || pathname === '/verify'
+                || pathname.startsWith('/verify/')
+            ) {
                 router.push('/dashboard');
                 return;
             }
@@ -145,6 +147,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         if (
             currentUser.role === 'evaluator'
             && !pathname.startsWith('/evaluator')
+            && !pathname.startsWith('/provider')
             && pathname !== '/verify'
             && !pathname.startsWith('/verify/company')
             && !pathname.startsWith('/notifications')
@@ -219,7 +222,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         const sendHeartbeat = () => {
             fetch(`/api/ops/frontend/heartbeat`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${token}`,
+                },
                 body: JSON.stringify({
                     route: pathname,
                     user_agent: typeof navigator !== 'undefined' ? navigator.userAgent : undefined,

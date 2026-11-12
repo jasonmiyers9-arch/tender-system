@@ -1,4 +1,5 @@
 import type { TenderDetail, TenderAttachment } from '@/lib/api/types';
+import { safeFetch } from './safeUrl';
 
 // A single official document attached to a tender at its source, with the live
 // download URL the server-side proxy can fetch.
@@ -37,17 +38,9 @@ interface OcdsRelease {
 // fall back to a generated summary.
 async function fetchOcdsSourceDocuments(sourceUrl: string): Promise<SourceDocument[]> {
   try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 6000);
-    const res = await fetch(sourceUrl, {
-      signal: controller.signal,
-      redirect: 'follow',
-      headers: {
-        'User-Agent': 'TenderGuardPro/1.0 (+https://tender-gaurd-pro.netlify.app)',
-        Accept: 'application/json',
-      },
-    });
-    clearTimeout(timeout);
+    const res = await safeFetch(sourceUrl, {
+      headers: { Accept: 'application/json' },
+    }, 6000);
     if (!res.ok) return [];
     const release = (await res.json()) as OcdsRelease;
     return (release?.tender?.documents ?? [])
@@ -113,14 +106,9 @@ function looksLikePdf(doc: SourceDocument): boolean {
 
 async function fetchPdfBytes(url: string): Promise<ArrayBuffer | null> {
   try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 6000);
-    const res = await fetch(url, {
-      signal: controller.signal,
-      redirect: 'follow',
-      headers: { 'User-Agent': 'TenderGuardPro/1.0 (+https://tender-gaurd-pro.netlify.app)' },
-    });
-    clearTimeout(timeout);
+    const res = await safeFetch(url, {
+      headers: { Accept: 'application/pdf,*/*' },
+    }, 6000);
     if (!res.ok) return null;
     const contentType = res.headers.get('content-type') ?? '';
     const isPdf = contentType.includes('pdf') || contentType.includes('octet-stream') || /\.pdf($|\?)/i.test(url);

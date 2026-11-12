@@ -4,6 +4,7 @@ import { generateEmailVerificationLink, isFirebaseAdminConfigured, verifyIdToken
 import { rateLimit, RateLimits } from '@/lib/server/rateLimiter';
 import { logSecurityEvent, SecurityEventType, extractRequestContext } from '@/lib/server/securityAudit';
 import { emailVerificationBody, sendAuthEmail } from '@/lib/server/authEmail';
+import { signLocalDevSession } from '@/lib/server/accountPolicy';
 
 export async function POST(req: Request) {
   // Rate limit registration attempts (stricter limit)
@@ -33,7 +34,7 @@ export async function POST(req: Request) {
   }
   const privacyAcceptedAt = new Date().toISOString();
 
-  if (role === 'admin') {
+  if (role.trim().toLowerCase() === 'admin' || role.trim().toLowerCase() === 'super_admin') {
     return NextResponse.json({ detail: 'admin_registration_disabled' }, { status: 403 });
   }
 
@@ -114,16 +115,19 @@ export async function POST(req: Request) {
       details: { role, companyName, verificationEmailSent, verificationEmailReason, privacyAcceptedAt },
     });
 
+    const pending = user.verificationStatus === 'pending';
     return NextResponse.json({
-      status: 'approved',
-      message: isFirebaseAdminConfigured()
-        ? 'Account created with Firebase Auth and saved to Firestore.'
-        : 'Account created locally for development.',
+      status: pending ? 'pending' : 'approved',
+      message: pending
+        ? 'Account created. An administrator must approve it before you can sign in.'
+        : isFirebaseAdminConfigured()
+          ? 'Account created with Firebase Auth and saved to Firestore.'
+          : 'Account created locally for development.',
       verifyLink: process.env.NODE_ENV !== 'production' ? verifyLink : null,
       verificationEmailSent,
       verificationEmailReason: process.env.NODE_ENV !== 'production' ? verificationEmailReason : null,
       user,
-      token: isFirebaseAdminConfigured() ? idToken : user.id,
+      token: pending ? null : (isFirebaseAdminConfigured() ? idToken : signLocalDevSession(user.id)),
     });
   } catch (error) {
     await logSecurityEvent({

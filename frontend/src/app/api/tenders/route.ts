@@ -4,6 +4,7 @@ import { publishRescoreEvent } from '@/lib/server/analystEngine';
 import type { TenderMatch } from '@/lib/api/types';
 import { getScrapedTenders, type ScrapedTender } from '@/lib/server/tenderScraper';
 import { isAdminRole } from '@/lib/server/apiAuth';
+import { isPublishedTender, redactTender, viewerCanSeeUnpublished } from '@/lib/server/tenderAccess';
 import { generateComplianceProfile, type TenderRequirements } from '@/lib/server/complianceScoring';
 import { categoryMatches, enrichTenderWithCompanyScore, scrapedTenderId } from '@/lib/server/tenderScoring';
 import { toTenderAttachments } from '@/lib/server/tenderResolver';
@@ -136,8 +137,8 @@ export async function GET(req: Request) {
   // Get user for company context
   let companyId: string | undefined;
   let companyCategories: string[] = [];
+  const user = token ? await getUserByToken(token) : null;
   if (token) {
-    const user = await getUserByToken(token);
     if (user?.activeCompanyId) {
       companyId = user.activeCompanyId;
       const company = await getCompanyById(companyId);
@@ -149,14 +150,14 @@ export async function GET(req: Request) {
       if (!user) {
         return NextResponse.json({ detail: 'Unauthorized' }, { status: 401 });
       }
-      if (!isAdminRole(user.role)) {
+      if (!isAdminRole(user.role) && user.role !== 'evaluator') {
         return NextResponse.json({ detail: 'Forbidden' }, { status: 403 });
       }
       const items = await listTenders({ createdBy: user.id, includeSystem: false });
       return NextResponse.json(items, {
         status: 200,
         headers: {
-          'Cache-Control': 'public, max-age=60, stale-while-revalidate=120',
+          'Cache-Control': 'private, no-store',
         },
       });
     }
@@ -176,7 +177,9 @@ export async function GET(req: Request) {
     const key = `${item.sourceSite || item.organization}|${item.tenderNumber || item.title}|${item.deadline}`.toLowerCase();
     deduplicated.set(key, item);
   }
-  const allItems = applyDiscoveryFilters([...deduplicated.values()], url.searchParams);
+  const allItems = applyDiscoveryFilters([...deduplicated.values()], url.searchParams)
+    .filter((tender) => isPublishedTender(tender.status) || viewerCanSeeUnpublished(user?.role, tender.createdBy, user?.id))
+    .map((tender) => redactTender(tender, Boolean(user)));
   
   // If company context available, enrich with readiness scores
   if (companyId) {
@@ -203,7 +206,9 @@ export async function GET(req: Request) {
   return NextResponse.json(allItems, {
     status: 200,
     headers: {
-      'Cache-Control': 'public, max-age=60, stale-while-revalidate=120',
+      'Cache-Control': user
+        ? 'private, max-age=30, stale-while-revalidate=60'
+        : 'public, max-age=60, stale-while-revalidate=120',
     },
   });
 }
@@ -219,7 +224,7 @@ export async function POST(req: Request) {
     if (!user) {
       return NextResponse.json({ detail: 'Unauthorized' }, { status: 401 });
     }
-    if (!isAdminRole(user.role)) {
+    if (!isAdminRole(user.role) && user.role !== 'evaluator') {
       return NextResponse.json({ detail: 'Forbidden' }, { status: 403 });
     }
 

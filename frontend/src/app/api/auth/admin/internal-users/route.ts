@@ -61,6 +61,7 @@ export async function POST(req: Request) {
       name,
       email,
       role,
+      privileged: true,
     });
 
     return NextResponse.json({ user }, { status: 201 });

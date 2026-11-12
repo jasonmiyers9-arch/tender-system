@@ -23,8 +23,9 @@ Thumbs.db
 .vscode/
 .idea/
 
-# Local app storage
+# Local app storage and uploaded client files
 frontend/storage/
+backend/storage/
 
 # Local Netlify folder
 .netlify

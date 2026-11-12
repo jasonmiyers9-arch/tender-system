@@ -73,6 +73,30 @@ describe('evidence-based tender matching', () => {
     expect(result.isEligible).toBe(false);
     expect(result.matchScore).toBeLessThan(100);
   });
+
+  it('weights completeness, validity, requirement match, and verification at 25/25/30/20', () => {
+    const documents = [
+      doc({
+        name: 'SARS PIN.pdf',
+        category: 'sars_pin',
+        status: 'uploaded',
+        verifiedAt: null,
+        verifiedBy: null,
+        extractedText: 'SARS tax compliant pin',
+      }),
+    ];
+    const profile = generateComplianceProfile('company-1', documents);
+    const result = calculateTenderMatchScore('company-1', 'tender-1', 'Tax tender', profile, {
+      requiredCategories: ['tax'],
+      preferredCategories: [],
+    });
+
+    expect(result.breakdown.documentCompleteness).toBe(100);
+    expect(result.breakdown.documentValidity).toBe(100);
+    expect(result.breakdown.requirementMatch).toBe(100);
+    expect(result.breakdown.verificationStatus).toBe(0);
+    expect(result.matchScore).toBe(80);
+  });
 });
 
 describe('Tender Readiness Score calculation rules', () => {
